@@ -4,6 +4,7 @@ import requests
 import subprocess
 from os.path import splitext
 from bs4 import BeautifulSoup
+import pandas as pd
 
 list_1 = []
 list_2 = []
@@ -48,18 +49,46 @@ for uri, line in zip(list_1, list_2):
 
 content_details = soup.find_all('div', class_='content-detail')
 for detail in content_details:
-    paragraphs = detail.find_all('p') #或者div 与 P 可选
-    for paragraph in paragraphs:
-        images = paragraph.find_all('img')
-        for img in images:
-            list_3.append(img['data-lazyload-src'])
-            new_list = [re.sub(r'\?.*$', '', uri) for uri in list_3]
-            for i, uri in enumerate(new_list):
-                new_uri = f"\n out=C_" + str(i) + splitext(uri)[1]
-                new_list[i] += new_uri
-            list_5.append(new_list[i])
+	images = detail.find_all('img')
+	for img in images:
+		list_3.append(img['data-lazyload-src'])
+		new_list = [re.sub(r'\?.*$', '', uri) for uri in list_3]
+		for i, uri in enumerate(new_list):
+			new_uri = f"\n out=C_" + str(i) + splitext(uri)[1]
+			new_list[i] += new_uri
+		list_5.append(new_list[i])
 with open('down.txt', 'w' ,encoding='utf-8') as file:
     for item in list_5:
         file.write("%s\n" % item)
-subprocess.run(['aria2c', '-i', 'down.txt'], shell=True) 
+		
+video_tags = soup.find_all('video')
+for idx, video in enumerate(video_tags, start=1):
+	data_sf_original_src = video.get('data-sf-original-src')
+	if data_sf_original_src:
+		# 如果协议名称为空或未知的协议名称，更改为https的协议名称
+		if not data_sf_original_src.startswith("http"):
+			data_sf_original_src = "https:" + data_sf_original_src
+		# 按照格式输出并写入到down.txt文件中
+		with open('down.txt', 'a') as file:
+			file.write(f"{data_sf_original_src}\n out=video_{idx}.mp4\n")
+			
+# 4. 读取od-pc-attribute的值
+offer_attr_list = soup.find('div', class_='od-pc-attribute')
+offer_attr_items = offer_attr_list.find_all('div', class_='offer-attr-item')
 
+# 构建数据列表
+data = []
+for item in offer_attr_items:
+    name = item.find('span', class_='offer-attr-item-name').get_text()
+    value = item.find('span', class_='offer-attr-item-value').get_text()
+    data.append((name, value))
+
+# 5. 将offer-attr-list值 转换成两列的表格保存为简单的HTML格式文件a
+df = pd.DataFrame(data, columns=['Name', 'Value'])
+output_html = df.to_html(index=False)
+
+# 保存文件名为attribute.html
+with open('attribute.html', 'w') as file:
+    file.write(output_html)
+	
+subprocess.run(['aria2c', '-i', 'down.txt'], shell=True) 
