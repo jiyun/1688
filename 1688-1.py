@@ -66,6 +66,18 @@ for detail in content_details:
 
 list_5 = [url for url in list_5 if 'lazyload.png' not in url]
 
+def remove_duplicate_uris(list_5):
+    unique_uris = {}
+    for item in list_5:
+        uri, out = item.split("\n out=")
+        if uri not in unique_uris:
+            unique_uris[uri] = out
+    new_list_5 = [f"{uri}\n out={out}" for uri, out in unique_uris.items()]
+    list_5.clear()
+    list_5.extend(new_list_5)
+
+remove_duplicate_uris(list_5)
+
 ## 将获得图片链接写入下载列表
 with open('down.txt', 'w' ,encoding='utf-8') as file:
     for item in list_5:
@@ -96,3 +108,13 @@ with open('attribute.html', 'w') as file:
 
 ## 呼叫外部程序aria2c 批量下载 并生成下载日志
 subprocess.run(['aria2c', '--console-log-level=warn', '-i', 'down.txt>>down_log.txt'], shell=True) 
+
+# 遍历当前目录下所有"C_"开头的图片文件，确认文件的大小，对小于5k大小的文件进行删除
+deleted_files = []
+for file in os.listdir('.'):
+    if file.startswith('C_') and file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+        file_path = os.path.join('.', file)
+        file_size = os.path.getsize(file_path)
+        if file_size < 5120:  # 5KB
+            os.remove(file_path)
+            deleted_files.append(file_path)
