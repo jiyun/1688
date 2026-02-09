@@ -54,8 +54,9 @@
    - 使用安装了SingleFile扩展的浏览器打开1688商品详情页（如：`https://detail.1688.com/offer/{商品ID}.html`）
    - 点击浏览器上的SingleFile按钮，保存完整HTML页面
    - 在SingleFile扩展配置中重点关注 
-      - 配置-> HTML内容->保存嵌入资源的原始网址 的复选框勾选
-      - 配置->文件名->模板 填入{url-last-segment}.{filename-extension}
+      - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置-> HTML内容->保存嵌入资源的原始网址** 的复选框勾选
+      - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置->文件名->模板 填入{url-last-segment}.{filename-extension}**
+      - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置->文件名->模板 填入{url-last-segment}.{文件名扩展名}** 
    - 其他配置选项能不保存就不保存用不上
 
 2. **启动处理**：
@@ -64,16 +65,19 @@
 
 3. **查看结果**：
    - 处理完成后，在商品ID目录中会生成以下内容：
-     - `main_images/`：存放主图
-     - `detail_images/`：存放详情图
-     - `videos/`：存放视频
+     - 存放主图
+     - 存放色卡图
+     - 存放详情图
+     - 存放视频
      - `attributes/`：存放商品属性HTML文件
      - `#URL.url`：商品原始链接的快捷方式
      - `rebuild.bat`：重建脚本，可重新下载和处理资源
 
 ### 批量处理
 
-对于多个商品页面，可逐个将HTML文件拖放到`start1688.bat`上进行处理。
+- 对于多个商品页面，可逐个将HTML文件拖放到`start1688.bat`上进行处理。
+- 或者直接启用 `BP1688html.bat` 批量将当前目录全部html提交给`start1688.bat`队列处理
+- 当前版本新增 `main_gui.py` 可直接运行，在窗体中添加文件或目录添加到队列，点击执行处理资源采集。注部分功能受限比如资源重建。
 
 ### 重建资源
 
@@ -135,62 +139,6 @@
 - **utils/downloader.py**：下载管理工具，生成下载列表，调用aria2c下载
 - **utils/file_handler.py**：文件处理工具，创建目录，保存属性，生成快捷方式和批处理脚本
 - **utils/recutpic.py**：图片处理工具，实现图片拼接、切割等功能，支持自然排序
-
-## 配置说明
-
-可通过修改`config.py`文件来自定义以下配置：
-
-### 下载配置
-
-```python
-DOWNLOAD_CONF = {
-    'aria2c_args': '--console-log-level=warn',  # aria2c命令参数
-    'min_file_size': 5120,  # 最小文件大小（字节），小于此值的文件将被删除
-}
-```
-
-### 文件命名规则
-
-```python
-FILE_NAMING = {
-    'main_image_prefix': 'T_',  # 主图前缀
-    'detail_image_prefix': 'C_',  # 详情图前缀
-    'video_prefix': 'video_',  # 视频前缀
-    'color_option_prefix': 'color_',  # 颜色选项前缀
-    'new_image_prefix': 'new_C_',  # 新生成图片前缀
-}
-```
-
-### 目录结构
-
-```python
-DIR_STRUCTURE = {
-    'main_images': 'main_images',  # 主图目录
-    'detail_images': 'detail_images',  # 详情图目录
-    'videos': 'videos',  # 视频目录
-    'attributes': 'attributes',  # 属性目录
-}
-```
-
-### 选择器配置
-
-```python
-SELECTORS = {
-    'main_images': 'div.img-list-wrapper img',  # 主图选择器
-    'color_options': 'div.prop-item-wrapper div.prop-name',  # 颜色选项选择器
-    'detail_images': 'div.content-detail img',  # 详情图选择器
-    'videos': 'video',  # 视频选择器
-    'attributes': 'div.od-pc-attribute div.offer-attr-item',  # 属性选择器
-}
-```
-
-### 图片处理配置
-
-```python
-IMAGE_PROCESSING = {
-    'min_width': 750,  # 最小图片宽度，低于此值的图片将被移除
-}
-```
 
 ## 常见问题
 
