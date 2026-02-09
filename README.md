@@ -56,7 +56,6 @@
    - 在SingleFile扩展配置中重点关注 
       - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置-> HTML内容->保存嵌入资源的原始网址** 的复选框勾选
       - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置->文件名->模板 填入{url-last-segment}.{filename-extension}**
-      - ![#c5f015](https://placehold.co/15x15/c5f015/c5f015.png) **配置->文件名->模板 填入{url-last-segment}.{文件名扩展名}** 
    - 其他配置选项能不保存就不保存用不上
 
 2. **启动处理**：
