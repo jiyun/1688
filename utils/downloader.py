@@ -7,11 +7,41 @@ class Downloader:
     def __init__(self, config):
         self.config = config
     
+    def _clean_duplicate_extension(self, url):
+        """清理URL中的重复扩展名，如.jpg_b.jpg -> .jpg"""
+        # 常见的媒体扩展名列表
+        media_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.mp4', '.avi', '.mov']
+
+        # 检查URL中是否包含重复扩展名
+        for ext in media_extensions:
+            # 查找所有可能的扩展名位置
+            ext_positions = []
+            pos = url.lower().find(ext)
+            while pos != -1:
+                ext_positions.append((pos, pos + len(ext)))
+                pos = url.lower().find(ext, pos + len(ext))
+
+            # 如果找到至少两个相同扩展名
+            if len(ext_positions) >= 2:
+                # 获取最后一个扩展名的位置
+                last_pos, last_end = ext_positions[-1]
+                # 获取倒数第二个扩展名的位置
+                second_last_pos, second_last_end = ext_positions[-2]
+
+                # 检查两个扩展名之间是否有内容（即_b这样的部分）
+                if second_last_end < last_pos:
+                    # 删除从倒数第二个扩展名结束到最后一个扩展名结束的部分
+                    url = url[:second_last_end] + url[last_end:]
+
+        return url
+
     def _clean_url(self, url):
-        """清理URL，删除扩展名后的查询参数"""
-        # 查找扩展名后的查询参数开始位置
+        """清理URL，删除扩展名后的查询参数和重复扩展名"""
+        # 首先处理重复扩展名
+        url = self._clean_duplicate_extension(url)
+
+        # 然后删除查询参数
         if '?' in url:
-            # 获取URL的基本部分（不含查询参数）
             base_url = url.split('?')[0]
             return base_url
         return url
