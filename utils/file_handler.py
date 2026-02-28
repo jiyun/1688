@@ -85,7 +85,7 @@ echo ==============================
 echo 1688 资源处理工具
 echo ==============================
 echo 1. 重建资源采集过程
-echo 2. 详情图拼接
+echo 2. 详情图拼接与主图放大
 echo 3. 清理无用文件
 echo 4. 封包该资源
 echo 5. 退出
@@ -159,8 +159,9 @@ del down_log.txt 2^>nul
 
 echo 检查拼接结果...
 if exist "拼接结果.jpg" (
-    echo 发现拼接结果.jpg，删除原采集的详情图...
+    echo 发现拼接结果.jpg，删除原采集的详情图和主图...
     del C_*.jpg 2^>nul
+    del T_*.jpg 2^>nul
     del 拼接结果.jpg 2^>nul
 ) else (
     echo 未发现拼接结果.jpg，仅删除临时文件...

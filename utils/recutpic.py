@@ -14,7 +14,122 @@ detail_image_prefix = FILE_NAMING.get('detail_image_prefix', 'C_')
 new_image_prefix = FILE_NAMING.get('new_image_prefix', 'new_C_')
 merged_image_name = FILE_NAMING.get('merged_image_name', '拼接结果.jpg')
 min_width = IMAGE_PROCESSING.get('min_width', 750)
+main_image_prefix = FILE_NAMING.get('main_image_prefix', 'T_')
 
+def enlarge_main_images():
+    """放大主图功能：两步处理主图
+    第一步：将小于800px*800px的图片放大到800px*800px，其他图片保持不变
+    第二步：处理新队列中≥800px且≤1440px的图片，放大到1600px*1600px，大于1440px的图片保持不变
+    所有输出图片添加E_前缀
+    """
+    print("\n开始处理主图放大...")
+
+    # 获取当前目录
+    current_dir = os.getcwd()
+
+    # 收集指定前缀开头的图片文件
+    image_patterns = []
+    for ext in ['jpg', 'png', 'jpeg']:
+        image_patterns.append(os.path.join(current_dir, f'{main_image_prefix}*.{ext}'))
+
+    main_files = []
+    for pattern in image_patterns:
+        main_files.extend(glob.glob(pattern))
+
+    if not main_files:
+        print(f"没有找到{main_image_prefix}开头的图片文件")
+        return
+
+    print(f"找到 {len(main_files)} 个{main_image_prefix}开头的图片文件")
+
+    # 第一步处理：将小于800px*800px的图片放大到800px*800px
+    print("\n=== 第一步处理：将小于800px*800px的图片放大到800px*800px ===")
+    step1_queue = []  # 存放处理后的图片路径，用于第二步处理
+
+    for file_path in main_files:
+        try:
+            with Image.open(file_path) as img:
+                width, height = img.size
+                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px")
+
+                # 获取文件名和扩展名
+                base_name = os.path.basename(file_path)
+                name, ext = os.path.splitext(base_name)
+
+                # 检查是否已经处理过（避免重复处理）
+                if name.startswith('E_'):
+                    print(f"图片已处理过，跳过")
+                    step1_queue.append(file_path)
+                    continue
+
+                # 如果图片小于800px*800px，放大到800px*800px
+                if width < 800 or height < 800:
+                    # 计算放大比例，保持宽高比
+                    scale = max(800 / width, 800 / height)
+                    new_width = int(width * scale)
+                    new_height = int(height * scale)
+
+                    # 放大图片
+                    img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+
+                    # 直接覆盖原文件
+                    img_resized.save(file_path, quality=95)
+                    print(f"第一步：放大图片到 {new_width}px × {new_height}px，覆盖原文件")
+
+                    # 添加到第二步处理队列
+                    step1_queue.append(file_path)
+                else:
+                    # 图片已经大于等于800px*800px，直接加入第二步处理队列
+                    step1_queue.append(file_path)
+                    print(f"图片尺寸已满足要求，直接进入第二步处理队列")
+
+        except Exception as e:
+            print(f"处理图片 {file_path} 时出错: {e}")
+
+    # 第二步处理：将800px到1440px之间的图片放大到1600px*1600px
+    print("\n=== 第二步处理：将800px到1440px之间的图片放大到1600px*1600px ===")
+
+    processed_count = 0
+    skipped_count = 0
+
+    for file_path in step1_queue:
+        try:
+            with Image.open(file_path) as img:
+                width, height = img.size
+                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px")
+
+                # 获取文件名和扩展名
+                base_name = os.path.basename(file_path)
+                name, ext = os.path.splitext(base_name)
+
+                # 构建新文件名：E_+原文件名+扩展名
+                new_name = f"E_{name}{ext}"
+                output_path = os.path.join(current_dir, new_name)
+
+                # 检查图片尺寸是否在800px到1440px之间
+                if 800 <= width <= 1440 and 800 <= height <= 1440:
+                    # 放大到1600px*1600px
+                    img_resized = img.resize((1600, 1600), Image.LANCZOS)
+                    print(f"第二步：放大图片到 1600px × 1600px")
+
+                    # 保存图片
+                    img_resized.save(output_path, quality=95)
+                    print(f"放大后的图片已保存到: {output_path}")
+
+                    processed_count += 1
+                else:
+                    # 图片尺寸大于1440px*1440px，保持不变，只添加E_前缀
+                    img.save(output_path, quality=95)
+                    print(f"图片尺寸大于1440px*1440px，保持原尺寸，添加E_前缀保存")
+                    print(f"图片已保存到: {output_path}")
+
+                    processed_count += 1
+
+        except Exception as e:
+            print(f"处理图片 {file_path} 时出错: {e}")
+            skipped_count += 1
+
+    print(f"\n主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片")
 
 
 def process_single_image(image_path):
@@ -85,6 +200,9 @@ def process_single_image(image_path):
 
 def main():
     """主函数"""
+    # 先执行主图放大功能
+    enlarge_main_images()
+
     # 检查是否有命令行参数（拖放的图片文件）
     if len(sys.argv) > 1:
         # 获取命令行参数中的图片路径
