@@ -191,9 +191,9 @@ class AlibabaScraper:
             return False
         
         # 3. 下载资源
-        if not self.download_resources():
+        download_success = self.download_resources()
+        if not download_success:
             print("下载资源失败")
-            return False
         
         # 4. 保存属性
         self.save_attributes()
@@ -207,7 +207,7 @@ class AlibabaScraper:
             self.create_recutpic_script()
         
         print("=== 处理完成 ====")
-        return True
+        return download_success
     
     def process_images(self, image_path=None):
         """处理图片"""

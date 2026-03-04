@@ -10,7 +10,6 @@ class HTMLParser:
     def get_main_images(self):
         """获取主图链接"""
         main_images = []
-        # 尝试多种选择器来找到主图
         selectors = [
             'div.img-list-wrapper',
             'ul.od-gallery-list',
@@ -21,49 +20,109 @@ class HTMLParser:
             elements = self.soup.select(selector)
             if elements:
                 for element in elements:
-                    img_elements = element.find_all('img')
-                    for img in img_elements:
-                        if 'data-sf-original-src' in img.attrs:
-                            img_url = img['data-sf-original-src']
-                            # 删除_.webp部分，直接获取jpg图像
-                            if img_url.endswith('_.webp'):
-                                img_url = img_url[:-6]  # 删除最后的_.webp
-                            main_images.append(img_url)
-                        elif 'src' in img.attrs and not img['src'].startswith('data:,'):
-                            img_url = img['src']
-                            # 删除_.webp部分，直接获取jpg图像
-                            if img_url.endswith('_.webp'):
-                                img_url = img_url[:-6]  # 删除最后的_.webp
-                            main_images.append(img_url)
+                    parent_classes = element.get('class', []) if element.name else []
+                    if any('recommend-gallery' in c for c in parent_classes):
+                        continue
+                    
+                    wrapper_elements = element.find_all('div', class_=lambda x: x and 'od-gallery-turn-item-wrapper' in x.split())
+                    for wrapper in wrapper_elements:
+                        if wrapper.find('div', class_='od-video-wrapper'):
+                            continue
+                        if wrapper.find(class_=lambda x: x and 'prepic-video' in x.split() if x else False):
+                            img = wrapper.find('img', class_='od-gallery-img')
+                            if img:
+                                continue
+                        if wrapper.find('img', class_='video-icon'):
+                            continue
+                        
+                        img = wrapper.find('img', class_='od-gallery-img')
+                        if img:
+                            if 'data-sf-original-src' in img.attrs:
+                                img_url = img['data-sf-original-src']
+                                if img_url.endswith('_.webp'):
+                                    img_url = img_url[:-6]
+                                main_images.append(img_url)
+                            elif 'src' in img.attrs and not img['src'].startswith('data:,'):
+                                img_url = img['src']
+                                if img_url.endswith('_.webp'):
+                                    img_url = img_url[:-6]
+                                main_images.append(img_url)
                 if main_images:
                     break
-        return main_images
+        
+        color_card_urls = set()
+        sku_filter_buttons = self.soup.find_all('button', class_=lambda x: x and 'sku-filter-button' in x.split())
+        for button in sku_filter_buttons:
+            img = button.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+            if img and 'data-sf-original-src' in img.attrs:
+                color_url = img['data-sf-original-src']
+                if '.jpg_sum' in color_url:
+                    color_url = color_url.replace('.jpg_sum', '')
+                color_card_urls.add(color_url)
+        
+        expand_view_items = self.soup.find_all('div', class_=lambda x: x and 'expand-view-item' in x.split())
+        for item in expand_view_items:
+            img = item.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+            if img and 'data-sf-original-src' in img.attrs:
+                color_url = img['data-sf-original-src']
+                if '.jpg_sum' in color_url:
+                    color_url = color_url.replace('.jpg_sum', '')
+                color_card_urls.add(color_url)
+        
+        filtered_main_images = []
+        for url in main_images:
+            is_color_card = False
+            for color_url in color_card_urls:
+                if color_url in url or url in color_url:
+                    is_color_card = True
+                    break
+            if not is_color_card:
+                filtered_main_images.append(url)
+        
+        return filtered_main_images
     
     def get_color_options(self):
         """获取颜色选项"""
         color_options = []
         
-        # 尝试从sku-filter-button中提取颜色选项和对应的图片
-        sku_filter_buttons = self.soup.find_all('button', class_='sku-filter-button')
+        sku_filter_buttons = self.soup.find_all('button', class_=lambda x: x and 'sku-filter-button' in x.split())
         if sku_filter_buttons:
             for button in sku_filter_buttons:
-                # 提取颜色名称
-                label_name = button.find('span', class_='label-name')
+                label_name = button.find('span', class_=lambda x: x and 'label-name' in x.split() if x else False)
                 if label_name:
                     color_name = label_name.get_text().strip()
                     
-                    # 提取颜色图片URL
-                    img = button.find('img', class_='ant-image-img')
+                    img = button.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
                     color_image = None
                     if img and 'data-sf-original-src' in img.attrs:
                         color_image = img['data-sf-original-src']
-                        # 移除.jpg_sum部分
                         if '.jpg_sum' in color_image:
                             color_image = color_image.replace('.jpg_sum', '')
                     
                     color_options.append((color_name, color_image))
         
-        # 如果没有从sku-filter-button中提取到颜色选项，尝试从prop-item-wrapper中提取
+        if not color_options:
+            expand_view_items = self.soup.find_all('div', class_=lambda x: x and 'expand-view-item' in x.split())
+            for item in expand_view_items:
+                label_name = item.find('span', class_=lambda x: x and 'label-name' in x.split() if x else False)
+                item_label = item.find('span', class_=lambda x: x and 'item-label' in x.split() if x else False)
+                
+                color_name = None
+                if label_name:
+                    color_name = label_name.get_text().strip()
+                elif item_label:
+                    color_name = item_label.get('title') or item_label.get_text().strip()
+                
+                if color_name:
+                    img = item.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+                    color_image = None
+                    if img and 'data-sf-original-src' in img.attrs:
+                        color_image = img['data-sf-original-src']
+                        if '.jpg_sum' in color_image:
+                            color_image = color_image.replace('.jpg_sum', '')
+                    
+                    color_options.append((color_name, color_image))
+        
         if not color_options:
             prop_item_wrappers = self.soup.find_all('div', class_='prop-item-wrapper')
             for prop_item_wrapper in prop_item_wrappers:

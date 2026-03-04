@@ -19,6 +19,18 @@ FILE_NAMING = {
 # 图片处理配置
 IMAGE_PROCESSING = {
     'min_width': 750,                                  # 最小图片宽度，低于此值的图片将被移除
+    'detail_min_width': 1440,                          # 详情图最小宽度标准
+    'detail_width_tolerance': 0.02,                    # 详情图宽度宽容度（2%）
+    'enlarge_2x_width': 750,                           # 直接2倍放大的宽度值
+    'enlarge_step1_width': 800,                        # 二次放大第一步目标宽度
+    'enlarge_step2_width': 1600,                       # 二次放大第二步目标宽度
+    'photo_min_width': 900,                            # 实拍照片最小宽度要求
+    'photo_aspect_ratios': [(16, 9), (4, 3), (3, 2)],  # 实拍照片允许的宽高比
+    'photo_aspect_tolerance': 0.10,                    # 宽高比容差（10%）
+    'main_image_min_size': 800,                        # 主图最小尺寸
+    'main_image_target_size': 1600,                    # 主图目标尺寸
+    'min_split_height': 200,                           # 最小切割高度
+    'jpeg_quality': 95,                                # JPEG保存质量
 }
 
 # 选择器配置
