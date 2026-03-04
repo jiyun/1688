@@ -7,9 +7,59 @@ class HTMLParser:
     def __init__(self, html_content):
         self.soup = BeautifulSoup(html_content, 'html.parser')
     
+    def _extract_image_id(self, url):
+        """从URL中提取图片唯一标识ID"""
+        match = re.search(r'O1CN01\w+', url)
+        return match.group() if match else None
+    
+    def _normalize_url(self, url):
+        """标准化URL，移除后缀参数"""
+        if url.endswith('_.webp'):
+            url = url[:-6]
+        if '.jpg_sum' in url:
+            url = url.replace('.jpg_sum', '')
+        return url
+    
+    def _get_color_card_urls(self):
+        """获取色卡区所有图片URL（优先完整获取）"""
+        color_card_urls = []
+        color_card_ids = set()
+        
+        sku_filter_buttons = self.soup.find_all('button', class_=lambda x: x and 'sku-filter-button' in x.split())
+        for button in sku_filter_buttons:
+            img = button.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+            if img and 'data-sf-original-src' in img.attrs:
+                color_url = self._normalize_url(img['data-sf-original-src'])
+                img_id = self._extract_image_id(color_url)
+                if img_id and img_id not in color_card_ids:
+                    color_card_ids.add(img_id)
+                    color_card_urls.append(color_url)
+        
+        expand_view_items = self.soup.find_all('div', class_=lambda x: x and 'expand-view-item' in x.split())
+        for item in expand_view_items:
+            img = item.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+            if img and 'data-sf-original-src' in img.attrs:
+                color_url = self._normalize_url(img['data-sf-original-src'])
+                img_id = self._extract_image_id(color_url)
+                if img_id and img_id not in color_card_ids:
+                    color_card_ids.add(img_id)
+                    color_card_urls.append(color_url)
+        
+        return color_card_urls, color_card_ids
+    
     def get_main_images(self):
-        """获取主图链接"""
-        main_images = []
+        """获取主图链接
+        
+        逻辑：
+        1. 先分析色卡区有多少张图
+        2. 主图数量 = 主图区数量 - 色卡区数量
+        3. 如果等于5，按顺序取前5张为主图
+        4. 如果小于5，先取非色卡图片，再补充色卡图片（去重）
+        """
+        color_card_urls, color_card_ids = self._get_color_card_urls()
+        
+        main_area_all_urls = []
+        
         selectors = [
             'div.img-list-wrapper',
             'ul.od-gallery-list',
@@ -38,48 +88,50 @@ class HTMLParser:
                         img = wrapper.find('img', class_='od-gallery-img')
                         if img:
                             if 'data-sf-original-src' in img.attrs:
-                                img_url = img['data-sf-original-src']
-                                if img_url.endswith('_.webp'):
-                                    img_url = img_url[:-6]
-                                main_images.append(img_url)
+                                img_url = self._normalize_url(img['data-sf-original-src'])
                             elif 'src' in img.attrs and not img['src'].startswith('data:,'):
-                                img_url = img['src']
-                                if img_url.endswith('_.webp'):
-                                    img_url = img_url[:-6]
-                                main_images.append(img_url)
-                if main_images:
+                                img_url = self._normalize_url(img['src'])
+                            else:
+                                continue
+                            
+                            main_area_all_urls.append(img_url)
+                if main_area_all_urls:
                     break
         
-        color_card_urls = set()
-        sku_filter_buttons = self.soup.find_all('button', class_=lambda x: x and 'sku-filter-button' in x.split())
-        for button in sku_filter_buttons:
-            img = button.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
-            if img and 'data-sf-original-src' in img.attrs:
-                color_url = img['data-sf-original-src']
-                if '.jpg_sum' in color_url:
-                    color_url = color_url.replace('.jpg_sum', '')
-                color_card_urls.add(color_url)
+        if not main_area_all_urls:
+            return []
         
-        expand_view_items = self.soup.find_all('div', class_=lambda x: x and 'expand-view-item' in x.split())
-        for item in expand_view_items:
-            img = item.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
-            if img and 'data-sf-original-src' in img.attrs:
-                color_url = img['data-sf-original-src']
-                if '.jpg_sum' in color_url:
-                    color_url = color_url.replace('.jpg_sum', '')
-                color_card_urls.add(color_url)
+        main_image_count = len(main_area_all_urls) - len(color_card_urls)
         
-        filtered_main_images = []
-        for url in main_images:
-            is_color_card = False
-            for color_url in color_card_urls:
-                if color_url in url or url in color_url:
-                    is_color_card = True
-                    break
-            if not is_color_card:
-                filtered_main_images.append(url)
+        if main_image_count == 5:
+            return main_area_all_urls[:5]
         
-        return filtered_main_images
+        if main_image_count < 5:
+            main_images = []
+            added_urls = set()
+            
+            for url in main_area_all_urls:
+                img_id = self._extract_image_id(url)
+                if img_id and img_id not in color_card_ids:
+                    if url not in added_urls:
+                        main_images.append(url)
+                        added_urls.add(url)
+                    if len(main_images) >= main_image_count:
+                        break
+            
+            if len(main_images) < main_image_count:
+                for url in main_area_all_urls:
+                    img_id = self._extract_image_id(url)
+                    if img_id and img_id in color_card_ids:
+                        if url not in added_urls:
+                            main_images.append(url)
+                            added_urls.add(url)
+                        if len(main_images) >= main_image_count:
+                            break
+            
+            return main_images
+        
+        return main_area_all_urls[:5]
     
     def get_color_options(self):
         """获取颜色选项"""
