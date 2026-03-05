@@ -282,19 +282,36 @@ def check_all_dependencies():
 
 def ensure_all_dependencies():
     """确保所有依赖可用，缺失则自动下载/安装"""
-    print("=== 检查并安装依赖 ===")
+    missing_tools = []
+    missing_packages = []
     
     for tool_name in TOOLS_CONFIG:
         exists, path = check_tool_exists(tool_name)
         if not exists:
-            print(f"\n{tool_name} 不存在，正在下载...")
-            path = download_tool(tool_name)
-            if path:
-                print(f"{tool_name} 下载完成: {path}")
-            else:
-                print(f"{tool_name} 下载失败")
+            missing_tools.append(tool_name)
     
-    check_and_install_packages()
+    for import_name, package_name in REQUIRED_PACKAGES.items():
+        if not check_package_installed(import_name):
+            missing_packages.append(package_name)
+    
+    if not missing_tools and not missing_packages:
+        return
+    
+    print("=== 检查并安装依赖 ===")
+    
+    for tool_name in missing_tools:
+        print(f"\n{tool_name} 不存在，正在下载...")
+        path = download_tool(tool_name)
+        if path:
+            print(f"{tool_name} 下载完成: {path}")
+        else:
+            print(f"{tool_name} 下载失败")
+    
+    if missing_packages:
+        print("\n=== 检查Python依赖 ===")
+        for package_name in missing_packages:
+            print(f"  {package_name}: 未安装，正在安装...")
+            install_package(package_name)
     
     print("\n=== 依赖检查完成 ===")
 

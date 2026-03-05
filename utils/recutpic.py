@@ -168,22 +168,23 @@ def enlarge_main_images():
         print(f"没有找到{main_image_prefix}开头的图片文件", flush=True)
         return
 
-    print(f"找到 {len(main_files)} 个{main_image_prefix}开头的图片文件", flush=True)
-
+    total_files = len(main_files)
+    print(f"找到 {total_files} 个{main_image_prefix}开头的图片文件", flush=True)
     print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===", flush=True)
+    
+    bar_length = 40
     step1_queue = []
+    step1_processed = 0
 
-    for file_path in main_files:
+    for i, file_path in enumerate(main_files, 1):
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px", flush=True)
 
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
 
                 if name.startswith('E_'):
-                    print(f"图片已处理过，跳过", flush=True)
                     step1_queue.append(file_path)
                     continue
 
@@ -194,26 +195,31 @@ def enlarge_main_images():
 
                     img_resized = img.resize((new_width, new_height), Image.LANCZOS)
                     img_resized.save(file_path, quality=jpeg_quality)
-                    print(f"第一步：放大图片到 {new_width}px × {new_height}px，覆盖原文件", flush=True)
+                    step1_processed += 1
 
                     step1_queue.append(file_path)
                 else:
                     step1_queue.append(file_path)
-                    print(f"图片尺寸已满足要求，直接进入第二步处理队列", flush=True)
 
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}", flush=True)
+            print(f"\n处理图片 {file_path} 时出错: {e}", flush=True)
+        
+        percent = (i / total_files) * 100
+        filled = int(bar_length * i / total_files)
+        bar = '█' * filled + '-' * (bar_length - filled)
+        print(f'\r  [{bar}] {i}/{total_files} ({percent:.1f}%)', end='', flush=True)
+    
+    print(f'\n第一步完成：放大 {step1_processed} 张图片', flush=True)
 
     print(f"\n=== 第二步处理：将{main_image_min_size}px到{detail_min_width}px之间的图片放大到{main_image_target_size}px ===", flush=True)
 
     processed_count = 0
     skipped_count = 0
 
-    for file_path in step1_queue:
+    for i, file_path in enumerate(step1_queue, 1):
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px", flush=True)
 
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
@@ -223,41 +229,40 @@ def enlarge_main_images():
 
                 if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
                     img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
-                    print(f"第二步：放大图片到 {main_image_target_size}px × {main_image_target_size}px", flush=True)
-
                     img_resized.save(output_path, quality=jpeg_quality)
-                    print(f"放大后的图片已保存到: {output_path}", flush=True)
-
                     processed_count += 1
                 else:
                     img.save(output_path, quality=jpeg_quality)
-                    print(f"图片尺寸大于{detail_min_width}px，保持原尺寸，添加E_前缀保存", flush=True)
-                    print(f"图片已保存到: {output_path}", flush=True)
-
                     processed_count += 1
 
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}", flush=True)
             skipped_count += 1
-
-    print(f"\n主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片", flush=True)
+        
+        percent = (i / total_files) * 100
+        filled = int(bar_length * i / total_files)
+        bar = '█' * filled + '-' * (bar_length - filled)
+        print(f'\r  [{bar}] {i}/{total_files} ({percent:.1f}%)', end='', flush=True)
+    
+    print(f'\n第二步完成：生成 {processed_count} 张图片', flush=True)
+    print(f"主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片", flush=True)
 
 
 def enlarge_detail_images():
     """详情图放大处理功能"""
-    print("\n开始处理详情图放大...")
+    print("\n开始处理详情图放大...", flush=True)
 
     current_dir = os.getcwd()
     detail_files = collect_image_files(current_dir, detail_image_prefix)
     
     if not detail_files:
-        print(f"没有找到{detail_image_prefix}开头的图片文件")
+        print(f"没有找到{detail_image_prefix}开头的图片文件", flush=True)
         return
     
-    print(f"找到 {len(detail_files)} 个{detail_image_prefix}开头的图片文件")
+    total_files = len(detail_files)
+    print(f"找到 {total_files} 个{detail_image_prefix}开头的图片文件", flush=True)
     
     tolerance_min_width = int(detail_min_width * (1 - detail_width_tolerance))
-    print(f"详情图筛选标准：宽度 >= {tolerance_min_width}px 或宽度 < {enlarge_step1_width}px（需要放大）")
+    print(f"详情图筛选标准：宽度 >= {tolerance_min_width}px 或宽度 < {enlarge_step1_width}px（需要放大）", flush=True)
     
     process_queue = []
     skip_queue = []
@@ -270,47 +275,43 @@ def enlarge_detail_images():
                 
                 if width >= tolerance_min_width or width < enlarge_step1_width:
                     process_queue.append((file_path, width, height))
-                    if width < enlarge_step1_width:
-                        print(f"纳入处理队列（需要放大）: {base_name}, 尺寸: {width}px × {height}px")
-                    else:
-                        print(f"纳入处理队列: {base_name}, 尺寸: {width}px × {height}px")
                 else:
                     skip_queue.append((file_path, width, height))
-                    print(f"排除（宽度在{enlarge_step1_width}px到{tolerance_min_width}px之间）: {base_name}")
         except Exception as e:
-            print(f"无法读取图片 {file_path}: {e}")
+            print(f"无法读取图片 {file_path}: {e}", flush=True)
     
     if skip_queue:
-        print(f"\n排除了 {len(skip_queue)} 个宽度在{enlarge_step1_width}px到{tolerance_min_width}px之间的图片")
+        print(f"排除了 {len(skip_queue)} 个宽度在{enlarge_step1_width}px到{tolerance_min_width}px之间的图片", flush=True)
     
     if not process_queue:
-        print(f"\n没有符合条件的详情图")
+        print(f"没有符合条件的详情图", flush=True)
         return
     
-    print(f"\n处理队列: {len(process_queue)} 个文件")
+    print(f"处理队列: {len(process_queue)} 个文件", flush=True)
     
+    bar_length = 40
     processed_count = 0
     skipped_count = 0
     
-    for file_path, width, height in process_queue:
+    for i, (file_path, width, height) in enumerate(process_queue, 1):
         try:
             with Image.open(file_path) as img:
-                base_name = os.path.basename(file_path)
-                
                 if width >= detail_min_width:
-                    print(f"\n跳过放大: {base_name}, 尺寸: {width}px × {height}px（已符合标准）")
                     skipped_count += 1
-                    continue
-                
-                img_resized, (new_width, new_height, desc) = enlarge_image(img)
-                img_resized.save(file_path, quality=jpeg_quality)
-                print(f"\n{desc}: {base_name}, {width}px × {height}px -> {new_width}px × {new_height}px")
-                processed_count += 1
-                    
+                else:
+                    result = enlarge_image(img)
+                    img_resized = result[0]
+                    img_resized.save(file_path, quality=jpeg_quality)
+                    processed_count += 1
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}")
+            pass
+        
+        percent = (i / len(process_queue)) * 100
+        filled = int(bar_length * i / len(process_queue))
+        bar = '█' * filled + '-' * (bar_length - filled)
+        print(f'\r  [{bar}] {i}/{len(process_queue)} ({percent:.1f}%)', end='', flush=True)
     
-    print(f"\n详情图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片")
+    print(f'\n详情图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片', flush=True)
 
 
 def enlarge_color_card_images():
@@ -440,8 +441,6 @@ def process_photo_detail_images(original_files):
     
     拼接图片路径 = os.path.join(current_dir, merged_image_name)
     拼接图片.save(拼接图片路径, quality=jpeg_quality)
-    print(f"\n拼接图片保存到: {拼接图片路径}")
-    print(f"拼接图片尺寸: {max_width}px × {总高度}px")
     
     split_merged_image(拼接图片, max_width, 总高度, current_dir, new_image_prefix)
     
@@ -571,8 +570,6 @@ def _process_small_images(small_images, current_dir):
     
     拼接图片路径 = os.path.join(current_dir, merged_image_name)
     拼接图片.save(拼接图片路径, quality=jpeg_quality)
-    print(f"\n拼接图片保存到: {拼接图片路径}")
-    print(f"拼接图片尺寸: {target_width}px × {总高度}px")
     
     split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
 
@@ -639,7 +636,6 @@ def _process_large_images(large_images, current_dir):
     
     拼接图片路径 = os.path.join(current_dir, merged_image_name)
     拼接图片.save(拼接图片路径, quality=jpeg_quality)
-    print(f"\n拼接图片保存到: {拼接图片路径}")
     
     split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
 

@@ -201,6 +201,12 @@ class AlibabaScraperGUI:
         # 绑定双击事件
         self.queue_tree.bind('<Double-1>', self.on_treeview_double_click)
         
+        # 绑定右键菜单
+        self.queue_tree.bind('<Button-3>', self.show_context_menu)
+        
+        # 创建右键菜单
+        self.create_context_menu()
+        
         # 日志窗口
         self.log_frame = tk.LabelFrame(self.content_frame, text="日志输出")
         self.log_frame.pack(fill=tk.BOTH, expand=True, side=tk.BOTTOM)
@@ -743,10 +749,14 @@ class AlibabaScraperGUI:
                     )
                     
                     # 读取输出并显示到日志窗口
+                    has_download_error = False
                     for line in self.current_process.stdout:
                         line = line.strip()
+                        # 检测下载失败
+                        if "[失败]" in line or "下载失败的项目" in line:
+                            has_download_error = True
                         # 根据行内容判断消息类型
-                        if "错误" in line or "失败" in line:
+                        if "错误" in line or "失败" in line or "[失败]" in line:
                             self.log(line, "error")
                         elif "成功" in line or "完成" in line:
                             self.log(line, "success")
@@ -758,12 +768,12 @@ class AlibabaScraperGUI:
                     # 等待命令执行完成
                     self.current_process.wait()
                     
-                    if self.current_process.returncode == 0:
+                    if self.current_process.returncode == 0 and not has_download_error:
                         self.log(f"文件处理完成: {os.path.basename(file_path)}")
                         # 更新状态为成功
                         self.file_status[file_path] = "success"
                     else:
-                        self.log(f"文件处理失败: {os.path.basename(file_path)}")
+                        self.log(f"文件处理失败: {os.path.basename(file_path)}", "error")
                         # 更新状态为失败
                         self.file_status[file_path] = "error"
                     # 更新表格显示
@@ -849,6 +859,261 @@ class AlibabaScraperGUI:
             self.log(f"已打开资源管理器: {path}")
         except Exception as e:
             self.log(f"打开资源管理器失败: {str(e)}", "error")
+    
+    def create_context_menu(self):
+        """创建右键菜单"""
+        self.context_menu = tk.Menu(self.root, tearoff=0)
+        self.context_menu.add_command(label="图像优化", command=self.context_stitch_images)
+        self.context_menu.add_command(label="资源打包", command=self.context_pack_files)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="重新采集", command=self.context_recollect)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="打开目录", command=self.context_open_folder)
+        self.context_menu.add_command(label="删除项目", command=self.context_delete_item)
+    
+    def show_context_menu(self, event):
+        """显示右键菜单"""
+        # 获取鼠标点击位置的行
+        item = self.queue_tree.identify_row(event.y)
+        if item:
+            # 选中该行
+            self.queue_tree.selection_set(item)
+            # 获取选中项的状态
+            values = self.queue_tree.item(item, 'values')
+            if values:
+                file_path = values[4]
+                status = self.file_status.get(file_path, "none")
+                
+                # 根据状态启用/禁用菜单项
+                # 只有执行过采集（success或error）才启用前三项
+                if status in ["success", "error"]:
+                    self.context_menu.entryconfig("图像优化", state=tk.NORMAL)
+                    self.context_menu.entryconfig("资源打包", state=tk.NORMAL)
+                    self.context_menu.entryconfig("重新采集", state=tk.NORMAL)
+                else:
+                    self.context_menu.entryconfig("图像优化", state=tk.DISABLED)
+                    self.context_menu.entryconfig("资源打包", state=tk.DISABLED)
+                    self.context_menu.entryconfig("重新采集", state=tk.DISABLED)
+                
+                # 显示菜单
+                self.context_menu.post(event.x_root, event.y_root)
+    
+    def get_selected_folder(self):
+        """获取选中项目对应的文件夹路径"""
+        selected_items = self.queue_tree.selection()
+        if not selected_items:
+            return None
+        
+        item = selected_items[0]
+        values = self.queue_tree.item(item, 'values')
+        if values:
+            file_path = values[4]
+            file_name = os.path.basename(file_path)
+            folder_name = os.path.splitext(file_name)[0]
+            folder_path = os.path.join(os.path.dirname(file_path), folder_name)
+            return folder_path
+        return None
+    
+    def context_stitch_images(self):
+        """右键菜单：图像优化（拼接+清理）"""
+        folder_path = self.get_selected_folder()
+        if folder_path and os.path.exists(folder_path):
+            self.log(f"执行图像优化: {folder_path}")
+            try:
+                main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
+                
+                self.log("正在处理详情图拼接...")
+                process = subprocess.Popen(
+                    ["python", main_py_path, "--process-images"],
+                    cwd=folder_path,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='utf-8'
+                )
+                for line in process.stdout:
+                    self.log(line.strip())
+                process.wait()
+                
+                self.log("正在清理无用文件...")
+                temp_files = ['down.txt', 'down_log.txt']
+                for f in temp_files:
+                    file_path = os.path.join(folder_path, f)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                
+                merged_path = os.path.join(folder_path, '拼接结果.jpg')
+                if os.path.exists(merged_path):
+                    import glob
+                    for pattern in ['C_*.jpg', 'T_*.jpg']:
+                        for f in glob.glob(os.path.join(folder_path, pattern)):
+                            os.remove(f)
+                    os.remove(merged_path)
+                    self.log("已删除原采集文件", "success")
+                
+                self.log("图像优化完成", "success")
+            except Exception as e:
+                self.log(f"图像优化失败: {e}", "error")
+        else:
+            self.show_info("提示", "文件夹不存在")
+    
+    def context_pack_files(self):
+        """右键菜单：资源打包"""
+        selected_items = self.queue_tree.selection()
+        if not selected_items:
+            return
+        
+        item = selected_items[0]
+        values = self.queue_tree.item(item, 'values')
+        if values:
+            file_path = values[4]
+            folder_path = self.get_selected_folder()
+            
+            if folder_path and os.path.exists(folder_path):
+                self.log(f"执行资源打包: {folder_path}")
+                try:
+                    import shutil
+                    parent_dir = os.path.dirname(folder_path)
+                    folder_name = os.path.basename(folder_path)
+                    html_file = os.path.join(parent_dir, f"{folder_name}.html")
+                    
+                    zip_path = os.path.join(parent_dir, folder_name)
+                    
+                    temp_dir = os.path.join(parent_dir, f"_temp_pack_{folder_name}")
+                    os.makedirs(temp_dir, exist_ok=True)
+                    
+                    target_subdir = os.path.join(temp_dir, folder_name)
+                    shutil.copytree(folder_path, target_subdir)
+                    
+                    if os.path.exists(html_file):
+                        shutil.copy2(html_file, temp_dir)
+                    
+                    shutil.make_archive(zip_path, 'zip', temp_dir)
+                    shutil.rmtree(temp_dir)
+                    
+                    self.log(f"打包完成: {zip_path}.zip", "success")
+                    
+                    confirm = self.ask_yes_no("完成", "打包完成，是否删除原目录和文件并从队列中移除？")
+                    if confirm:
+                        if os.path.exists(folder_path):
+                            shutil.rmtree(folder_path)
+                        if os.path.exists(html_file):
+                            os.remove(html_file)
+                        self.log(f"已删除原目录和文件", "success")
+                        
+                        if file_path in self.file_queue:
+                            self.file_queue.remove(file_path)
+                        if file_path in self.file_status:
+                            del self.file_status[file_path]
+                        self.update_queue_list()
+                        self.log(f"已移除: {os.path.basename(file_path)}")
+                except Exception as e:
+                    self.log(f"资源打包失败: {e}", "error")
+            else:
+                self.show_info("提示", "文件夹不存在")
+    
+    def context_recollect(self):
+        """右键菜单：重新采集"""
+        selected_items = self.queue_tree.selection()
+        if not selected_items:
+            return
+        
+        item = selected_items[0]
+        values = self.queue_tree.item(item, 'values')
+        if values:
+            file_path = values[4]
+            folder_path = self.get_selected_folder()
+            
+            confirm = self.ask_yes_no("确认", "是否重新采集该资源？\n这将删除现有文件并重新下载。")
+            if not confirm:
+                return
+            
+            self.log(f"重新采集: {os.path.basename(file_path)}")
+            try:
+                if folder_path and os.path.exists(folder_path):
+                    self.log("正在删除现有文件...")
+                    import glob
+                    import shutil
+                    for item in os.listdir(folder_path):
+                        item_path = os.path.join(folder_path, item)
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                    
+                    self.log("正在重新采集...")
+                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
+                    file_dir = os.path.dirname(file_path)
+                    
+                    process = subprocess.Popen(
+                        ["python", main_py_path, file_path, "--no-rebuild"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        encoding='utf-8',
+                        cwd=file_dir
+                    )
+                    
+                    for line in process.stdout:
+                        line = line.strip()
+                        if "错误" in line or "失败" in line or "[失败]" in line:
+                            self.log(line, "error")
+                        elif "成功" in line or "完成" in line:
+                            self.log(line, "success")
+                        else:
+                            self.log(line, "info")
+                    
+                    process.wait()
+                    
+                    if process.returncode == 0:
+                        self.file_status[file_path] = "success"
+                        self.log("重新采集完成", "success")
+                    else:
+                        self.file_status[file_path] = "error"
+                        self.log("重新采集失败", "error")
+                    
+                    self.update_queue_list()
+                else:
+                    self.log("文件夹不存在", "error")
+            except Exception as e:
+                self.log(f"重新采集失败: {e}", "error")
+    
+    def context_open_folder(self):
+        """右键菜单：打开目录"""
+        folder_path = self.get_selected_folder()
+        if folder_path:
+            if os.path.exists(folder_path):
+                self.open_file_explorer(folder_path)
+            else:
+                # 如果文件夹不存在，打开HTML文件所在目录
+                selected_items = self.queue_tree.selection()
+                if selected_items:
+                    item = selected_items[0]
+                    values = self.queue_tree.item(item, 'values')
+                    if values:
+                        file_path = values[4]
+                        self.open_file_explorer(os.path.dirname(file_path))
+        else:
+            self.show_info("提示", "请先选择一个项目")
+    
+    def context_delete_item(self):
+        """右键菜单：删除项目"""
+        selected_items = self.queue_tree.selection()
+        if selected_items:
+            item = selected_items[0]
+            values = self.queue_tree.item(item, 'values')
+            if values:
+                file_path = values[4]
+                file_name = os.path.basename(file_path)
+                
+                confirm = self.ask_yes_no("确认", f"是否从队列中移除 {file_name}？")
+                if confirm:
+                    if file_path in self.file_queue:
+                        self.file_queue.remove(file_path)
+                    if file_path in self.file_status:
+                        del self.file_status[file_path]
+                    self.update_queue_list()
+                    self.log(f"已移除: {file_name}")
 
 if __name__ == "__main__":
     root = tk.Tk()

@@ -101,7 +101,20 @@ class AlibabaScraper:
             'attributes': attributes
         }
         
-        print(f"资源提取完成: 主图({len(main_images)}), 详情图({len(detail_images)}), 视频({len(videos)})")
+        parts = []
+        if len(main_images) > 0:
+            parts.append(f"主图({len(main_images)})")
+        if len(videos) > 0:
+            parts.append(f"视频({len(videos)})")
+        if len(color_card_images) > 0:
+            parts.append(f"色卡图({len(color_card_images)})")
+        if len(detail_images) > 0:
+            parts.append(f"详情图({len(detail_images)})")
+        
+        if parts:
+            print(f"资源提取完成: {', '.join(parts)}")
+        else:
+            print("资源提取完成: 未发现有效资源")
         return True
     
     def download_resources(self):
@@ -160,15 +173,30 @@ class AlibabaScraper:
     def run(self, create_rebuild_script=True):
         """运行完整流程"""
         print("=== 1688详情页资源采集工具 ====")
-        print(f"处理文件: {self.html_file}")
-        print(f"处理商品ID: {self.product_id}")
         
         # 确保在正确的目录中工作
         if not os.path.basename(os.getcwd()) == self.product_id:
             # 如果当前目录不是商品ID目录，创建并进入
-            if not os.path.exists(self.product_id):
-                os.makedirs(self.product_id)
-            os.chdir(self.product_id)
+            if os.path.exists(self.product_id):
+                # 检查是否是文件而非目录
+                if os.path.isfile(self.product_id):
+                    print(f"错误: '{self.product_id}' 是一个文件而非目录")
+                    print(f"请删除或重命名该文件后重试")
+                    return False
+            else:
+                try:
+                    os.makedirs(self.product_id)
+                except PermissionError as e:
+                    print(f"错误: 无法在当前目录创建文件夹 '{self.product_id}'")
+                    print(f"请检查当前目录是否有写入权限: {os.getcwd()}")
+                    print(f"详细错误: {e}")
+                    return False
+            try:
+                os.chdir(self.product_id)
+            except PermissionError as e:
+                print(f"错误: 无法进入目录 '{self.product_id}'")
+                print(f"详细错误: {e}")
+                return False
         
         # 检查HTML文件是否存在
         if not os.path.exists(self.html_file):
