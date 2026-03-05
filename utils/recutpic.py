@@ -4,6 +4,9 @@ import re
 from PIL import Image
 import glob
 
+if sys.stdout:
+    sys.stdout.reconfigure(line_buffering=True)
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import FILE_NAMING, IMAGE_PROCESSING
@@ -156,31 +159,31 @@ def collect_image_files(directory, prefix):
 
 def enlarge_main_images():
     """放大主图功能：两步处理主图"""
-    print("\n开始处理主图放大...")
+    print("\n开始处理主图放大...", flush=True)
 
     current_dir = os.getcwd()
     main_files = collect_image_files(current_dir, main_image_prefix)
 
     if not main_files:
-        print(f"没有找到{main_image_prefix}开头的图片文件")
+        print(f"没有找到{main_image_prefix}开头的图片文件", flush=True)
         return
 
-    print(f"找到 {len(main_files)} 个{main_image_prefix}开头的图片文件")
+    print(f"找到 {len(main_files)} 个{main_image_prefix}开头的图片文件", flush=True)
 
-    print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===")
+    print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===", flush=True)
     step1_queue = []
 
     for file_path in main_files:
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px")
+                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px", flush=True)
 
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
 
                 if name.startswith('E_'):
-                    print(f"图片已处理过，跳过")
+                    print(f"图片已处理过，跳过", flush=True)
                     step1_queue.append(file_path)
                     continue
 
@@ -191,17 +194,17 @@ def enlarge_main_images():
 
                     img_resized = img.resize((new_width, new_height), Image.LANCZOS)
                     img_resized.save(file_path, quality=jpeg_quality)
-                    print(f"第一步：放大图片到 {new_width}px × {new_height}px，覆盖原文件")
+                    print(f"第一步：放大图片到 {new_width}px × {new_height}px，覆盖原文件", flush=True)
 
                     step1_queue.append(file_path)
                 else:
                     step1_queue.append(file_path)
-                    print(f"图片尺寸已满足要求，直接进入第二步处理队列")
+                    print(f"图片尺寸已满足要求，直接进入第二步处理队列", flush=True)
 
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}")
+            print(f"处理图片 {file_path} 时出错: {e}", flush=True)
 
-    print(f"\n=== 第二步处理：将{main_image_min_size}px到{detail_min_width}px之间的图片放大到{main_image_target_size}px ===")
+    print(f"\n=== 第二步处理：将{main_image_min_size}px到{detail_min_width}px之间的图片放大到{main_image_target_size}px ===", flush=True)
 
     processed_count = 0
     skipped_count = 0
@@ -210,7 +213,7 @@ def enlarge_main_images():
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px")
+                print(f"\n处理图片: {os.path.basename(file_path)}, 尺寸: {width}px × {height}px", flush=True)
 
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
@@ -220,24 +223,24 @@ def enlarge_main_images():
 
                 if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
                     img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
-                    print(f"第二步：放大图片到 {main_image_target_size}px × {main_image_target_size}px")
+                    print(f"第二步：放大图片到 {main_image_target_size}px × {main_image_target_size}px", flush=True)
 
                     img_resized.save(output_path, quality=jpeg_quality)
-                    print(f"放大后的图片已保存到: {output_path}")
+                    print(f"放大后的图片已保存到: {output_path}", flush=True)
 
                     processed_count += 1
                 else:
                     img.save(output_path, quality=jpeg_quality)
-                    print(f"图片尺寸大于{detail_min_width}px，保持原尺寸，添加E_前缀保存")
-                    print(f"图片已保存到: {output_path}")
+                    print(f"图片尺寸大于{detail_min_width}px，保持原尺寸，添加E_前缀保存", flush=True)
+                    print(f"图片已保存到: {output_path}", flush=True)
 
                     processed_count += 1
 
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}")
+            print(f"处理图片 {file_path} 时出错: {e}", flush=True)
             skipped_count += 1
 
-    print(f"\n主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片")
+    print(f"\n主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片", flush=True)
 
 
 def enlarge_detail_images():

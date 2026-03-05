@@ -1,7 +1,13 @@
 # 下载管理工具
 import os
 import subprocess
+import time
+import sys
 from os.path import splitext
+from .tool_downloader import ensure_aria2c, get_aria2c_path
+
+if sys.stdout:
+    sys.stdout.reconfigure(line_buffering=True)
 
 class Downloader:
     def __init__(self, config):
@@ -115,60 +121,119 @@ class Downloader:
                 f.write(f"{item}\n")
     
     def download(self, download_list_file='down.txt'):
-        """调用aria2c下载文件并显示进度条占位符"""
+        """调用aria2c下载文件并显示进度条"""
         if not os.path.exists(download_list_file):
             print(f"下载列表文件不存在: {download_list_file}")
             return False
         
         try:
-            # 获取当前目录的绝对路径
             current_dir = os.getcwd()
             
-            # 构建aria2c命令，尝试多种路径
-            aria2c_paths = ['..\\aria2c.exe', 'aria2c.exe', '..\\..\\aria2c.exe', 'aria2c']
-            cmd = None
+            expected_files = {}
+            with open(download_list_file, 'r', encoding='utf-8') as f:
+                lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                i = 0
+                while i < len(lines) - 1:
+                    url = lines[i]
+                    out_line = lines[i + 1]
+                    if out_line.startswith('out='):
+                        filename = out_line[4:]
+                        expected_files[filename] = url
+                    i += 2
             
-            for aria2c_path in aria2c_paths:
-                # 检查aria2c是否存在
-                if os.name == 'nt':
-                    # Windows系统
-                    if os.path.exists(aria2c_path):
-                        # 使用--dir参数指定下载目录为当前目录
-                        cmd = f"{aria2c_path} {self.config['DOWNLOAD_CONF']['aria2c_args']} --dir={current_dir} -i {download_list_file}>>down_log.txt"
-                        break
-                else:
-                    # 其他系统
-                    if os.path.exists(aria2c_path) or aria2c_path == 'aria2c':
-                        # 使用--dir参数指定下载目录为当前目录
-                        cmd = f"{aria2c_path} {self.config['DOWNLOAD_CONF']['aria2c_args']} --dir={current_dir} -i {download_list_file}>>down_log.txt"
-                        break
+            total_items = len(expected_files)
             
-            if not cmd:
-                # 尝试使用绝对路径
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                absolute_aria2c_path = os.path.join(base_dir, 'aria2c.exe')
-                if os.path.exists(absolute_aria2c_path):
-                    # 使用--dir参数指定下载目录为当前目录
-                    cmd = f"{absolute_aria2c_path} {self.config['DOWNLOAD_CONF']['aria2c_args']} --dir={current_dir} -i {download_list_file}>>down_log.txt"
-                else:
-                    print("未找到aria2c可执行文件")
-                    return False
+            if total_items == 0:
+                print("下载列表为空")
+                return False
             
-            # 显示进度条占位符
-            print("正在下载资源...")
-            bar_length = 50
-            print(f"[{'-' * bar_length}] 0.0%", end='')
+            aria2c_path = get_aria2c_path()
             
-            # 执行下载命令
-            subprocess.run(cmd, shell=True, check=True)
+            if not aria2c_path:
+                print("aria2c 不存在，正在自动下载...")
+                aria2c_path = ensure_aria2c()
             
-            # 下载完成后更新进度条
-            print('\r' + ' ' * 100, end='\r')
-            print(f"[{'█' * bar_length}] 100.0%")
-            print("下载完成")
-            return True
+            if not aria2c_path:
+                print("无法获取 aria2c，请手动下载")
+                return False
+            
+            print(f"使用 aria2c: {aria2c_path}")
+            print(f"下载项目总数: {total_items}", flush=True)
+            
+            cmd = [
+                aria2c_path,
+                '--console-log-level=warn',
+                '-d', current_dir,
+                '-i', download_list_file
+            ]
+            
+            cmd.extend(self.config["DOWNLOAD_CONF"]["aria2c_args"].split())
+            
+            log_file = open('down_log.txt', 'w', encoding='utf-8')
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            bar_length = 40
+            last_count = 0
+            
+            def get_downloaded_count():
+                count = 0
+                for f in os.listdir(current_dir):
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov', '.webp')):
+                        if not f.startswith('new_') and f != '拼接结果.jpg':
+                            count += 1
+                return count
+            
+            initial_count = get_downloaded_count()
+            
+            print("正在下载资源...", flush=True)
+            
+            while process.poll() is None:
+                current_count = get_downloaded_count() - initial_count
+                
+                if current_count > last_count:
+                    last_count = current_count
+                    
+                    if current_count > total_items:
+                        current_count = total_items
+                    
+                    percent = (current_count / total_items) * 100
+                    filled = int(bar_length * current_count / total_items)
+                    bar = '█' * filled + '-' * (bar_length - filled)
+                    print(f'\r[{bar}] {current_count}/{total_items} ({percent:.1f}%)', end='', flush=True)
+                
+                time.sleep(0.2)
+            
+            final_count = get_downloaded_count() - initial_count
+            if final_count > total_items:
+                final_count = total_items
+            
+            bar = '█' * bar_length
+            print(f'\r[{bar}] {final_count}/{total_items} (100.0%)', flush=True)
+            
+            log_file.close()
+            
+            failed_files = []
+            for filename, url in expected_files.items():
+                if not os.path.exists(os.path.join(current_dir, filename)):
+                    failed_files.append((filename, url))
+            
+            if failed_files:
+                print(f"\n下载失败的项目 ({len(failed_files)}):", flush=True)
+                for filename, url in failed_files:
+                    print(f"  - {filename}", flush=True)
+                    #print(f"    URL: {url}", flush=True)
+            
+            success_count = total_items - len(failed_files)
+            print(f"\n下载完成: 成功 {success_count}/{total_items}", flush=True)
+            return len(failed_files) == 0
+                
         except Exception as e:
-            print(f"下载失败: {e}")
             return False
     
     def clean_small_files(self, directory='.'):

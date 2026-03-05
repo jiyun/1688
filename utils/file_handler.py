@@ -128,7 +128,7 @@ echo ==============================
 echo 重建完成！
 echo ==============================
 echo 3秒后自动关闭...
-timeout /t 3 /nobreak ^>nul
+ping -n 4 127.0.0.1 >nul
 exit
 
 :RECUTPIC
@@ -144,7 +144,7 @@ echo ==============================
 echo 处理完成！
 echo ==============================
 echo 3秒后返回菜单...
-timeout /t 3 /nobreak ^>nul
+ping -n 4 127.0.0.1 >nul
 goto MENU
 
 :CLEAN
@@ -171,7 +171,7 @@ echo ==============================
 echo 清理完成！
 echo ==============================
 echo 3秒后返回菜单...
-timeout /t 3 /nobreak ^>nul
+ping -n 4 127.0.0.1 >nul
 goto MENU
 
 :PACK

@@ -16,9 +16,11 @@ import os
 import sys
 import io
 
-# 设置标准输出为UTF-8编码
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+from utils.tool_downloader import ensure_all_dependencies
+ensure_all_dependencies()
 
 from utils.parser import HTMLParser
 from utils.downloader import Downloader
@@ -191,9 +193,7 @@ class AlibabaScraper:
             return False
         
         # 3. 下载资源
-        download_success = self.download_resources()
-        if not download_success:
-            print("下载资源失败")
+        self.download_resources()
         
         # 4. 保存属性
         self.save_attributes()
@@ -207,7 +207,7 @@ class AlibabaScraper:
             self.create_recutpic_script()
         
         print("=== 处理完成 ====")
-        return download_success
+        return True
     
     def process_images(self, image_path=None):
         """处理图片"""
