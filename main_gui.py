@@ -868,6 +868,7 @@ class AlibabaScraperGUI:
         self.context_menu.add_separator()
         self.context_menu.add_command(label="重新采集", command=self.context_recollect)
         self.context_menu.add_separator()
+        self.context_menu.add_command(label="访问原址", command=self.context_visit_url)
         self.context_menu.add_command(label="打开目录", command=self.context_open_folder)
         self.context_menu.add_command(label="删除项目", command=self.context_delete_item)
     
@@ -1077,6 +1078,55 @@ class AlibabaScraperGUI:
                     self.log("文件夹不存在", "error")
             except Exception as e:
                 self.log(f"重新采集失败: {e}", "error")
+    
+    def context_visit_url(self):
+        """右键菜单：访问原址"""
+        selected_items = self.queue_tree.selection()
+        if not selected_items:
+            return
+        
+        item = selected_items[0]
+        values = self.queue_tree.item(item, 'values')
+        if values:
+            file_path = values[4]
+            folder_path = self.get_selected_folder()
+            
+            url = None
+            
+            # 首先检查目标目录内是否存在#url.url文件
+            if folder_path and os.path.exists(folder_path):
+                url_file = os.path.join(folder_path, '#url.url')
+                if os.path.exists(url_file):
+                    try:
+                        with open(url_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            # 解析URL文件格式
+                            for line in content.split('\n'):
+                                if line.startswith('URL='):
+                                    url = line[4:].strip()
+                                    break
+                            if not url:
+                                url = content.strip()
+                    except Exception as e:
+                        self.log(f"读取URL文件失败: {e}", "error")
+            
+            # 如果#url.url文件不存在，使用项目ID构造1688详情页地址
+            if not url:
+                file_name = os.path.basename(file_path)
+                product_id = os.path.splitext(file_name)[0]
+                url = f"https://detail.1688.com/offer/{product_id}.html"
+            
+            # 使用默认浏览器打开URL
+            if url:
+                try:
+                    import webbrowser
+                    webbrowser.open(url)
+                    self.log(f"已打开: {url}")
+                except Exception as e:
+                    self.log(f"打开浏览器失败: {e}", "error")
+                    self.show_info("错误", f"无法打开浏览器: {e}")
+            else:
+                self.show_info("提示", "无法获取有效的URL")
     
     def context_open_folder(self):
         """右键菜单：打开目录"""

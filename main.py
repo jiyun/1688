@@ -239,9 +239,6 @@ class AlibabaScraper:
     
     def process_images(self, image_path=None):
         """处理图片"""
-        print("=== 图片处理工具 ====")
-        print(f"当前工作目录: {os.getcwd()}")
-        
         # 导入图片处理模块
         import utils.recutpic
         
@@ -323,7 +320,6 @@ def main():
     
     if process_images_flag:
         # 处理图片
-        print("开始处理图片...")
         # 创建一个临时的 AlibabaScraper 实例
         scraper = AlibabaScraper("")
         success = scraper.process_images()

@@ -170,13 +170,14 @@ def enlarge_main_images():
 
     total_files = len(main_files)
     print(f"找到 {total_files} 个{main_image_prefix}开头的图片文件", flush=True)
-    print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===", flush=True)
     
     bar_length = 40
     step1_queue = []
     step1_processed = 0
+    need_step1 = False
 
-    for i, file_path in enumerate(main_files, 1):
+    # 第一步：检查是否有需要放大的图片
+    for file_path in main_files:
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
@@ -189,27 +190,61 @@ def enlarge_main_images():
                     continue
 
                 if width < main_image_min_size or height < main_image_min_size:
-                    scale = max(main_image_min_size / width, main_image_min_size / height)
-                    new_width = int(width * scale)
-                    new_height = int(height * scale)
-
-                    img_resized = img.resize((new_width, new_height), Image.LANCZOS)
-                    img_resized.save(file_path, quality=jpeg_quality)
-                    step1_processed += 1
-
-                    step1_queue.append(file_path)
-                else:
-                    step1_queue.append(file_path)
-
+                    need_step1 = True
+                
+                step1_queue.append(file_path)
         except Exception as e:
             print(f"\n处理图片 {file_path} 时出错: {e}", flush=True)
-        
-        percent = (i / total_files) * 100
-        filled = int(bar_length * i / total_files)
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'\r  [{bar}] {i}/{total_files} ({percent:.1f}%)', end='', flush=True)
     
-    print(f'\n第一步完成：放大 {step1_processed} 张图片', flush=True)
+    # 第一步：执行放大
+    if need_step1:
+        print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===", flush=True)
+        
+        for i, file_path in enumerate(step1_queue, 1):
+            try:
+                with Image.open(file_path) as img:
+                    width, height = img.size
+
+                    base_name = os.path.basename(file_path)
+                    name, ext = os.path.splitext(base_name)
+
+                    if name.startswith('E_'):
+                        continue
+
+                    if width < main_image_min_size or height < main_image_min_size:
+                        scale = max(main_image_min_size / width, main_image_min_size / height)
+                        new_width = int(width * scale)
+                        new_height = int(height * scale)
+
+                        img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+                        img_resized.save(file_path, quality=jpeg_quality)
+                        step1_processed += 1
+
+            except Exception as e:
+                print(f"\n处理图片 {file_path} 时出错: {e}", flush=True)
+            
+            percent = (i / len(step1_queue)) * 100
+            filled = int(bar_length * i / len(step1_queue))
+            bar = '█' * filled + '-' * (bar_length - filled)
+            print(f'\r  [{bar}] {i}/{len(step1_queue)} ({percent:.1f}%)', end='', flush=True)
+        
+        print(f'\n第一步完成：放大 {step1_processed} 张图片', flush=True)
+
+    # 第二步：检查是否有需要放大的图片
+    need_step2 = False
+    for file_path in step1_queue:
+        try:
+            with Image.open(file_path) as img:
+                width, height = img.size
+                if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
+                    need_step2 = True
+                    break
+        except:
+            pass
+    
+    if not need_step2:
+        print(f"主图放大完成！无需处理", flush=True)
+        return
 
     print(f"\n=== 第二步处理：将{main_image_min_size}px到{detail_min_width}px之间的图片放大到{main_image_target_size}px ===", flush=True)
 
@@ -238,10 +273,10 @@ def enlarge_main_images():
         except Exception as e:
             skipped_count += 1
         
-        percent = (i / total_files) * 100
-        filled = int(bar_length * i / total_files)
+        percent = (i / len(step1_queue)) * 100
+        filled = int(bar_length * i / len(step1_queue))
         bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'\r  [{bar}] {i}/{total_files} ({percent:.1f}%)', end='', flush=True)
+        print(f'\r  [{bar}] {i}/{len(step1_queue)} ({percent:.1f}%)', end='', flush=True)
     
     print(f'\n第二步完成：生成 {processed_count} 张图片', flush=True)
     print(f"主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片", flush=True)
@@ -316,42 +351,57 @@ def enlarge_detail_images():
 
 def enlarge_color_card_images():
     """色卡图放大处理功能"""
-    print("\n开始处理色卡图放大...")
-
     current_dir = os.getcwd()
     color_files = collect_image_files(current_dir, color_option_prefix)
     
     if not color_files:
-        print(f"没有找到{color_option_prefix}开头的色卡图文件")
         return
     
-    print(f"找到 {len(color_files)} 个{color_option_prefix}开头的色卡图文件")
+    total_files = len(color_files)
     
-    processed_count = 0
-    skipped_count = 0
-    
+    # 先检查是否有需要处理的图片
+    need_process = False
     for file_path in color_files:
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                base_name = os.path.basename(file_path)
-                
-                print(f"\n处理色卡图: {base_name}, 尺寸: {width}px × {height}px")
+                if width < detail_min_width:
+                    need_process = True
+                    break
+        except:
+            pass
+    
+    if not need_process:
+        return
+    
+    print(f"\n开始处理色卡图放大...", flush=True)
+    print(f"找到 {total_files} 个{color_option_prefix}开头的色卡图文件", flush=True)
+    
+    bar_length = 40
+    processed_count = 0
+    skipped_count = 0
+    
+    for i, file_path in enumerate(color_files, 1):
+        try:
+            with Image.open(file_path) as img:
+                width, height = img.size
                 
                 if width >= detail_min_width:
-                    print(f"跳过放大: 宽度 {width}px >= {detail_min_width}px，已符合标准")
                     skipped_count += 1
-                    continue
-                
-                img_resized, (new_width, new_height, desc) = enlarge_image(img)
-                img_resized.save(file_path, quality=jpeg_quality)
-                print(f"{desc}: {width}px × {height}px -> {new_width}px × {new_height}px")
-                processed_count += 1
-                    
+                else:
+                    result = enlarge_image(img)
+                    img_resized = result[0]
+                    img_resized.save(file_path, quality=jpeg_quality)
+                    processed_count += 1
         except Exception as e:
-            print(f"处理图片 {file_path} 时出错: {e}")
+            pass
+        
+        percent = (i / total_files) * 100
+        filled = int(bar_length * i / total_files)
+        bar = '█' * filled + '-' * (bar_length - filled)
+        print(f'\r  [{bar}] {i}/{total_files} ({percent:.1f}%)', end='', flush=True)
     
-    print(f"\n色卡图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片")
+    print(f'\n色卡图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片', flush=True)
 
 
 def process_photo_detail_images(original_files):
@@ -696,8 +746,6 @@ def process_single_image(image_path):
 
 def main():
     """主函数"""
-    print("=== 图片处理工具 ====")
-    
     enlarge_main_images()
     
     enlarge_color_card_images()
