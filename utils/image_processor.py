@@ -10,6 +10,8 @@
 
 import os
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
 if sys.stdout:
@@ -27,6 +29,18 @@ from utils.image_utils import (
     main_image_min_size, main_image_target_size, jpeg_quality,
     OUTPUT_WEBP, CONVERT_MAIN, CONVERT_COLOR, parallel_workers
 )
+
+# 线程安全的进度计数器
+class ProgressCounter:
+    def __init__(self, total):
+        self.total = total
+        self.count = 0
+        self.lock = threading.Lock()
+    
+    def increment(self):
+        with self.lock:
+            self.count += 1
+            return self.count
 
 
 def _split_with_custom_index(merged_image, target_width, total_height, output_dir, output_prefix, start_index):
@@ -376,7 +390,7 @@ def enlarge_main_images():
 
 
 def enlarge_detail_images():
-    """详情图放大处理功能"""
+    """详情图放大处理功能（并行版本）"""
     print("\n开始处理详情图放大...", flush=True)
 
     current_dir = os.getcwd()
@@ -415,14 +429,13 @@ def enlarge_detail_images():
         print(f"没有符合条件的详情图", flush=True)
         return
     
-    print(f"处理队列: {len(process_queue)} 个文件", flush=True)
+    print(f"处理队列: {len(process_queue)} 个文件 (并行线程: {parallel_workers})", flush=True)
     
-    bar_length = 40
-    processed_count = 0
-    skipped_count = 0
-    webp_converted = 0
+    counter = ProgressCounter(len(process_queue))
     
-    for i, (file_path, width, height) in enumerate(process_queue, 1):
+    def process_single_detail(args):
+        """处理单张详情图"""
+        file_path, width, height = args
         try:
             with Image.open(file_path) as img:
                 if OUTPUT_WEBP:
@@ -430,29 +443,38 @@ def enlarge_detail_images():
                     name, ext = os.path.splitext(base_name)
                     webp_path = os.path.join(current_dir, f"{name}.webp")
                     if width >= detail_min_width:
-                        skipped_count += 1
                         img.save(webp_path, format="WebP", quality=jpeg_quality)
+                        return ('skipped', True)
                     else:
                         result = enlarge_image(img)
                         img_resized = result[0]
                         img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
-                        processed_count += 1
-                    webp_converted += 1
+                        return ('processed', True)
                 else:
                     if width >= detail_min_width:
-                        skipped_count += 1
+                        return ('skipped', False)
                     else:
                         result = enlarge_image(img)
                         img_resized = result[0]
                         img_resized.save(file_path, quality=jpeg_quality)
-                        processed_count += 1
+                        return ('processed', False)
         except Exception as e:
-            pass
-        
-        percent = (i / len(process_queue)) * 100
-        filled = int(bar_length * i / len(process_queue))
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'详情图处理进度: [{bar}] {i}/{len(process_queue)} ({percent:.1f}%)', flush=True)
+            return ('error', str(e))
+        finally:
+            current = counter.increment()
+            percent = int((current / counter.total) * 100)
+            print(f'详情图处理进度: {current}/{counter.total} ({percent}%)', flush=True)
+    
+    with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+        results = list(executor.map(process_single_detail, process_queue))
+    
+    for result in results:
+        if result[0] == 'processed':
+            processed_count += 1
+        elif result[0] == 'skipped':
+            skipped_count += 1
+        if result[1] == True:
+            webp_converted += 1
     
     print(f'\n详情图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片', flush=True)
     if OUTPUT_WEBP:
