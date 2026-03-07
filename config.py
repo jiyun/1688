@@ -119,9 +119,13 @@ GUI_CONF = {
     ],
     
     # 文件选择配置
-    'file_dialog_title': '选择 HTML 文件',
-    'file_dialog_types': [('HTML 文件', '*.html'), ('所有文件', '*')],
-    'directory_dialog_title': '选择目录',
+    'file_dialog': {
+        'title': '选择 HTML 文件',
+        'types': [('HTML 文件', '*.html'), ('所有文件', '*.*')]
+    },
+    'directory_dialog': {
+        'title': '选择目录'
+    },
     
     # 按钮配置
     'button_texts': {

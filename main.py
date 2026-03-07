@@ -255,9 +255,8 @@ class AlibabaScraper:
         else:
             # 运行图片处理
             utils.image_processor.enlarge_main_images()
-            utils.image_processor.enlarge_detail_images()
-            utils.image_processor.enlarge_color_card_images()
             utils.image_processor.process_regular_detail_images()
+            utils.image_processor.enlarge_color_card_images()
         
         return True
     
