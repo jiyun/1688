@@ -1,5 +1,6 @@
 @echo off
-chcp 936 >nul
+chcp 65001 >nul
+set PYTHONDONTWRITEBYTECODE=1
 title ��������HTML�ļ�
 for %%F in (*.HTML) do (
     echo ������: %%F

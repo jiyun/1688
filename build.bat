@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+set PYTHONDONTWRITEBYTECODE=1
 echo ====================================
 echo 1688详情页资源采集工具 v0.3.0 打包脚本
 echo ====================================

@@ -1,5 +1,6 @@
 @echo off
-chcp 936 >nul
+chcp 65001 >nul
+set PYTHONDONTWRITEBYTECODE=1
 if "%1" == "" (
 	cls
 	echo 警告: 不要在没有参数的情况下运行此批处理文件！

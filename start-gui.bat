@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+set PYTHONDONTWRITEBYTECODE=1
 set "PYTHON=python"
 set "MAIN_SCRIPT=main.py"
 
