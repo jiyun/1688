@@ -340,6 +340,8 @@ class ContextMenuCommands:
                         stderr=subprocess.STDOUT,
                         text=True,
                         encoding='utf-8',
+                        bufsize=1,
+                        universal_newlines=True,
                         cwd=file_dir
                     )
                     
