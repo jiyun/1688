@@ -226,7 +226,6 @@ class Downloader:
                 print(f"\n下载失败的项目 ({len(failed_files)}):", flush=True)
                 for filename, url in failed_files:
                     print(f"  [失败] {filename}", flush=True)
-                    #print(f"    URL: {url}", flush=True)
             
             success_count = total_items - len(failed_files)
             print(f"\n下载完成: 成功 {success_count}/{total_items}", flush=True)

@@ -31,6 +31,9 @@ IMAGE_PROCESSING = {
     'main_image_target_size': 1600,                    # 主图目标尺寸
     'min_split_height': 200,                           # 最小切割高度
     'jpeg_quality': 95,                                # JPEG保存质量
+    'webp_quality': 80,                                # WebP保存质量（用于动图转换）
+    'webp_method': 4,                                  # WebP压缩方法（0-6，越大压缩比越高但速度越慢）
+    'parallel_workers': 2,                             # 并行处理线程数，默认为2
 }
 
 # 选择器配置
@@ -51,4 +54,96 @@ ATTRIBUTE_SELECTORS = {
 # 排除文件配置
 EXCLUDE_FILES = {
     'pack_exclude': ['down.txt', 'down_log.txt', 'rebuild.bat'],  # 打包时排除的文件
+}
+
+# GUI配置
+GUI_CONF = {
+    # 窗口配置
+    'window_title': '1688详情页资源采集工具',
+    'window_geometry': '800x600',
+    'window_resizable': True,
+    
+    # 日志配置
+    'log_buffer_size': 1000,
+    'log_colors': {
+        'info': 'white',
+        'success': 'green',
+        'warning': 'yellow',
+        'error': 'red',
+        'input': 'green'
+    },
+    
+    # 队列配置
+    'queue_columns': (
+        ('index', '序号', 50),
+        ('status', '状态', 80),
+        ('name', '文件名', 150),
+        ('date', '修改日期', 120),
+        ('path', '路径', 350)
+    ),
+    
+    # 状态配置
+    'status_icons': {
+        'success': '✓',
+        'error': '✗',
+        'exists': '⑈',
+        'none': ''
+    },
+    'status_order': {'none': 0, 'exists': 1, 'error': 2, 'success': 3},
+    'status_colors': {
+        'success': 'green',
+        'error': 'red',
+        'exists': 'orange',
+        'none': 'black'
+    },
+    
+    # 上下文菜单配置
+    'context_menu_items': [
+        ['图像优化', [
+            ('默认优化', 'context_stitch_images'),
+            ('WebP转换', 'context_stitch_images_webp'),
+            ('WebP转换(仅主图)', 'context_stitch_images_webp_main'),
+            ('WebP转换(仅色卡图)', 'context_stitch_images_webp_color'),
+            ('WebP转换(全部)', 'context_stitch_images_webp_all'),
+            ('separator', None),
+            ('包含动图', 'context_stitch_images_with_animated'),
+            ('包含动图 + WebP', 'context_stitch_images_webp_with_animated')
+        ]],
+        ('资源打包', 'context_pack_files'),
+        ('separator', None),
+        ('重新采集', 'context_recollect'),
+        ('separator', None),
+        ('访问原址', 'context_visit_url'),
+        ('打开目录', 'context_open_folder'),
+        ('删除项目', 'context_delete_item')
+    ],
+    
+    # 文件选择配置
+    'file_dialog_title': '选择 HTML 文件',
+    'file_dialog_types': [('HTML 文件', '*.html'), ('所有文件', '*')],
+    'directory_dialog_title': '选择目录',
+    
+    # 按钮配置
+    'button_texts': {
+        'add_file': '添加文件 (A)',
+        'add_directory': '添加目录 (D)',
+        'remove_file': '移除文件 (Del)',
+        'clear_queue': '清空队列',
+        'execute': '执行 (Enter)',
+        'pause': '暂停 (P)',
+        'execute_running': '执行中...',
+        'resume': '恢复'
+    },
+    
+    # 标签页配置
+    'tab_names': {
+        'queue': '处理队列',
+        'help': '使用说明'
+    },
+    
+    # 标签帧配置
+    'label_frame_texts': {
+        'queue': '处理队列',
+        'log': '日志输出'
+    }
 }

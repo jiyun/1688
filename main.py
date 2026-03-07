@@ -237,17 +237,27 @@ class AlibabaScraper:
         print("=== 处理完成 ====")
         return True
     
-    def process_images(self, image_path=None):
+    def process_images(self, image_path=None, with_animated=False, output_webp=False, convert_main=False, convert_color=False):
         """处理图片"""
         # 导入图片处理模块
-        import utils.recutpic
+        import utils.image_utils
+        import utils.image_processor
+        
+        # 设置全局变量
+        utils.image_utils.WITH_ANIMATED = with_animated
+        utils.image_utils.OUTPUT_WEBP = output_webp
+        utils.image_utils.CONVERT_MAIN = convert_main
+        utils.image_utils.CONVERT_COLOR = convert_color
         
         # 如果提供了图片路径，直接处理单张图片
         if image_path:
-            utils.recutpic.process_single_image(image_path)
+            utils.image_processor.process_single_image(image_path)
         else:
             # 运行图片处理
-            utils.recutpic.main()
+            utils.image_processor.enlarge_main_images()
+            utils.image_processor.enlarge_detail_images()
+            utils.image_processor.enlarge_color_card_images()
+            utils.image_processor.process_regular_detail_images()
         
         return True
     
@@ -264,40 +274,95 @@ def main():
     html_file = None
     process_images_flag = False
     image_path = None
+    with_animated = False
+    output_webp = False
+    convert_main = False
+    convert_color = False
     
     # 检查帮助参数
     if len(sys.argv) > 1 and (sys.argv[1] == "--help" or sys.argv[1] == "-h"):
         print("====================================")
         print("1688详情页资源采集工具")
         print("====================================")
-        print("版本: 0.2.0")
+        print("版本: 0.3.0")
         print("作者: 急云")
         print("描述: 用于采集1688详情页资源的工具，支持图片、视频和属性的提取与下载")
         print("====================================")
         print("用法:")
         print("  python main.py <html_file> [--no-rebuild]")
-        print("  python main.py --process-images")
+        print("  python main.py --process-images [--webp [--t] [--color]] [--with-animated]")
         print("  python main.py <image_file> (处理单张图片)")
+        print("  python main.py --gui (启动GUI模式)")
         print("  python main.py --help | -h (显示此帮助信息)")
         print("====================================")
         print("参数说明:")
         print("  <html_file>          : 要处理的1688详情页HTML文件路径")
         print("  --no-rebuild         : 可选参数，不创建重建脚本")
         print("  --process-images     : 处理当前目录中的所有详情图")
+        print("    --webp             : 输出图片格式为WebP")
+        print("      --t              : 将主图转换为WebP格式")
+        print("      --color          : 将色卡图转换为WebP格式")
+        print("    --with-animated    : 包含GIF、WebP等动图")
         print("  <image_file>         : 要处理的单张图片文件路径")
+        print("  --gui                : 启动图形用户界面模式")
         print("  --help, -h           : 显示此帮助信息")
         print("====================================")
         return 0
     
+    # 检查是否启动GUI模式
+    if len(sys.argv) > 1 and sys.argv[1] == "--gui":
+        # 启动GUI模式
+        from gui.app import main as gui_main
+        gui_main()
+        return 0
+    
+    # 检查--process-images参数是否存在
+    has_process_images = False
+    if len(sys.argv) > 1 and sys.argv[1] == "--process-images":
+        has_process_images = True
+    
+    # 如果没有--process-images参数，过滤掉所有子参数
+    filtered_args = [sys.argv[0]]
+    if has_process_images:
+        filtered_args = sys.argv
+    else:
+        # 只保留非子参数，忽略所有--process-images的子参数
+        for arg in sys.argv[1:]:
+            # 检查是否是--process-images的子参数
+            if arg in ["--webp", "--t", "--color", "--with-animated"]:
+                continue  # 忽略子参数
+            # 只保留--no-rebuild参数（如果存在）
+            if arg == "--no-rebuild" and len(filtered_args) > 1:
+                filtered_args.append(arg)
+            # 只保留第一个非子参数（HTML文件路径或图片文件路径）
+            elif len(filtered_args) == 1:
+                filtered_args.append(arg)
+    
+    # 重新解析参数
+    sys.argv = filtered_args
+    
     if len(sys.argv) < 2:
         print("用法: python main.py <html_file> [--no-rebuild]")
-        print("或: python main.py --process-images")
+        print("或: python main.py --process-images [--webp [--t] [--color]] [--with-animated]")
         print("或: python main.py <image_file> (处理单张图片)")
+        print("或: python main.py --gui (启动GUI模式)")
         print("或: python main.py --help | -h (显示帮助信息)")
         return 1
     else:
         if sys.argv[1] == "--process-images":
             process_images_flag = True
+            # 检查子参数
+            webp_found = False
+            for arg in sys.argv[2:]:
+                if arg == "--with-animated":
+                    with_animated = True
+                elif arg == "--webp":
+                    output_webp = True
+                    webp_found = True
+                elif arg == "--t" and webp_found:
+                    convert_main = True
+                elif arg == "--color" and webp_found:
+                    convert_color = True
         else:
             # 检查是否是图片文件
             file_path = sys.argv[1]
@@ -322,7 +387,7 @@ def main():
         # 处理图片
         # 创建一个临时的 AlibabaScraper 实例
         scraper = AlibabaScraper("")
-        success = scraper.process_images()
+        success = scraper.process_images(with_animated=with_animated, output_webp=output_webp, convert_main=convert_main, convert_color=convert_color)
         return 0 if success else 1
     elif image_path:
         # 处理单张图片
