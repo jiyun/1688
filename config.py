@@ -86,7 +86,7 @@ GUI_CONF = {
     'status_icons': {
         'success': '✓',
         'error': '✗',
-        'exists': '⑈',
+        'exists': '❓',
         'duplicate': '❗',
         'none': ''
     },
