@@ -35,11 +35,14 @@ class ContextMenuCommands:
         item = selected_items[0]
         values = self.parent.queue_tree.item(item, 'values')
         if values:
-            file_path = values[4]
-            file_name = os.path.basename(file_path)
-            folder_name = os.path.splitext(file_name)[0]
-            folder_path = os.path.join(os.path.dirname(file_path), folder_name)
-            return folder_path
+            output_path = values[4]  # 输出路径在第5列
+            if output_path and os.path.exists(output_path):
+                return output_path
+            # 如果输出路径不存在，返回HTML文件所在目录
+            file_index = int(values[0]) - 1  # 序号从1开始
+            if 0 <= file_index < len(self.parent.queue_manager.file_queue):
+                file_path = self.parent.queue_manager.file_queue[file_index]
+                return os.path.dirname(file_path)
         return None
     
     def context_stitch_images(self):

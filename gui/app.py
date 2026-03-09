@@ -110,21 +110,21 @@ class AlibabaScraperGUI:
         self.queue_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(0, 10))
         
         # 创建表格
-        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "date", "path"), show="headings")
+        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "date", "output_path"), show="headings")
         
         # 设置列标题
-        self.queue_tree.heading("index", text="序号")  # 序号列不用排序功能
+        self.queue_tree.heading("index", text="序号")
         self.queue_tree.heading("status", text="状态", command=lambda: self.sort_treeview("status"))
         self.queue_tree.heading("name", text="文件名", command=lambda: self.sort_treeview("name"))
         self.queue_tree.heading("date", text="修改日期", command=lambda: self.sort_treeview("date"))
-        self.queue_tree.heading("path", text="路径", command=lambda: self.sort_treeview("path"))
+        self.queue_tree.heading("output_path", text="输出路径", command=lambda: self.sort_treeview("output_path"))
         
         # 设置列宽
         self.queue_tree.column("index", width=50, anchor=tk.CENTER)
         self.queue_tree.column("status", width=80, anchor=tk.CENTER)
-        self.queue_tree.column("name", width=150, anchor=tk.W)
+        self.queue_tree.column("name", width=300, anchor=tk.W)
         self.queue_tree.column("date", width=120, anchor=tk.CENTER)
-        self.queue_tree.column("path", width=350, anchor=tk.W)
+        self.queue_tree.column("output_path", width=250, anchor=tk.W)
         
         # 添加滚动条
         self.queue_scrollbar = ttk.Scrollbar(self.queue_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
@@ -487,24 +487,18 @@ class AlibabaScraperGUI:
     
     def on_treeview_double_click(self, event):
         """处理 treeview 双击事件"""
-        # 获取双击的项目
         item = self.queue_tree.identify_row(event.y)
         if item:
-            # 获取项目值
             values = self.queue_tree.item(item, 'values')
             if values:
-                file_path = values[4]  # 路径在第5列
-                status = self.file_status.get(file_path, "none")
+                output_path = values[4]  # 输出路径在第5列
+                file_path = self.queue_manager.file_queue[int(values[0]) - 1]  # 通过序号获取文件路径
                 
-                # 根据状态打开不同路径
-                if status == "success":
-                    # 执行完成状态：打开子文件夹路径
-                    file_name = os.path.basename(file_path)
-                    folder_name = os.path.splitext(file_name)[0]
-                    folder_path = os.path.join(os.path.dirname(file_path), folder_name)
-                    self.open_file_explorer(folder_path)
+                if output_path and os.path.exists(output_path):
+                    # 如果输出路径存在，打开输出目录
+                    self.open_file_explorer(output_path)
                 else:
-                    # 未完成或失败状态：打开文件所在路径
+                    # 否则打开HTML文件所在目录
                     directory_path = os.path.dirname(file_path)
                     self.open_file_explorer(directory_path)
     

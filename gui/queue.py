@@ -212,9 +212,9 @@ class QueueManager:
                 except:
                     return 0
             items.sort(key=get_file_mtime, reverse=True)
-        elif column == "path":
-            # 按路径排序
-            items.sort(key=lambda x: x.lower())
+        elif column == "output_path":
+            # 按输出路径排序
+            items.sort(key=lambda x: self.get_output_directory(x).lower() or x.lower())
         
         # 更新队列并刷新表格
         self.file_queue = items
@@ -226,40 +226,62 @@ class QueueManager:
             "status": "状态",
             "name": "文件名",
             "date": "修改日期",
-            "path": "路径"
+            "output_path": "输出路径"
         }
         self.parent.log(f"队列已按 {column_names.get(column, '未知列')} 排序")
     
     def update_queue_list(self):
         """更新队列表格"""
-        # 清空表格
         for item in self.parent.queue_tree.get_children():
             self.parent.queue_tree.delete(item)
         
-        # 创建状态标签
         for status, color in GUI_CONF['status_colors'].items():
             self.parent.queue_tree.tag_configure(status, foreground=color)
         
-        # 添加数据到表格
         for i, file_path in enumerate(self.file_queue, 1):
-            # 获取文件名
+            file_dir = os.path.dirname(file_path)
             file_name = os.path.basename(file_path)
+            name_without_ext = os.path.splitext(file_name)[0]
             
-            # 获取文件修改日期
+            if file_dir:
+                display_name = f"{file_dir}...{name_without_ext}"
+            else:
+                display_name = name_without_ext
+            
             try:
                 mtime = os.path.getmtime(file_path)
                 date_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             except:
                 date_str = "未知"
             
-            # 获取状态
             status = self.file_status.get(file_path, "none")
-            
-            # 根据状态显示不同的图标
             status_icon = GUI_CONF['status_icons'].get(status, "")
             
-            # 添加到表格，并根据状态设置标签
-            self.parent.queue_tree.insert("", "end", values=(i, status_icon, file_name, date_str, file_path), tags=(status,))
+            output_path = self.get_output_directory(file_path)
+            
+            self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, output_path), tags=(status,))
+    
+    def get_output_directory(self, html_file_path):
+        """获取HTML文件对应的输出目录路径
+        
+        Args:
+            html_file_path: HTML文件路径
+            
+        Returns:
+            str: 输出目录路径，如果目录不存在则返回空字符串
+        """
+        product_id = os.path.splitext(os.path.basename(html_file_path))[0]
+        
+        custom_output_path = self.parent.get_output_path()
+        if custom_output_path:
+            output_dir = os.path.join(custom_output_path, product_id)
+        else:
+            html_dir = os.path.dirname(os.path.abspath(html_file_path))
+            output_dir = os.path.join(html_dir, product_id)
+        
+        if os.path.exists(output_dir) and os.path.isdir(output_dir):
+            return output_dir
+        return ""
     
     def execute(self):
         """执行主程序处理队列中的文件"""
