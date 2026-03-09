@@ -113,7 +113,7 @@ class ContextMenuCommands:
                 try:
                     main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
                     
-                    self.parent.log("正在处理详情图...")
+                    self.parent.log("正在执行图像优化...")
                     command = ["python", main_py_path] + list(args)
                     process = subprocess.Popen(
                         command,

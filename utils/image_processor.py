@@ -39,7 +39,9 @@ class ProgressReporter:
     """统一的进度报告器"""
     
     def __init__(self):
-        self.start_time = time.time()
+        self.main_start_time = None
+        self.detail_start_time = None
+        self.color_start_time = None
         self.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         self.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
@@ -61,6 +63,18 @@ class ProgressReporter:
             file_path: 文件路径
         """
         self.current_file = file_path
+    
+    def start_main(self):
+        """开始主图处理"""
+        self.main_start_time = time.time()
+    
+    def start_detail(self):
+        """开始详情图处理"""
+        self.detail_start_time = time.time()
+    
+    def start_color(self):
+        """开始色卡图处理"""
+        self.color_start_time = time.time()
     
     def show_progress(self, name, current, total):
         """显示进度条"""
@@ -93,7 +107,16 @@ class ProgressReporter:
     
     def show_section_summary(self, name, stats):
         """显示章节小结"""
-        elapsed = time.time() - self.start_time
+        # 根据队列类型计算耗时
+        if '主图' in name and self.main_start_time:
+            elapsed = time.time() - self.main_start_time
+        elif '详情图' in name and self.detail_start_time:
+            elapsed = time.time() - self.detail_start_time
+        elif '色卡' in name and self.color_start_time:
+            elapsed = time.time() - self.color_start_time
+        else:
+            elapsed = 0
+        
         print(f"\n{name}")
         print(f"  处理完成: {stats['processed']} 张")
         print(f"  跳过文件: {stats['skipped']} 张")
@@ -103,7 +126,12 @@ class ProgressReporter:
     
     def show_final_summary(self):
         """显示最终汇总报告"""
-        elapsed = time.time() - self.start_time
+        # 计算总耗时
+        if self.main_start_time and self.color_start_time:
+            total_elapsed = time.time() - self.main_start_time
+        else:
+            total_elapsed = 0
+        
         total_processed = self.main_stats['processed'] + self.detail_stats['processed'] + self.color_stats['processed']
         total_skipped = self.main_stats['skipped'] + self.detail_stats['skipped'] + self.color_stats['skipped']
         total_errors = self.main_stats['errors'] + self.detail_stats['errors'] + self.color_stats['errors']
@@ -117,7 +145,7 @@ class ProgressReporter:
         print(f"  总计:   处理 {total_processed} 张, 跳过 {total_skipped} 张")
         if total_errors > 0:
             print(f"          失败 {total_errors} 张")
-        print(f"  耗时:   {elapsed:.1f} 秒")
+        print(f"  耗时:   {total_elapsed:.1f} 秒")
         print(f"{'='*50}\n")
 
 
@@ -377,6 +405,7 @@ def process_mixed_images(images_info, current_dir, base_output_name):
 
 def enlarge_main_images():
     """放大主图功能：两步处理主图"""
+    reporter.start_main()  # 记录主图开始时间
     current_dir = os.getcwd()
     main_files = collect_image_files(current_dir, main_image_prefix)
 
@@ -573,6 +602,7 @@ def enlarge_color_card_images():
     
     处理后的文件使用 new_ 前缀命名，避免与原始文件冲突
     """
+    reporter.start_color()  # 记录色卡图开始时间
     current_dir = os.getcwd()
     color_files = collect_image_files(current_dir, color_option_prefix)
     
@@ -625,6 +655,7 @@ def enlarge_color_card_images():
 
 def process_regular_detail_images():
     """常规详情图拼接处理"""
+    reporter.start_detail()  # 记录详情图开始时间
     current_dir = os.getcwd()
     c_files = collect_image_files(current_dir, detail_image_prefix)
     
