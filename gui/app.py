@@ -487,20 +487,30 @@ class AlibabaScraperGUI:
     
     def on_treeview_double_click(self, event):
         """处理 treeview 双击事件"""
+        region = self.queue_tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+        
+        column = self.queue_tree.identify_column(event.x)
         item = self.queue_tree.identify_row(event.y)
+        
         if item:
             values = self.queue_tree.item(item, 'values')
             if values:
-                output_path = values[4]  # 输出路径在第5列
                 file_path = self.queue_manager.file_queue[int(values[0]) - 1]  # 通过序号获取文件路径
+                html_dir = os.path.dirname(file_path)
                 
-                if output_path and os.path.exists(output_path):
-                    # 如果输出路径存在，打开输出目录
-                    self.open_file_explorer(output_path)
-                else:
-                    # 否则打开HTML文件所在目录
-                    directory_path = os.path.dirname(file_path)
-                    self.open_file_explorer(directory_path)
+                # 获取完整的输出路径
+                output_path = self.queue_manager.get_output_directory(file_path)
+                
+                # 根据点击的列执行不同操作
+                if column == "#5":  # 输出路径列
+                    if output_path and os.path.exists(output_path):
+                        self.open_file_explorer(output_path)
+                    else:
+                        self.open_file_explorer(html_dir)
+                else:  # 其他列（包括文件名列）
+                    self.open_file_explorer(html_dir)
     
     def open_file_explorer(self, path):
         """打开资源管理器到指定路径"""

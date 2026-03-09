@@ -132,25 +132,20 @@ class QueueManager:
         selected_items = self.parent.queue_tree.selection()
         if selected_items:
             removed_files = []
-            # 遍历所有选中的项目
             for item in selected_items:
-                # 获取选中项的值
                 values = self.parent.queue_tree.item(item, 'values')
                 if values:
-                    # 找到对应的文件路径在队列中的索引
-                    file_path = values[4]  # 路径在第5列
-                    if file_path in self.file_queue:
-                        index = self.file_queue.index(file_path)
-                        removed_file = self.file_queue.pop(index)
-                        # 从状态字典中删除对应的状态
-                        if removed_file in self.file_status:
-                            del self.file_status[removed_file]
-                        removed_files.append(removed_file)
+                    file_index = int(values[0]) - 1  # 序号从1开始
+                    if 0 <= file_index < len(self.file_queue):
+                        file_path = self.file_queue[file_index]
+                        if file_path in self.file_queue:
+                            self.file_queue.remove(file_path)
+                            if file_path in self.file_status:
+                                del self.file_status[file_path]
+                            removed_files.append(file_path)
             
-            # 更新队列列表
             if removed_files:
                 self.update_queue_list()
-                # 记录日志
                 for file in removed_files:
                     self.parent.log(f"已移除文件: {os.path.basename(file)}")
                 self.parent.log(f"共移除 {len(removed_files)} 个文件")
@@ -241,12 +236,8 @@ class QueueManager:
         for i, file_path in enumerate(self.file_queue, 1):
             file_dir = os.path.dirname(file_path)
             file_name = os.path.basename(file_path)
-            name_without_ext = os.path.splitext(file_name)[0]
             
-            if file_dir:
-                display_name = f"{file_dir}...{name_without_ext}"
-            else:
-                display_name = name_without_ext
+            display_name = self._compress_path_display(file_dir, file_name)
             
             try:
                 mtime = os.path.getmtime(file_path)
@@ -258,6 +249,7 @@ class QueueManager:
             status_icon = GUI_CONF['status_icons'].get(status, "")
             
             output_path = self.get_output_directory(file_path)
+            display_output_path = self._compress_output_path(output_path) if output_path else ""
             
             if output_path:
                 if self.check_duplicate_files(output_path):
@@ -267,7 +259,43 @@ class QueueManager:
                     status = "exists"
                     status_icon = GUI_CONF['status_icons'].get("exists", "")
             
-            self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, output_path), tags=(status,))
+            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(status,))
+    
+    def _compress_path_display(self, file_dir, file_name):
+        """压缩文件路径显示
+        
+        Args:
+            file_dir: 文件目录
+            file_name: 文件名（包含扩展名）
+            
+        Returns:
+            str: 压缩后的显示文本
+        """
+        max_dir_length = 30
+        
+        if file_dir:
+            if len(file_dir) > max_dir_length:
+                compressed_dir = file_dir[:max_dir_length//2] + "..." + file_dir[-max_dir_length//2:]
+                return f"{compressed_dir}...{file_name}"
+            else:
+                return f"{file_dir}...{file_name}"
+        else:
+            return file_name
+    
+    def _compress_output_path(self, output_path):
+        """压缩输出路径显示
+        
+        Args:
+            output_path: 输出路径
+            
+        Returns:
+            str: 压缩后的显示文本
+        """
+        max_length = 40
+        
+        if len(output_path) > max_length:
+            return output_path[:max_length//2] + "..." + output_path[-max_length//2:]
+        return output_path
     
     def check_output_directory_exists(self, file_path):
         """检查输出目录是否存在
