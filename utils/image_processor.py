@@ -78,14 +78,12 @@ class ProgressReporter:
             elif '色卡' in name:
                 progress_type = 'color'
             self.progress_callback(self.current_file, progress_text, progress_type)
-        
-        # 同时在日志中显示
-        print(f'\r{name}: [{bar}] {current}/{total} ({percent}%)', end='', flush=True)
     
     def complete_progress(self, name):
         """完成进度显示"""
-        bar_length = GUI_CONF.get('progress_bar_width', 20) if 'GUI_CONF' in dir() else 20
-        print(f'\r{name}: [{"█" * bar_length}] 完成!    ')
+        # 通知GUI清除进度
+        if self.progress_callback and self.current_file:
+            self.progress_callback(self.current_file, "", "")
     
     def show_section_header(self, name, count):
         """显示章节标题"""
@@ -96,15 +94,12 @@ class ProgressReporter:
     def show_section_summary(self, name, stats):
         """显示章节小结"""
         elapsed = time.time() - self.start_time
-        print(f"\n┌─────────────────────────────────────┐")
-        print(f"│ {name:^33} │")
-        print(f"├─────────────────────────────────────┤")
-        print(f"│  处理完成: {stats['processed']:>4} 张              │")
-        print(f"│  跳过文件: {stats['skipped']:>4} 张              │")
+        print(f"\n{name}")
+        print(f"  处理完成: {stats['processed']} 张")
+        print(f"  跳过文件: {stats['skipped']} 张")
         if stats['errors'] > 0:
-            print(f"│  处理失败: {stats['errors']:>4} 张              │")
-        print(f"│  耗时: {elapsed:>6.1f} 秒                 │")
-        print(f"└─────────────────────────────────────┘")
+            print(f"  处理失败: {stats['errors']} 张")
+        print(f"  耗时: {elapsed:.1f} 秒")
     
     def show_final_summary(self):
         """显示最终汇总报告"""
@@ -114,12 +109,11 @@ class ProgressReporter:
         total_errors = self.main_stats['errors'] + self.detail_stats['errors'] + self.color_stats['errors']
         
         print(f"\n{'='*50}")
-        print(f"{'图像优化处理报告':^48}")
+        print(f"图像优化处理报告")
         print(f"{'='*50}")
         print(f"  主图:   处理 {self.main_stats['processed']} 张, 跳过 {self.main_stats['skipped']} 张")
         print(f"  详情图: 处理 {self.detail_stats['processed']} 张, 跳过 {self.detail_stats['skipped']} 张")
         print(f"  色卡图: 处理 {self.color_stats['processed']} 张, 跳过 {self.color_stats['skipped']} 张")
-        print(f"  {'─'*46}")
         print(f"  总计:   处理 {total_processed} 张, 跳过 {total_skipped} 张")
         if total_errors > 0:
             print(f"          失败 {total_errors} 张")

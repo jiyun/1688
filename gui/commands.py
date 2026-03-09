@@ -126,9 +126,7 @@ class ContextMenuCommands:
                         universal_newlines=True
                     )
                     
-                    # 实时读取输出并更新进度条
-                    total_files = 0
-                    processed_files = 0
+                    # 实时读取输出
                     import re
                     while True:
                         line = process.stdout.readline()
@@ -137,59 +135,20 @@ class ContextMenuCommands:
                         if line:
                             line = line.strip()
                             if line:
-                                # 只显示关键信息，压缩详细日志
-                                if "找到" in line and ("张详情图文件" in line or "张主图文件" in line or "张色卡图文件" in line):
+                                # 捕获章节标题
+                                if "==================================================" in line:
                                     self.parent.log(line)
-                                    # 提取文件数量
-                                    match = re.search(r'找到 (\d+) 张', line)
-                                    if match:
-                                        total_files = int(match.group(1))
-                                elif "开始处理主图放大" in line or "开始处理色卡图放大" in line:
+                                elif "主图处理" in line and "张)" in line:
                                     self.parent.log(line)
-                                elif "主图放大完成" in line or "色卡图放大完成" in line:
+                                elif "详情图处理" in line and "张)" in line:
                                     self.parent.log(line)
-                                elif "混合图片处理完成" in line:
+                                elif "色卡图处理" in line and "张)" in line:
                                     self.parent.log(line)
-                                # 捕获详情图处理进度（格式：详情图处理进度: [████████████] 5/9 (55.6%)）
-                                elif "详情图处理进度:" in line and "[" in line:
-                                    match = re.search(r'详情图处理进度:.*?(\d+)/(\d+)', line)
-                                    if match:
-                                        current = int(match.group(1))
-                                        total = int(match.group(2))
-                                        percent = int((current / total) * 100)
-                                        self.parent.log(f"详情图处理进度: {current}/{total} ({percent}%)")
-                                # 捕获主图处理进度
-                                elif "主图处理进度:" in line and "[" in line:
-                                    match = re.search(r'主图处理进度:.*?(\d+)/(\d+)', line)
-                                    if match:
-                                        current = int(match.group(1))
-                                        total = int(match.group(2))
-                                        percent = int((current / total) * 100)
-                                        self.parent.log(f"主图处理进度: {current}/{total} ({percent}%)")
-                                # 捕获主图WebP转换进度
-                                elif "主图WebP转换进度:" in line and "[" in line:
-                                    match = re.search(r'主图WebP转换进度:.*?(\d+)/(\d+)', line)
-                                    if match:
-                                        current = int(match.group(1))
-                                        total = int(match.group(2))
-                                        percent = int((current / total) * 100)
-                                        self.parent.log(f"主图WebP转换进度: {current}/{total} ({percent}%)")
-                                # 捕获色卡图处理进度
-                                elif "色卡图处理进度:" in line and "[" in line:
-                                    match = re.search(r'色卡图处理进度:.*?(\d+)/(\d+)', line)
-                                    if match:
-                                        current = int(match.group(1))
-                                        total = int(match.group(2))
-                                        percent = int((current / total) * 100)
-                                        self.parent.log(f"色卡图处理进度: {current}/{total} ({percent}%)")
-                                # 捕获混合图片处理进度
-                                elif "混合图片处理进度:" in line:
+                                # 捕获小结报告
+                                elif "处理完成:" in line or "跳过文件:" in line or "耗时:" in line:
                                     self.parent.log(line)
-                                # 捕获混合图片处理开始
-                                elif "混合图片处理:" in line:
-                                    self.parent.log(line)
-                                # 捕获动图转换
-                                elif "动图转换:" in line:
+                                # 捕获总计信息
+                                elif "总计:" in line or "图像优化处理报告" in line:
                                     self.parent.log(line)
                     
                     process.wait()
