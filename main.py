@@ -175,13 +175,24 @@ class AlibabaScraper:
         """运行完整流程"""
         print("=== 1688详情页资源采集工具 ====")
         
+        # 在切换目录前保存HTML文件的绝对路径
+        html_abs_path = os.path.abspath(self.html_file)
+        
+        # 检查HTML文件是否存在
+        if not os.path.exists(html_abs_path):
+            print(f"错误: HTML文件不存在: {html_abs_path}")
+            return False
+        
+        # 更新HTML文件路径为绝对路径
+        self.html_file = html_abs_path
+        
         # 确定输出目录
         if self.output_path:
             # 使用自定义输出路径
             output_dir = os.path.abspath(os.path.join(self.output_path, self.product_id))
         else:
             # 使用默认路径（HTML文件所在目录下的商品ID子目录）
-            html_dir = os.path.dirname(os.path.abspath(self.html_file))
+            html_dir = os.path.dirname(html_abs_path)
             output_dir = os.path.abspath(os.path.join(html_dir, self.product_id))
         
         print(f"输出目录: {output_dir}")
@@ -209,17 +220,6 @@ class AlibabaScraper:
             print(f"错误: 无法进入目录 '{output_dir}'")
             print(f"详细错误: {e}")
             return False
-        
-        # 保存HTML文件的绝对路径（在切换目录后路径会改变）
-        html_abs_path = os.path.abspath(self.html_file)
-        
-        # 检查HTML文件是否存在
-        if not os.path.exists(html_abs_path):
-            print(f"错误: HTML文件不存在: {html_abs_path}")
-            return False
-        
-        # 更新HTML文件路径为绝对路径
-        self.html_file = html_abs_path
         
         # 1. 加载HTML文件
         if not self.load_html():
@@ -339,16 +339,28 @@ def main():
         filtered_args = sys.argv
     else:
         # 只保留非子参数，忽略所有--process-images的子参数
-        for arg in sys.argv[1:]:
+        i = 1
+        while i < len(sys.argv):
+            arg = sys.argv[i]
             # 检查是否是--process-images的子参数
             if arg in ["--webp", "--t", "--color", "--with-animated"]:
+                i += 1
                 continue  # 忽略子参数
-            # 只保留--no-rebuild参数（如果存在）
-            if arg == "--no-rebuild" and len(filtered_args) > 1:
+            # 保留--no-rebuild参数
+            if arg == "--no-rebuild":
                 filtered_args.append(arg)
+                i += 1
+                continue
+            # 保留--output参数及其值
+            if arg == "--output" and i + 1 < len(sys.argv):
+                filtered_args.append(arg)
+                filtered_args.append(sys.argv[i + 1])
+                i += 2
+                continue
             # 只保留第一个非子参数（HTML文件路径或图片文件路径）
-            elif len(filtered_args) == 1:
+            if len(filtered_args) == 1:
                 filtered_args.append(arg)
+            i += 1
     
     # 重新解析参数
     sys.argv = filtered_args
