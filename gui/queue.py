@@ -26,9 +26,32 @@ class QueueManager:
         self.parent = parent
         self.file_queue = []
         self.file_status = {}
+        self.file_progress = {}  # 文件进度信息
         self.is_paused = False
         self.is_executing = False
         self.current_process = None
+    
+    def update_progress(self, file_path, progress_text, progress_type='detail'):
+        """更新文件进度显示
+        
+        Args:
+            file_path: 文件路径
+            progress_text: 进度文本
+            progress_type: 进度类型 ('main', 'color', 'detail')
+        """
+        self.file_progress[file_path] = progress_text
+        self.file_status[file_path] = "processing"
+        self.update_queue_list()
+    
+    def clear_progress(self, file_path):
+        """清除文件进度显示
+        
+        Args:
+            file_path: 文件路径
+        """
+        if file_path in self.file_progress:
+            del self.file_progress[file_path]
+        self.update_queue_list()
     
     def add_file(self):
         """添加多个 HTML 文件到队列"""
@@ -249,9 +272,16 @@ class QueueManager:
             status_icon = GUI_CONF['status_icons'].get(status, "")
             
             output_path = self.get_output_directory(file_path)
-            display_output_path = self._compress_output_path(output_path) if output_path else ""
             
-            if output_path:
+            # 检查是否有进度信息
+            progress = self.file_progress.get(file_path, "")
+            if progress:
+                # 显示进度条
+                display_output_path = progress
+            else:
+                display_output_path = self._compress_output_path(output_path) if output_path else ""
+            
+            if output_path and not progress:
                 if self.check_duplicate_files(output_path):
                     status = "duplicate"
                     status_icon = GUI_CONF['status_icons'].get("duplicate", "")

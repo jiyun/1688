@@ -43,18 +43,49 @@ class ProgressReporter:
         self.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         self.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
+        self.progress_callback = None  # 进度回调函数
+        self.current_file = None  # 当前处理的文件
+    
+    def set_progress_callback(self, callback):
+        """设置进度回调函数
+        
+        Args:
+            callback: 回调函数，接受 (file_path, progress_text, progress_type) 参数
+        """
+        self.progress_callback = callback
+    
+    def set_current_file(self, file_path):
+        """设置当前处理的文件
+        
+        Args:
+            file_path: 文件路径
+        """
+        self.current_file = file_path
     
     def show_progress(self, name, current, total):
         """显示进度条"""
-        bar_length = 30
+        bar_length = GUI_CONF.get('progress_bar_width', 20) if 'GUI_CONF' in dir() else 20
         percent = int((current / total) * 100) if total > 0 else 0
         filled = int(bar_length * current / total) if total > 0 else 0
         bar = '█' * filled + '░' * (bar_length - filled)
+        progress_text = f"[{bar}] {percent}%"
+        
+        # 通知GUI更新进度
+        if self.progress_callback and self.current_file:
+            progress_type = 'detail'
+            if '主图' in name:
+                progress_type = 'main'
+            elif '色卡' in name:
+                progress_type = 'color'
+            self.progress_callback(self.current_file, progress_text, progress_type)
+        
+        # 同时在日志中显示
         print(f'\r{name}: [{bar}] {current}/{total} ({percent}%)', end='', flush=True)
     
     def complete_progress(self, name):
         """完成进度显示"""
-        print(f'\r{name}: [{"█" * 30}] 完成!    ')
+        bar_length = GUI_CONF.get('progress_bar_width', 20) if 'GUI_CONF' in dir() else 20
+        print(f'\r{name}: [{"█" * bar_length}] 完成!    ')
     
     def show_section_header(self, name, count):
         """显示章节标题"""

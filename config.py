@@ -82,22 +82,41 @@ GUI_CONF = {
         ('path', '路径', 350)
     ),
     
+    # 进度条配置
+    'progress_colors': {
+        'main': '#4CAF50',      # 主图 - 绿色
+        'color': '#2196F3',     # 色卡图 - 蓝色
+        'detail': '#FF9800',    # 详情图 - 橙色
+    },
+    'progress_bar_width': 20,    # 进度条宽度（字符数）
+    
     # 状态配置
     'status_icons': {
         'success': '✓',
         'error': '✗',
         'exists': '❓',
         'duplicate': '❗',
-        'none': ''
+        'none': '',
+        'processing': '⏳'  # 处理中状态
     },
-    'status_order': {'none': 0, 'exists': 1, 'duplicate': 2, 'error': 3, 'success': 4},
+    'status_order': {'none': 1, 'exists': 1, 'duplicate': 2, 'error': 3, 'success': 4, 'processing': 5},
     'status_colors': {
         'success': 'green',
         'error': 'red',
         'exists': 'orange',
         'duplicate': 'purple',
-        'none': 'black'
+        'none': 'black',
+        'processing': 'blue'  # 处理中 - 蓝色
     },
+    
+    # 进度条配置
+    'progress_colors': {
+        'main': '#4CAF50',      # 主图 - 绿色
+        'color': '#2196F3',     # 色卡图 - 蓝色
+        'detail': '#FF9800'    # 详情图 - 橙色
+    },
+    'progress_bar_width': 20,    # 进度条宽度（字符数）
+    'progress_bar_chars': ('█', '░'),  # 进度条字符（填充、空白）
     
     # 上下文菜单配置
     'context_menu_items': [
