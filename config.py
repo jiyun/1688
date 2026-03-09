@@ -33,7 +33,7 @@ IMAGE_PROCESSING = {
     'jpeg_quality': 95,                                # JPEG保存质量
     'webp_quality': 80,                                # WebP保存质量（用于动图转换）
     'webp_method': 4,                                  # WebP压缩方法（0-6，越大压缩比越高但速度越慢）
-    'parallel_workers': 2,                             # 并行处理线程数，默认为2
+    'parallel_workers': 4,                             # 并行处理线程数，默认为2
 }
 
 # 选择器配置
@@ -87,13 +87,15 @@ GUI_CONF = {
         'success': '✓',
         'error': '✗',
         'exists': '⑈',
+        'duplicate': '❗',
         'none': ''
     },
-    'status_order': {'none': 0, 'exists': 1, 'error': 2, 'success': 3},
+    'status_order': {'none': 0, 'exists': 1, 'duplicate': 2, 'error': 3, 'success': 4},
     'status_colors': {
         'success': 'green',
         'error': 'red',
         'exists': 'orange',
+        'duplicate': 'purple',
         'none': 'black'
     },
     

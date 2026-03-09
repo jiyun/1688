@@ -259,7 +259,48 @@ class QueueManager:
             
             output_path = self.get_output_directory(file_path)
             
+            if output_path:
+                if self.check_duplicate_files(output_path):
+                    status = "duplicate"
+                    status_icon = GUI_CONF['status_icons'].get("duplicate", "")
+                elif status == "none":
+                    status = "exists"
+                    status_icon = GUI_CONF['status_icons'].get("exists", "")
+            
             self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, output_path), tags=(status,))
+    
+    def check_output_directory_exists(self, file_path):
+        """检查输出目录是否存在
+        
+        Args:
+            file_path: HTML文件路径
+            
+        Returns:
+            bool: 输出目录是否存在
+        """
+        output_dir = self.get_output_directory(file_path)
+        return output_dir and os.path.exists(output_dir) and os.path.isdir(output_dir)
+    
+    def check_duplicate_files(self, output_dir):
+        """检查输出目录中是否存在aria2c生成的重复文件
+        
+        Args:
+            output_dir: 输出目录路径
+            
+        Returns:
+            bool: 是否存在重复文件
+        """
+        if not output_dir or not os.path.exists(output_dir):
+            return False
+        
+        has_duplicate = False
+        
+        for file in os.listdir(output_dir):
+            if '.1.' in file or '.2.' in file:
+                has_duplicate = True
+                break
+        
+        return has_duplicate
     
     def get_output_directory(self, html_file_path):
         """获取HTML文件对应的输出目录路径
@@ -274,10 +315,10 @@ class QueueManager:
         
         custom_output_path = self.parent.get_output_path()
         if custom_output_path:
-            output_dir = os.path.join(custom_output_path, product_id)
+            output_dir = os.path.normpath(os.path.join(custom_output_path, product_id))
         else:
             html_dir = os.path.dirname(os.path.abspath(html_file_path))
-            output_dir = os.path.join(html_dir, product_id)
+            output_dir = os.path.normpath(os.path.join(html_dir, product_id))
         
         if os.path.exists(output_dir) and os.path.isdir(output_dir):
             return output_dir
