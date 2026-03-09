@@ -178,47 +178,48 @@ class AlibabaScraper:
         # 确定输出目录
         if self.output_path:
             # 使用自定义输出路径
-            output_dir = os.path.join(self.output_path, self.product_id)
+            output_dir = os.path.abspath(os.path.join(self.output_path, self.product_id))
         else:
             # 使用默认路径（HTML文件所在目录下的商品ID子目录）
             html_dir = os.path.dirname(os.path.abspath(self.html_file))
-            output_dir = os.path.join(html_dir, self.product_id)
+            output_dir = os.path.abspath(os.path.join(html_dir, self.product_id))
         
-        # 确保在正确的目录中工作
-        if not os.path.basename(os.getcwd()) == self.product_id or self.output_path:
-            # 如果当前目录不是商品ID目录，创建并进入
-            if os.path.exists(output_dir):
-                # 检查是否是文件而非目录
-                if os.path.isfile(output_dir):
-                    print(f"错误: '{output_dir}' 是一个文件而非目录")
-                    print(f"请删除或重命名该文件后重试")
-                    return False
-            else:
-                try:
-                    os.makedirs(output_dir, exist_ok=True)
-                except PermissionError as e:
-                    print(f"错误: 无法创建文件夹 '{output_dir}'")
-                    print(f"请检查是否有写入权限")
-                    print(f"详细错误: {e}")
-                    return False
+        print(f"输出目录: {output_dir}")
+        
+        # 创建输出目录（如果不存在）
+        if not os.path.exists(output_dir):
             try:
-                os.chdir(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
+                print(f"已创建输出目录: {output_dir}")
             except PermissionError as e:
-                print(f"错误: 无法进入目录 '{output_dir}'")
+                print(f"错误: 无法创建文件夹 '{output_dir}'")
+                print(f"请检查是否有写入权限")
                 print(f"详细错误: {e}")
                 return False
+        elif os.path.isfile(output_dir):
+            print(f"错误: '{output_dir}' 是一个文件而非目录")
+            print(f"请删除或重命名该文件后重试")
+            return False
+        
+        # 切换到输出目录
+        try:
+            os.chdir(output_dir)
+            print(f"工作目录: {os.getcwd()}")
+        except PermissionError as e:
+            print(f"错误: 无法进入目录 '{output_dir}'")
+            print(f"详细错误: {e}")
+            return False
+        
+        # 保存HTML文件的绝对路径（在切换目录后路径会改变）
+        html_abs_path = os.path.abspath(self.html_file)
         
         # 检查HTML文件是否存在
-        if not os.path.exists(self.html_file):
-            # 尝试相对于当前工作目录的路径
-            html_path = os.path.basename(self.html_file)
-            if os.path.exists(html_path):
-                self.html_file = html_path
-            else:
-                # 尝试上级目录
-                html_path = os.path.join("..", os.path.basename(self.html_file))
-                if os.path.exists(html_path):
-                    self.html_file = html_path
+        if not os.path.exists(html_abs_path):
+            print(f"错误: HTML文件不存在: {html_abs_path}")
+            return False
+        
+        # 更新HTML文件路径为绝对路径
+        self.html_file = html_abs_path
         
         # 1. 加载HTML文件
         if not self.load_html():
