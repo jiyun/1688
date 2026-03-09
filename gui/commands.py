@@ -202,25 +202,17 @@ class ContextMenuCommands:
                         if os.path.exists(file_path):
                             os.remove(file_path)
                     
-                    # 删除拼接结果文件（如果存在）
+                    # 删除拼接结果文件（如果存在)
                     merged_path = os.path.join(folder_path, '拼接结果.jpg')
                     if os.path.exists(merged_path):
                         os.remove(merged_path)
                     
                     # 删除原采集文件
-                    patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png']
-                    
-                    # 如果包含--with-animated参数，添加动图文件清理
+                    # 注意：新生成的文件使用 new_ 前缀或 E_ 前缀，原始文件使用 C_ 和 T_ 前缀
+                    # 所以删除原始文件不会影响新生成的文件
+                    patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png']
                     if with_animated:
-                        patterns.extend(['C_*.gif', 'C_*.webp', 'T_*.gif', 'T_*.webp'])
-                    
-                    # 如果勾选了"支持色卡图"选项，添加色卡图文件清理
-                    # 注意：色卡图采用覆盖式处理，只有勾选了webp转换才会生成.webp文件
-                    # 此时需要清理原始的.jpg/.png文件
-                    if convert_color:
-                        patterns.extend(['color_*.jpg', 'color_*.png'])
-                        if with_animated:
-                            patterns.extend(['color_*.gif', 'color_*.webp'])
+                        patterns.extend(['C_*.gif', 'T_*.gif', 'color_*.gif'])
                     
                     deleted_count = 0
                     for pattern in patterns:
@@ -333,60 +325,71 @@ class ContextMenuCommands:
             return
         
         self.parent.log(f"重新采集: {os.path.basename(file_path)}")
-        try:
-            if folder_path and os.path.exists(folder_path):
-                self.parent.log("正在删除现有文件...")
-                for item in os.listdir(folder_path):
-                    item_path = os.path.join(folder_path, item)
-                    if os.path.isfile(item_path):
-                        os.remove(item_path)
-                    elif os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
-                
-                self.parent.log("正在重新采集...")
-                main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                file_dir = os.path.dirname(file_path)
-                
-                # 获取输出路径参数
-                output_path = self.parent.get_output_path()
-                cmd = ["python", main_py_path, file_path, "--no-rebuild"]
-                if output_path:
-                    cmd.extend(["--output", output_path])
-                
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding='utf-8',
-                    bufsize=1,
-                    universal_newlines=True,
-                    cwd=file_dir
-                )
-                
-                for line in process.stdout:
-                    line = line.strip()
-                    if "错误" in line or "失败" in line or "[失败]" in line:
-                        self.parent.log(line, "error")
-                    elif "成功" in line or "完成" in line:
-                        self.parent.log(line, "success")
+        
+        import threading
+        def recollect_thread():
+            try:
+                if folder_path and os.path.exists(folder_path):
+                    self.parent.log("正在删除现有文件...")
+                    for item in os.listdir(folder_path):
+                        item_path = os.path.join(folder_path, item)
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                    
+                    self.parent.log("正在重新采集...")
+                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
+                    file_dir = os.path.dirname(file_path)
+                    
+                    output_path = self.parent.get_output_path()
+                    cmd = ["python", main_py_path, file_path, "--no-rebuild"]
+                    if output_path:
+                        cmd.extend(["--output", output_path])
+                    
+                    process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        encoding='utf-8',
+                        bufsize=1,
+                        universal_newlines=True,
+                        cwd=file_dir
+                    )
+                    
+                    while True:
+                        line = process.stdout.readline()
+                        if not line and process.poll() is not None:
+                            break
+                        if line:
+                            line = line.strip()
+                            if line:
+                                if "错误" in line or "失败" in line or "[失败]" in line:
+                                    self.parent.log(line, "error")
+                                elif "成功" in line or "完成" in line:
+                                    self.parent.log(line, "success")
+                                else:
+                                    self.parent.log(line, "info")
+                    
+                    process.wait()
+                    
+                    if process.returncode == 0:
+                        self.parent.queue_manager.file_status[file_path] = "success"
+                        self.parent.log("重新采集完成", "success")
                     else:
-                        self.parent.log(line, "info")
-                
-                process.wait()
-                
-                if process.returncode == 0:
-                    self.parent.queue_manager.file_status[file_path] = "success"
-                    self.parent.log("重新采集完成", "success")
+                        self.parent.queue_manager.file_status[file_path] = "error"
+                        self.parent.log("重新采集失败", "error")
+                    
+                    self.parent.queue_manager.update_queue_list()
                 else:
-                    self.parent.queue_manager.file_status[file_path] = "error"
-                    self.parent.log("重新采集失败", "error")
-                
-                self.parent.queue_manager.update_queue_list()
-            else:
-                self.parent.log("文件夹不存在", "error")
-        except Exception as e:
-            self.parent.log(f"重新采集失败: {e}", "error")
+                    self.parent.log("文件夹不存在", "error")
+            except Exception as e:
+                self.parent.log(f"重新采集失败: {e}", "error")
+        
+        thread = threading.Thread(target=recollect_thread)
+        thread.daemon = True
+        thread.start()
     
     def context_visit_url(self):
         """右键菜单：访问原址"""

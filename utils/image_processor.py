@@ -11,6 +11,9 @@
 import os
 import sys
 import threading
+import multiprocessing
+import time
+from multiprocessing import Pool, Manager
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
@@ -27,8 +30,74 @@ from utils.image_utils import (
     min_width, detail_min_width, detail_width_tolerance,
     enlarge_step1_width, enlarge_step2_width, photo_min_width,
     main_image_min_size, main_image_target_size, jpeg_quality,
-    OUTPUT_WEBP, CONVERT_MAIN, CONVERT_COLOR, parallel_workers
+    parallel_workers
 )
+import utils.image_utils
+
+
+class ProgressReporter:
+    """统一的进度报告器"""
+    
+    def __init__(self):
+        self.start_time = time.time()
+        self.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
+        self.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
+        self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
+    
+    def show_progress(self, name, current, total):
+        """显示进度条"""
+        bar_length = 30
+        percent = int((current / total) * 100) if total > 0 else 0
+        filled = int(bar_length * current / total) if total > 0 else 0
+        bar = '█' * filled + '░' * (bar_length - filled)
+        print(f'\r{name}: [{bar}] {current}/{total} ({percent}%)', end='', flush=True)
+    
+    def complete_progress(self, name):
+        """完成进度显示"""
+        print(f'\r{name}: [{"█" * 30}] 完成!    ')
+    
+    def show_section_header(self, name, count):
+        """显示章节标题"""
+        print(f"\n{'='*50}")
+        print(f"  {name} ({count} 张)")
+        print(f"{'='*50}")
+    
+    def show_section_summary(self, name, stats):
+        """显示章节小结"""
+        elapsed = time.time() - self.start_time
+        print(f"\n┌─────────────────────────────────────┐")
+        print(f"│ {name:^33} │")
+        print(f"├─────────────────────────────────────┤")
+        print(f"│  处理完成: {stats['processed']:>4} 张              │")
+        print(f"│  跳过文件: {stats['skipped']:>4} 张              │")
+        if stats['errors'] > 0:
+            print(f"│  处理失败: {stats['errors']:>4} 张              │")
+        print(f"│  耗时: {elapsed:>6.1f} 秒                 │")
+        print(f"└─────────────────────────────────────┘")
+    
+    def show_final_summary(self):
+        """显示最终汇总报告"""
+        elapsed = time.time() - self.start_time
+        total_processed = self.main_stats['processed'] + self.detail_stats['processed'] + self.color_stats['processed']
+        total_skipped = self.main_stats['skipped'] + self.detail_stats['skipped'] + self.color_stats['skipped']
+        total_errors = self.main_stats['errors'] + self.detail_stats['errors'] + self.color_stats['errors']
+        
+        print(f"\n{'='*50}")
+        print(f"{'图像优化处理报告':^48}")
+        print(f"{'='*50}")
+        print(f"  主图:   处理 {self.main_stats['processed']} 张, 跳过 {self.main_stats['skipped']} 张")
+        print(f"  详情图: 处理 {self.detail_stats['processed']} 张, 跳过 {self.detail_stats['skipped']} 张")
+        print(f"  色卡图: 处理 {self.color_stats['processed']} 张, 跳过 {self.color_stats['skipped']} 张")
+        print(f"  {'─'*46}")
+        print(f"  总计:   处理 {total_processed} 张, 跳过 {total_skipped} 张")
+        if total_errors > 0:
+            print(f"          失败 {total_errors} 张")
+        print(f"  耗时:   {elapsed:.1f} 秒")
+        print(f"{'='*50}\n")
+
+
+reporter = ProgressReporter()
+
 
 # 线程安全的进度计数器
 class ProgressCounter:
@@ -41,6 +110,47 @@ class ProgressCounter:
         with self.lock:
             self.count += 1
             return self.count
+
+
+# 多进程处理详情图的全局变量
+_process_detail_current_dir = None
+_process_detail_counter = None
+
+
+def _init_process_detail(current_dir, counter):
+    """初始化多进程处理详情图的全局变量"""
+    global _process_detail_current_dir, _process_detail_counter
+    _process_detail_current_dir = current_dir
+    _process_detail_counter = counter
+
+
+def _process_single_detail_worker(args):
+    """处理单张详情图的工作函数（模块级别，用于多进程）"""
+    file_path, width, height, total_count = args
+    try:
+        with Image.open(file_path) as img:
+            if utils.image_utils.OUTPUT_WEBP:
+                base_name = os.path.basename(file_path)
+                name, ext = os.path.splitext(base_name)
+                webp_path = os.path.join(_process_detail_current_dir, f"{name}.webp")
+                if width >= detail_min_width:
+                    img.save(webp_path, format="WebP", quality=jpeg_quality)
+                    return ('skipped', True)
+                else:
+                    result = enlarge_image(img)
+                    img_resized = result[0]
+                    img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
+                    return ('processed', True)
+            else:
+                if width >= detail_min_width:
+                    return ('skipped', False)
+                else:
+                    result = enlarge_image(img)
+                    img_resized = result[0]
+                    img_resized.save(file_path, quality=jpeg_quality)
+                    return ('processed', False)
+    except Exception as e:
+        return ('error', str(e))
 
 
 def _split_with_custom_index(merged_image, target_width, total_height, output_dir, output_prefix, start_index):
@@ -60,7 +170,7 @@ def _split_with_custom_index(merged_image, target_width, total_height, output_di
     max_single_height = target_width * 2
     
     if total_height <= max_single_height:
-        if OUTPUT_WEBP:
+        if utils.image_utils.OUTPUT_WEBP:
             save_path = os.path.join(output_dir, f"{output_prefix}{start_index}.webp")
             merged_image.save(save_path, format="WebP", quality=jpeg_quality)
         else:
@@ -92,7 +202,7 @@ def _split_with_custom_index(merged_image, target_width, total_height, output_di
         
         current_index = start_index + i
         
-        if OUTPUT_WEBP:
+        if utils.image_utils.OUTPUT_WEBP:
             保存路径 = os.path.join(output_dir, f"{output_prefix}{current_index}.webp")
             切割图片.save(保存路径, format="WebP", quality=jpeg_quality)
         else:
@@ -242,19 +352,17 @@ def process_mixed_images(images_info, current_dir, base_output_name):
 
 def enlarge_main_images():
     """放大主图功能：两步处理主图"""
-    print("\n开始处理主图放大...", flush=True)
-
     current_dir = os.getcwd()
     main_files = collect_image_files(current_dir, main_image_prefix)
 
     if not main_files:
-        print(f"没有找到{main_image_prefix}开头的图片文件", flush=True)
+        reporter.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         return
 
     total_files = len(main_files)
-    print(f"找到 {total_files} 张主图文件", flush=True)
+    reporter.main_stats['total'] = total_files
+    reporter.show_section_header("主图处理", total_files)
     
-    bar_length = 40
     step1_queue = []
     step1_processed = 0
     need_step1 = False
@@ -276,11 +384,11 @@ def enlarge_main_images():
                 
                 step1_queue.append(file_path)
         except Exception as e:
-            print(f"\n处理图片 {file_path} 时出错: {e}", flush=True)
+            reporter.main_stats['errors'] += 1
+    
+    processed_count = 0
     
     if need_step1:
-        print(f"\n=== 第一步处理：将小于{main_image_min_size}px的图片放大到{main_image_min_size}px ===", flush=True)
-        
         for i, file_path in enumerate(step1_queue, 1):
             try:
                 with Image.open(file_path) as img:
@@ -300,16 +408,17 @@ def enlarge_main_images():
                         img_resized = img.resize((new_width, new_height), Image.LANCZOS)
                         img_resized.save(file_path, quality=jpeg_quality)
                         step1_processed += 1
+                        reporter.main_stats['processed'] += 1
+                    else:
+                        reporter.main_stats['skipped'] += 1
 
             except Exception as e:
-                print(f"\n处理图片 {file_path} 时出错: {e}", flush=True)
+                reporter.main_stats['errors'] += 1
             
-            percent = (i / len(step1_queue)) * 100
-            filled = int(bar_length * i / len(step1_queue))
-            bar = '█' * filled + '-' * (bar_length - filled)
-            print(f'主图处理进度: [{bar}] {i}/{len(step1_queue)} ({percent:.1f}%)', flush=True)
+            processed_count += 1
+            reporter.show_progress("主图", processed_count, len(step1_queue))
         
-        print(f'\n第一步完成：放大 {step1_processed} 张图片', flush=True)
+        reporter.complete_progress("主图")
     
     need_step2 = False
     for file_path in step1_queue:
@@ -323,8 +432,7 @@ def enlarge_main_images():
             pass
     
     if not need_step2:
-        if OUTPUT_WEBP and CONVERT_MAIN:
-            print(f"\n=== 主图WebP转换 ===", flush=True)
+        if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_MAIN:
             for i, file_path in enumerate(step1_queue, 1):
                 try:
                     with Image.open(file_path) as img:
@@ -333,20 +441,10 @@ def enlarge_main_images():
                         webp_path = os.path.join(current_dir, f"{name}.webp")
                         img.save(webp_path, format="WebP", quality=jpeg_quality)
                 except Exception as e:
-                    print(f"\n转换WebP失败 {file_path}: {e}", flush=True)
-                
-                percent = (i / len(step1_queue)) * 100
-                filled = int(bar_length * i / len(step1_queue))
-                bar = '█' * filled + '-' * (bar_length - filled)
-                print(f'主图WebP转换进度: [{bar}] {i}/{len(step1_queue)} ({percent:.1f}%)', flush=True)
+                    reporter.main_stats['errors'] += 1
         
-        print(f"主图处理完成！无需放大处理", flush=True)
+        reporter.show_section_summary("主图处理完成", reporter.main_stats)
         return
-
-    print(f"\n=== 第二步处理：将{main_image_min_size}px到{detail_min_width}px之间的图片放大到{main_image_target_size}px ===", flush=True)
-
-    processed_count = 0
-    skipped_count = 0
 
     for i, file_path in enumerate(step1_queue, 1):
         try:
@@ -359,52 +457,45 @@ def enlarge_main_images():
                 new_name = f"E_{name}{ext}"
                 output_path = os.path.join(current_dir, new_name)
 
-                if OUTPUT_WEBP and CONVERT_MAIN:
+                if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_MAIN:
                     webp_path = os.path.join(current_dir, f"E_{name}.webp")
                     if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
                         img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
                         img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
+                        reporter.main_stats['processed'] += 1
                     else:
                         img.save(webp_path, format="WebP", quality=jpeg_quality)
-                    processed_count += 1
+                        reporter.main_stats['skipped'] += 1
                 else:
                     if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
                         img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
                         img_resized.save(output_path, quality=jpeg_quality)
+                        reporter.main_stats['processed'] += 1
                     else:
                         img.save(output_path, quality=jpeg_quality)
-                    processed_count += 1
+                        reporter.main_stats['skipped'] += 1
 
         except Exception as e:
-            skipped_count += 1
+            reporter.main_stats['errors'] += 1
         
-        percent = (i / len(step1_queue)) * 100
-        filled = int(bar_length * i / len(step1_queue))
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'主图处理进度: [{bar}] {i}/{len(step1_queue)} ({percent:.1f}%)', flush=True)
+        reporter.show_progress("主图", i, len(step1_queue))
     
-    print(f'\n第二步完成：生成 {processed_count} 张图片', flush=True)
-    if OUTPUT_WEBP and CONVERT_MAIN:
-        print(f"已将主图转换为WebP格式", flush=True)
-    print(f"主图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片", flush=True)
+    reporter.complete_progress("主图")
+    reporter.show_section_summary("主图处理完成", reporter.main_stats)
 
 
 def enlarge_detail_images():
-    """详情图放大处理功能（并行版本）"""
-    print("\n开始处理详情图放大...", flush=True)
-
+    """详情图放大处理功能（多进程版本）"""
     current_dir = os.getcwd()
     detail_files = collect_image_files(current_dir, detail_image_prefix)
     
     if not detail_files:
-        print(f"没有找到{detail_image_prefix}开头的图片文件", flush=True)
+        reporter.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         return
     
     total_files = len(detail_files)
-    print(f"找到 {total_files} 张详情图文件", flush=True)
-    
-    tolerance_min_width = int(detail_min_width * (1 - detail_width_tolerance))
-    print(f"详情图筛选标准：宽度 >= {tolerance_min_width}px 或宽度 < {enlarge_step1_width}px（需要放大）", flush=True)
+    reporter.detail_stats['total'] = total_files
+    reporter.show_section_header("详情图处理", total_files)
     
     process_queue = []
     skip_queue = []
@@ -415,138 +506,96 @@ def enlarge_detail_images():
                 width, height = img.size
                 base_name = os.path.basename(file_path)
                 
-                if width >= tolerance_min_width or width < enlarge_step1_width:
+                if width >= min_width:
                     process_queue.append((file_path, width, height))
                 else:
                     skip_queue.append((file_path, width, height))
         except Exception as e:
-            print(f"无法读取图片 {file_path}: {e}", flush=True)
+            reporter.detail_stats['errors'] += 1
     
     if skip_queue:
-        print(f"排除了 {len(skip_queue)} 个宽度在{enlarge_step1_width}px到{tolerance_min_width}px之间的图片", flush=True)
+        reporter.detail_stats['skipped'] += len(skip_queue)
     
     if not process_queue:
-        print(f"没有符合条件的详情图", flush=True)
+        reporter.show_section_summary("详情图处理完成", reporter.detail_stats)
         return
     
-    print(f"处理队列: {len(process_queue)} 个文件 (并行线程: {parallel_workers})", flush=True)
+    # 使用全局变量传递参数
+    global _process_detail_current_dir
+    _process_detail_current_dir = current_dir
     
-    counter = ProgressCounter(len(process_queue))
+    # 准备参数
+    total_count = len(process_queue)
+    args_list = [(f, w, h, total_count) for f, w, h in process_queue]
     
-    def process_single_detail(args):
-        """处理单张详情图"""
-        file_path, width, height = args
-        try:
-            with Image.open(file_path) as img:
-                if OUTPUT_WEBP:
-                    base_name = os.path.basename(file_path)
-                    name, ext = os.path.splitext(base_name)
-                    webp_path = os.path.join(current_dir, f"{name}.webp")
-                    if width >= detail_min_width:
-                        img.save(webp_path, format="WebP", quality=jpeg_quality)
-                        return ('skipped', True)
-                    else:
-                        result = enlarge_image(img)
-                        img_resized = result[0]
-                        img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
-                        return ('processed', True)
-                else:
-                    if width >= detail_min_width:
-                        return ('skipped', False)
-                    else:
-                        result = enlarge_image(img)
-                        img_resized = result[0]
-                        img_resized.save(file_path, quality=jpeg_quality)
-                        return ('processed', False)
-        except Exception as e:
-            return ('error', str(e))
-        finally:
-            current = counter.increment()
-            percent = int((current / counter.total) * 100)
-            print(f'详情图处理进度: {current}/{counter.total} ({percent}%)', flush=True)
+    with multiprocessing.Pool(processes=parallel_workers) as pool:
+        results = pool.map(_process_single_detail_worker, args_list)
     
-    with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-        results = list(executor.map(process_single_detail, process_queue))
-    
+    # 统计结果
     for result in results:
         if result[0] == 'processed':
-            processed_count += 1
+            reporter.detail_stats['processed'] += 1
         elif result[0] == 'skipped':
-            skipped_count += 1
+            reporter.detail_stats['skipped'] += 1
         if result[1] == True:
-            webp_converted += 1
+            pass
     
-    print(f'\n详情图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片', flush=True)
-    if OUTPUT_WEBP:
-        print(f"已将 {webp_converted} 张详情图转换为WebP格式", flush=True)
+    reporter.show_section_summary("详情图处理完成", reporter.detail_stats)
 
 
 def enlarge_color_card_images():
-    """色卡图放大处理功能"""
+    """色卡图放大处理功能
+    
+    处理后的文件使用 new_ 前缀命名，避免与原始文件冲突
+    """
     current_dir = os.getcwd()
     color_files = collect_image_files(current_dir, color_option_prefix)
     
     if not color_files:
+        reporter.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         return
     
     total_files = len(color_files)
-    
-    need_process = False
-    for file_path in color_files:
-        try:
-            with Image.open(file_path) as img:
-                width, height = img.size
-                if width < detail_min_width:
-                    need_process = True
-                    break
-        except:
-            pass
-    
-    print(f"\n开始处理色卡图放大...", flush=True)
-    print(f"找到 {total_files} 张色卡图文件", flush=True)
-    
-    bar_length = 40
-    processed_count = 0
-    skipped_count = 0
-    webp_converted = 0
+    reporter.color_stats['total'] = total_files
+    reporter.show_section_header("色卡图处理", total_files)
     
     for i, file_path in enumerate(color_files, 1):
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
                 
-                if OUTPUT_WEBP and CONVERT_COLOR:
-                    base_name = os.path.basename(file_path)
-                    name, ext = os.path.splitext(base_name)
-                    webp_path = os.path.join(current_dir, f"{name}.webp")
+                base_name = os.path.basename(file_path)
+                name, ext = os.path.splitext(base_name)
+                
+                if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_COLOR:
+                    new_file_name = f"new_{name}.webp"
+                    new_file_path = os.path.join(current_dir, new_file_name)
                     if width >= detail_min_width:
-                        skipped_count += 1
-                        img.save(webp_path, format="WebP", quality=jpeg_quality)
+                        img.save(new_file_path, format="WebP", quality=jpeg_quality)
+                        reporter.color_stats['skipped'] += 1
                     else:
                         result = enlarge_image(img)
                         img_resized = result[0]
-                        img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
-                        processed_count += 1
-                    webp_converted += 1
+                        img_resized.save(new_file_path, format="WebP", quality=jpeg_quality)
+                        reporter.color_stats['processed'] += 1
                 else:
+                    new_file_name = f"new_{name}{ext}"
+                    new_file_path = os.path.join(current_dir, new_file_name)
                     if width >= detail_min_width:
-                        skipped_count += 1
+                        img.save(new_file_path, quality=jpeg_quality)
+                        reporter.color_stats['skipped'] += 1
                     else:
                         result = enlarge_image(img)
                         img_resized = result[0]
-                        img_resized.save(file_path, quality=jpeg_quality)
-                        processed_count += 1
+                        img_resized.save(new_file_path, quality=jpeg_quality)
+                        reporter.color_stats['processed'] += 1
         except Exception as e:
-            pass
+            reporter.color_stats['errors'] += 1
         
-        percent = (i / total_files) * 100
-        filled = int(bar_length * i / total_files)
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'色卡图处理进度: [{bar}] {i}/{total_files} ({percent:.1f}%)', flush=True)
+        reporter.show_progress("色卡图", i, total_files)
     
-    print(f'\n色卡图放大完成！共处理 {processed_count} 张图片，跳过 {skipped_count} 张图片', flush=True)
-    if OUTPUT_WEBP and CONVERT_COLOR:
-        print(f"已将 {webp_converted} 张色卡图转换为WebP格式", flush=True)
+    reporter.complete_progress("色卡图")
+    reporter.show_section_summary("色卡图处理完成", reporter.color_stats)
 
 
 def process_regular_detail_images():
@@ -555,12 +604,12 @@ def process_regular_detail_images():
     c_files = collect_image_files(current_dir, detail_image_prefix)
     
     if not c_files:
-        print(f"没有找到{detail_image_prefix}开头的图片文件")
+        reporter.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
         return
     
     original_count = len(c_files)
-    print(f"\n=== 详情图拼接处理 ===")
-    print(f"找到 {original_count} 张详情图文件")
+    reporter.detail_stats['total'] = original_count
+    reporter.show_section_header("详情图处理", original_count)
     
     all_images_info = []
     has_animated = False
@@ -573,71 +622,50 @@ def process_regular_detail_images():
                 if is_animated:
                     has_animated = True
         except Exception as e:
-            print(f"无法读取图片 {file_path}: {e}")
+            reporter.detail_stats['errors'] += 1
     
     filtered_images = [(file_path, width, height, is_animated) for file_path, width, height, is_animated in all_images_info if width >= min_width]
     
     removed_small = len(all_images_info) - len(filtered_images)
     if removed_small > 0:
-        print(f"\n移除了 {removed_small} 个宽度低于{min_width}px的图片")
+        reporter.detail_stats['skipped'] += removed_small
     
     if not filtered_images:
-        print(f"\n没有符合条件的详情图")
+        reporter.show_section_summary("详情图处理完成", reporter.detail_stats)
         return
     
     animated_count = sum(1 for _, _, _, is_animated in filtered_images if is_animated)
     static_count = len(filtered_images) - animated_count
     
-    print(f"\n图片分析结果:")
-    print(f"  - 静态图片数量: {static_count} 张")
-    print(f"  - 动图数量: {animated_count} 张")
-    
     if has_animated:
-        print(f"\n检测到动图，执行混合图片处理流程")
         total_files = process_mixed_images(filtered_images, current_dir, new_image_prefix)
-        print(f"\n混合图片处理完成，共生成 {total_files} 个文件")
+        reporter.detail_stats['processed'] += total_files
     else:
-        print(f"\n没有检测到动图，执行原有静态图片处理流程")
-        
         small_images = [(f, w, h) for f, w, h, _ in filtered_images if w <= enlarge_step1_width]
         large_images = [(f, w, h) for f, w, h, _ in filtered_images if w > enlarge_step1_width]
         
-        print(f"  - 宽度 <= {enlarge_step1_width}px: {len(small_images)} 张")
-        print(f"  - 宽度 > {enlarge_step1_width}px: {len(large_images)} 张")
-        
         if small_images and not large_images:
-            print(f"\n=== 执行小图放大拼接流程 ===")
             _process_small_images(small_images, current_dir)
-            return
-        
-        if large_images:
-            landscape_images = [(f, w, h) for f, w, h, _ in filtered_images if w > h]
+            reporter.detail_stats['processed'] += len(small_images)
+        elif large_images and not small_images:
+            _process_large_images(large_images, current_dir)
+            reporter.detail_stats['processed'] += len(large_images)
+        elif small_images and large_images:
+            small_count = len(small_images)
+            large_count = len(large_images)
+            ratio = small_count / large_count if large_count > 0 else float('inf')
             
-            print(f"\n队列分析:")
-            print(f"  - 大于{enlarge_step1_width}px的图片数量: {len(large_images)}")
-            print(f"  - 其中横屏图片数量: {len(landscape_images)}")
-            
-            if landscape_images:
-                print(f"\n检测到横屏图片，启动照片拼图检测流程...")
-                
-                photo_images = []
-                for f, w, h, _ in filtered_images:
-                    is_photo, matched_ratio = check_aspect_ratio(w, h)
-                    if is_photo:
-                        photo_images.append((f, w, h, matched_ratio))
-                
-                print(f"  - 符合照片比例的图片数量: {len(photo_images)}")
-                
-                threshold = len(large_images) / 2
-                if len(photo_images) > threshold:
-                    print(f"\n照片比例图片({len(photo_images)}) > 队列半数({threshold})，启用照片拼接流程")
-                else:
-                    print(f"\n照片比例图片({len(photo_images)}) <= 队列半数({threshold})，进入常规流程")
+            if ratio >= 10:
+                _process_small_images(small_images, current_dir)
+                reporter.detail_stats['processed'] += len(small_images)
+            elif ratio <= 0.1:
+                _process_large_images(large_images, current_dir)
+                reporter.detail_stats['processed'] += len(large_images)
             else:
-                print(f"\n未检测到横屏图片，进入常规流程")
-        
-        print(f"\n=== 执行常规拼接流程 ===")
-        _process_large_images(large_images, current_dir)
+                _process_mixed_size_images(small_images, large_images, current_dir)
+                reporter.detail_stats['processed'] += len(small_images) + len(large_images)
+    
+    reporter.show_section_summary("详情图处理完成", reporter.detail_stats)
 
 
 def _process_small_images(small_images, current_dir):
@@ -647,7 +675,6 @@ def _process_small_images(small_images, current_dir):
     
     small_images_sorted = sorted(small_images, key=lambda x: natural_sort_key(x[0]))
     total_files = len(small_images_sorted)
-    bar_length = 40
     
     for i, (file_path, width, height) in enumerate(small_images_sorted, 1):
         try:
@@ -656,17 +683,13 @@ def _process_small_images(small_images, current_dir):
                 images.append(img_resized.copy())
                 总高度 += new_height
         except Exception as e:
-            print(f"无法处理图片 {file_path}: {e}")
+            reporter.detail_stats['errors'] += 1
         
-        percent = (i / total_files) * 100
-        filled = int(bar_length * i / total_files)
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'详情图处理进度: [{bar}] {i}/{total_files} ({percent:.1f}%)', flush=True)
+        reporter.show_progress("详情图", i, total_files)
     
-    print()  # 换行，结束进度条
+    reporter.complete_progress("详情图")
     
     if not images:
-        print("\n没有可处理的图片")
         return
     
     target_width = enlarge_step2_width
@@ -689,13 +712,15 @@ def _process_large_images(large_images, current_dir):
     
     main_files_sorted = sorted(large_images, key=natural_sort_key)
     total_files = len(main_files_sorted)
-    bar_length = 40
     
     target_width = None
     
     for i, (file_path, width, height) in enumerate(main_files_sorted, 1):
         try:
             with Image.open(file_path) as img:
+                if target_width is None:
+                    target_width = img.width if img.width >= detail_min_width else enlarge_step2_width
+                
                 if img.width < detail_min_width:
                     img_resized, (new_width, new_height, desc) = enlarge_image(img)
                     if new_width != target_width:
@@ -709,17 +734,76 @@ def _process_large_images(large_images, current_dir):
                 images.append(img_copy)
                 总高度 += img_copy.height
         except Exception as e:
-            print(f"无法处理图片 {file_path}: {e}")
+            reporter.detail_stats['errors'] += 1
         
-        percent = (i / total_files) * 100
-        filled = int(bar_length * i / total_files)
-        bar = '█' * filled + '-' * (bar_length - filled)
-        print(f'详情图处理进度: [{bar}] {i}/{total_files} ({percent:.1f}%)', flush=True)
+        reporter.show_progress("详情图", i, total_files)
     
-    print()  # 换行，结束进度条
+    reporter.complete_progress("详情图")
     
     if not images:
-        print("\n没有可处理的图片")
+        return
+    
+    拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))
+    
+    当前高度 = 0
+    for img in images:
+        拼接图片.paste(img, (0, 当前高度))
+        当前高度 += img.height
+    
+    split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
+
+
+def _process_mixed_size_images(small_images, large_images, current_dir):
+    """处理混合尺寸图片拼接流程
+    
+    将小图放大后与大图合并处理
+    
+    Args:
+        small_images: 小图列表 [(file_path, width, height), ...]
+        large_images: 大图列表 [(file_path, width, height), ...]
+        current_dir: 当前目录
+    """
+    总高度 = 0
+    images = []
+    
+    # 计算大图的平均宽度作为目标宽度
+    large_widths = [w for _, w, _ in large_images]
+    target_width = int(sum(large_widths) / len(large_widths))
+    
+    # 合并并排序所有图片
+    all_images = small_images + large_images
+    all_images_sorted = sorted(all_images, key=lambda x: natural_sort_key(x[0]))
+    total_files = len(all_images_sorted)
+    
+    for i, (file_path, width, height) in enumerate(all_images_sorted, 1):
+        try:
+            with Image.open(file_path) as img:
+                if width < enlarge_step1_width:
+                    # 小图：放大到目标宽度
+                    img_resized, (new_width, new_height, desc) = enlarge_image(img)
+                    if new_width != target_width:
+                        img_resized = img_resized.resize((target_width, int(new_height * target_width / new_width)), Image.LANCZOS)
+                    img_copy = img_resized.copy()
+                elif width < target_width:
+                    # 中等尺寸：调整到目标宽度
+                    img_resized = img.resize((target_width, int(img.height * target_width / img.width)), Image.LANCZOS)
+                    img_copy = img_resized.copy()
+                elif width > target_width:
+                    # 大图：缩小到目标宽度
+                    img_resized = img.resize((target_width, int(img.height * target_width / img.width)), Image.LANCZOS)
+                    img_copy = img_resized.copy()
+                else:
+                    img_copy = img.copy()
+                images.append(img_copy)
+                总高度 += img_copy.height
+        except Exception as e:
+            reporter.detail_stats['errors'] += 1
+        
+        reporter.show_progress("详情图", i, total_files)
+    
+    reporter.complete_progress("详情图")
+    
+    if not images:
         return
     
     拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))

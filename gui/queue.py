@@ -255,9 +255,11 @@ class QueueManager:
                 if self.check_duplicate_files(output_path):
                     status = "duplicate"
                     status_icon = GUI_CONF['status_icons'].get("duplicate", "")
+                    self.file_status[file_path] = "duplicate"
                 elif status == "none":
                     status = "exists"
                     status_icon = GUI_CONF['status_icons'].get("exists", "")
+                    self.file_status[file_path] = "exists"
             
             item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(status,))
     

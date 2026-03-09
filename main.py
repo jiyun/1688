@@ -268,6 +268,9 @@ class AlibabaScraper:
             utils.image_processor.enlarge_main_images()
             utils.image_processor.process_regular_detail_images()
             utils.image_processor.enlarge_color_card_images()
+            
+            # 显示最终汇总报告
+            utils.image_processor.reporter.show_final_summary()
         
         return True
     

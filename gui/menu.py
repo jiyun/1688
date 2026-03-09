@@ -156,24 +156,23 @@ class ContextMenuManager:
         Args:
             event: 右键点击事件
         """
-        # 获取鼠标点击位置的行
         item = self.parent_widget.queue_tree.identify_row(event.y)
         if item:
-            # 选中该行
             self.parent_widget.queue_tree.selection_set(item)
-            # 获取选中项的状态
             values = self.parent_widget.queue_tree.item(item, 'values')
             if values:
-                file_path = values[4]
-                status = self.parent_widget.file_status.get(file_path, "none")
-                
-                # 根据状态启用/禁用菜单项
-                # 只有执行过采集（success、error或exists）才启用前三项
-                state = tk.NORMAL if status in ["success", "error", "exists"] else tk.DISABLED
-                
-                self.context_menu.entryconfig("图像优化", state=state)
-                self.context_menu.entryconfig("资源打包", state=state)
-                self.context_menu.entryconfig("重新采集", state=state)
-                
-                # 显示菜单
-                self.context_menu.post(event.x_root, event.y_root)
+                file_index = int(values[0]) - 1  # 序号从1开始
+                if 0 <= file_index < len(self.parent_widget.queue_manager.file_queue):
+                    file_path = self.parent_widget.queue_manager.file_queue[file_index]
+                    status = self.parent_widget.file_status.get(file_path, "none")
+                    
+                    # 根据状态启用/禁用菜单项
+                    # 只有执行过采集（success、error、exists或duplicate）才启用前三项
+                    state = tk.NORMAL if status in ["success", "error", "exists", "duplicate"] else tk.DISABLED
+                    
+                    self.context_menu.entryconfig("图像优化", state=state)
+                    self.context_menu.entryconfig("资源打包", state=state)
+                    self.context_menu.entryconfig("重新采集", state=state)
+                    
+                    # 显示菜单
+                    self.context_menu.post(event.x_root, event.y_root)

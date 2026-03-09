@@ -77,3 +77,4 @@ tools/aria2c.exe
 
 # GUI config
 gui/.output_path
+gui/__pycache__/commands.cpython-312.pyc
