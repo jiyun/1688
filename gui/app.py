@@ -90,9 +90,6 @@ class AlibabaScraperGUI:
         self.browse_btn = tk.Button(self.output_frame, text="浏览...", command=self.browse_output_path, width=10)
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         
-        # 加载保存的输出路径
-        self.load_output_path()
-        
         # 添加快捷键绑定
         self.root.bind('<a>', lambda event: self.add_file())
         self.root.bind('<A>', lambda event: self.add_file())
@@ -151,6 +148,9 @@ class AlibabaScraperGUI:
         
         # 初始化模块化组件
         self._init_modules()
+        
+        # 加载保存的输出路径
+        self.load_output_path()
         
         # 使用说明标签页内容
         self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
