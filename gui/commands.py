@@ -45,6 +45,24 @@ class ContextMenuCommands:
                 return os.path.dirname(file_path)
         return None
     
+    def get_selected_file_path(self):
+        """获取选中项目对应的HTML文件路径
+        
+        Returns:
+            str: HTML文件路径
+        """
+        selected_items = self.parent.queue_tree.selection()
+        if not selected_items:
+            return None
+        
+        item = selected_items[0]
+        values = self.parent.queue_tree.item(item, 'values')
+        if values:
+            file_index = int(values[0]) - 1  # 序号从1开始
+            if 0 <= file_index < len(self.parent.queue_manager.file_queue):
+                return self.parent.queue_manager.file_queue[file_index]
+        return None
+    
     def context_stitch_images(self):
         """右键菜单：图像优化（默认）"""
         self._run_image_optimization("--process-images")
@@ -254,205 +272,192 @@ class ContextMenuCommands:
     
     def context_pack_files(self):
         """右键菜单：资源打包"""
-        selected_items = self.parent.queue_tree.selection()
-        if not selected_items:
+        file_path = self.get_selected_file_path()
+        if not file_path:
             return
         
-        item = selected_items[0]
-        values = self.parent.queue_tree.item(item, 'values')
-        if values:
-            file_path = values[4]
-            folder_path = self.get_selected_folder()
-            
-            if folder_path and os.path.exists(folder_path):
-                self.parent.log(f"执行资源打包: {folder_path}")
-                try:
-                    parent_dir = os.path.dirname(folder_path)
-                    folder_name = os.path.basename(folder_path)
-                    html_file = os.path.join(parent_dir, f"{folder_name}.html")
-                    
-                    zip_path = os.path.join(parent_dir, folder_name)
-                    
-                    temp_dir = os.path.join(parent_dir, f"_temp_pack_{folder_name}")
-                    os.makedirs(temp_dir, exist_ok=True)
-                    
-                    target_subdir = os.path.join(temp_dir, folder_name)
-                    shutil.copytree(folder_path, target_subdir)
-                    
-                    if os.path.exists(html_file):
-                        shutil.copy2(html_file, temp_dir)
-                    
-                    shutil.make_archive(zip_path, 'zip', temp_dir)
-                    shutil.rmtree(temp_dir)
-                    
-                    self.parent.log(f"打包完成: {zip_path}.zip", "success")
-                    
-                    confirm = self.parent.ask_yes_no("完成", "打包完成，是否删除原目录和文件并从队列中移除？")
-                    if confirm:
-                        if os.path.exists(folder_path):
-                            shutil.rmtree(folder_path)
-                        if os.path.exists(html_file):
-                            os.remove(html_file)
-                        self.parent.log(f"已删除原目录和文件", "success")
-                        
-                        if file_path in self.parent.queue_manager.file_queue:
-                            self.parent.queue_manager.file_queue.remove(file_path)
-                        if file_path in self.parent.queue_manager.file_status:
-                            del self.parent.queue_manager.file_status[file_path]
-                        self.parent.queue_manager.update_queue_list()
-                        self.parent.log(f"已移除: {os.path.basename(file_path)}")
-                except Exception as e:
-                    self.parent.log(f"资源打包失败: {e}", "error")
-            else:
-                self.parent.show_info("提示", "文件夹不存在")
-    
-    def context_recollect(self):
-        """右键菜单：重新采集"""
-        selected_items = self.parent.queue_tree.selection()
-        if not selected_items:
-            return
-        
-        item = selected_items[0]
-        values = self.parent.queue_tree.item(item, 'values')
-        if values:
-            file_path = values[4]
-            folder_path = self.get_selected_folder()
-            
-            confirm = self.parent.ask_yes_no("确认", "是否重新采集该资源？\n这将删除现有文件并重新下载。")
-            if not confirm:
-                return
-            
-            self.parent.log(f"重新采集: {os.path.basename(file_path)}")
-            try:
-                if folder_path and os.path.exists(folder_path):
-                    self.parent.log("正在删除现有文件...")
-                    for item in os.listdir(folder_path):
-                        item_path = os.path.join(folder_path, item)
-                        if os.path.isfile(item_path):
-                            os.remove(item_path)
-                        elif os.path.isdir(item_path):
-                            shutil.rmtree(item_path)
-                    
-                    self.parent.log("正在重新采集...")
-                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                    file_dir = os.path.dirname(file_path)
-                    
-                    process = subprocess.Popen(
-                        ["python", main_py_path, file_path, "--no-rebuild"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding='utf-8',
-                        bufsize=1,
-                        universal_newlines=True,
-                        cwd=file_dir
-                    )
-                    
-                    for line in process.stdout:
-                        line = line.strip()
-                        if "错误" in line or "失败" in line or "[失败]" in line:
-                            self.parent.log(line, "error")
-                        elif "成功" in line or "完成" in line:
-                            self.parent.log(line, "success")
-                        else:
-                            self.parent.log(line, "info")
-                    
-                    process.wait()
-                    
-                    if process.returncode == 0:
-                        self.parent.queue_manager.file_status[file_path] = "success"
-                        self.parent.log("重新采集完成", "success")
-                    else:
-                        self.parent.queue_manager.file_status[file_path] = "error"
-                        self.parent.log("重新采集失败", "error")
-                    
-                    self.parent.queue_manager.update_queue_list()
-                else:
-                    self.parent.log("文件夹不存在", "error")
-            except Exception as e:
-                self.parent.log(f"重新采集失败: {e}", "error")
-    
-    def context_visit_url(self):
-        """右键菜单：访问原址"""
-        selected_items = self.parent.queue_tree.selection()
-        if not selected_items:
-            return
-        
-        item = selected_items[0]
-        values = self.parent.queue_tree.item(item, 'values')
-        if values:
-            file_path = values[4]
-            folder_path = self.get_selected_folder()
-            
-            url = None
-            
-            # 首先检查目标目录内是否存在#url.url文件
-            if folder_path and os.path.exists(folder_path):
-                url_file = os.path.join(folder_path, '#url.url')
-                if os.path.exists(url_file):
-                    try:
-                        with open(url_file, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            # 解析URL文件格式
-                            for line in content.split('\n'):
-                                if line.startswith('URL='):
-                                    url = line[4:].strip()
-                                    break
-                            if not url:
-                                url = content.strip()
-                    except Exception as e:
-                        self.parent.log(f"读取URL文件失败: {e}", "error")
-            
-            # 如果#url.url文件不存在，使用项目ID构造1688详情页地址
-            if not url:
-                file_name = os.path.basename(file_path)
-                product_id = os.path.splitext(file_name)[0]
-                url = f"https://detail.1688.com/offer/{product_id}.html"
-            
-            # 使用默认浏览器打开URL
-            if url:
-                try:
-                    webbrowser.open(url)
-                    self.parent.log(f"已打开: {url}")
-                except Exception as e:
-                    self.parent.log(f"打开浏览器失败: {e}", "error")
-                    self.parent.show_info("错误", f"无法打开浏览器: {e}")
-            else:
-                self.parent.show_info("提示", "无法获取有效的URL")
-    
-    def context_open_folder(self):
-        """右键菜单：打开目录"""
         folder_path = self.get_selected_folder()
-        if folder_path:
-            if os.path.exists(folder_path):
-                self.parent.open_file_explorer(folder_path)
-            else:
-                # 如果文件夹不存在，打开HTML文件所在目录
-                selected_items = self.parent.queue_tree.selection()
-                if selected_items:
-                    item = selected_items[0]
-                    values = self.parent.queue_tree.item(item, 'values')
-                    if values:
-                        file_path = values[4]
-                        self.parent.open_file_explorer(os.path.dirname(file_path))
-        else:
-            self.parent.show_info("提示", "请先选择一个项目")
-    
-    def context_delete_item(self):
-        """右键菜单：删除项目"""
-        selected_items = self.parent.queue_tree.selection()
-        if selected_items:
-            item = selected_items[0]
-            values = self.parent.queue_tree.item(item, 'values')
-            if values:
-                file_path = values[4]
-                file_name = os.path.basename(file_path)
+        
+        if folder_path and os.path.exists(folder_path):
+            self.parent.log(f"执行资源打包: {folder_path}")
+            try:
+                parent_dir = os.path.dirname(folder_path)
+                folder_name = os.path.basename(folder_path)
+                html_file = file_path  # 使用原始HTML文件路径
                 
-                confirm = self.parent.ask_yes_no("确认", f"是否从队列中移除 {file_name}？")
+                zip_path = os.path.join(parent_dir, folder_name)
+                
+                temp_dir = os.path.join(parent_dir, f"_temp_pack_{folder_name}")
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                target_subdir = os.path.join(temp_dir, folder_name)
+                shutil.copytree(folder_path, target_subdir)
+                
+                if os.path.exists(html_file):
+                    shutil.copy2(html_file, temp_dir)
+                
+                shutil.make_archive(zip_path, 'zip', temp_dir)
+                shutil.rmtree(temp_dir)
+                
+                self.parent.log(f"打包完成: {zip_path}.zip", "success")
+                
+                confirm = self.parent.ask_yes_no("完成", "打包完成，是否删除原目录和文件并从队列中移除？")
                 if confirm:
+                    if os.path.exists(folder_path):
+                        shutil.rmtree(folder_path)
+                    if os.path.exists(html_file):
+                        os.remove(html_file)
+                    self.parent.log(f"已删除原目录和文件", "success")
+                    
                     if file_path in self.parent.queue_manager.file_queue:
                         self.parent.queue_manager.file_queue.remove(file_path)
                     if file_path in self.parent.queue_manager.file_status:
                         del self.parent.queue_manager.file_status[file_path]
                     self.parent.queue_manager.update_queue_list()
-                    self.parent.log(f"已移除: {file_name}")
+                    self.parent.log(f"已移除: {os.path.basename(file_path)}")
+            except Exception as e:
+                self.parent.log(f"资源打包失败: {e}", "error")
+        else:
+            self.parent.show_info("提示", "文件夹不存在")
+    
+    def context_recollect(self):
+        """右键菜单：重新采集"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            return
+        
+        folder_path = self.get_selected_folder()
+        
+        confirm = self.parent.ask_yes_no("确认", "是否重新采集该资源？\n这将删除现有文件并重新下载。")
+        if not confirm:
+            return
+        
+        self.parent.log(f"重新采集: {os.path.basename(file_path)}")
+        try:
+            if folder_path and os.path.exists(folder_path):
+                self.parent.log("正在删除现有文件...")
+                for item in os.listdir(folder_path):
+                    item_path = os.path.join(folder_path, item)
+                    if os.path.isfile(item_path):
+                        os.remove(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                
+                self.parent.log("正在重新采集...")
+                main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
+                file_dir = os.path.dirname(file_path)
+                
+                # 获取输出路径参数
+                output_path = self.parent.get_output_path()
+                cmd = ["python", main_py_path, file_path, "--no-rebuild"]
+                if output_path:
+                    cmd.extend(["--output", output_path])
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='utf-8',
+                    bufsize=1,
+                    universal_newlines=True,
+                    cwd=file_dir
+                )
+                
+                for line in process.stdout:
+                    line = line.strip()
+                    if "错误" in line or "失败" in line or "[失败]" in line:
+                        self.parent.log(line, "error")
+                    elif "成功" in line or "完成" in line:
+                        self.parent.log(line, "success")
+                    else:
+                        self.parent.log(line, "info")
+                
+                process.wait()
+                
+                if process.returncode == 0:
+                    self.parent.queue_manager.file_status[file_path] = "success"
+                    self.parent.log("重新采集完成", "success")
+                else:
+                    self.parent.queue_manager.file_status[file_path] = "error"
+                    self.parent.log("重新采集失败", "error")
+                
+                self.parent.queue_manager.update_queue_list()
+            else:
+                self.parent.log("文件夹不存在", "error")
+        except Exception as e:
+            self.parent.log(f"重新采集失败: {e}", "error")
+    
+    def context_visit_url(self):
+        """右键菜单：访问原址"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            return
+        
+        folder_path = self.get_selected_folder()
+        
+        url = None
+        
+        # 首先检查目标目录内是否存在#url.url文件
+        if folder_path and os.path.exists(folder_path):
+            url_file = os.path.join(folder_path, '#url.url')
+            if os.path.exists(url_file):
+                try:
+                    with open(url_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        # 解析URL文件格式
+                        for line in content.split('\n'):
+                            if line.startswith('URL='):
+                                url = line[4:].strip()
+                                break
+                        if not url:
+                            url = content.strip()
+                except Exception as e:
+                    self.parent.log(f"读取URL文件失败: {e}", "error")
+        
+        # 如果#url.url文件不存在，使用项目ID构造1688详情页地址
+        if not url:
+            file_name = os.path.basename(file_path)
+            product_id = os.path.splitext(file_name)[0]
+            url = f"https://detail.1688.com/offer/{product_id}.html"
+        
+        # 使用默认浏览器打开URL
+        if url:
+            try:
+                webbrowser.open(url)
+                self.parent.log(f"已打开: {url}")
+            except Exception as e:
+                self.parent.log(f"打开浏览器失败: {e}", "error")
+                self.parent.show_info("错误", f"无法打开浏览器: {e}")
+        else:
+            self.parent.show_info("提示", "无法获取有效的URL")
+    
+    def context_open_folder(self):
+        """右键菜单：打开目录"""
+        folder_path = self.get_selected_folder()
+        if folder_path and os.path.exists(folder_path):
+            self.parent.open_file_explorer(folder_path)
+        else:
+            # 如果文件夹不存在，打开HTML文件所在目录
+            file_path = self.get_selected_file_path()
+            if file_path:
+                self.parent.open_file_explorer(os.path.dirname(file_path))
+            else:
+                self.parent.show_info("提示", "请先选择一个项目")
+    
+    def context_delete_item(self):
+        """右键菜单：删除项目"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            return
+        
+        file_name = os.path.basename(file_path)
+        
+        confirm = self.parent.ask_yes_no("确认", f"是否从队列中移除 {file_name}？")
+        if confirm:
+            if file_path in self.parent.queue_manager.file_queue:
+                self.parent.queue_manager.file_queue.remove(file_path)
+            if file_path in self.parent.queue_manager.file_status:
+                del self.parent.queue_manager.file_status[file_path]
+            self.parent.queue_manager.update_queue_list()
+            self.parent.log(f"已移除: {file_name}")
