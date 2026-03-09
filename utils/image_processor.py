@@ -42,9 +42,9 @@ class ProgressReporter:
         self.main_start_time = None
         self.detail_start_time = None
         self.color_start_time = None
-        self.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
-        self.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
-        self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0}
+        self.main_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0, 'generated': 0}
+        self.detail_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0, 'generated': 0}
+        self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0, 'generated': 0}
         self.progress_callback = None  # 进度回调函数
         self.current_file = None  # 当前处理的文件
     
@@ -118,7 +118,11 @@ class ProgressReporter:
             elapsed = 0
         
         print(f"\n{name}")
-        print(f"  处理完成: {stats['processed']} 张")
+        # 对于详情图，显示生成图片数量
+        if '详情图' in name and stats.get('generated', 0) > 0:
+            print(f"  处理完成: {stats['processed']} 张  生成图片: {stats['generated']} 张")
+        else:
+            print(f"  处理完成: {stats['processed']} 张")
         print(f"  跳过文件: {stats['skipped']} 张")
         if stats['errors'] > 0:
             print(f"  处理失败: {stats['errors']} 张")
@@ -696,36 +700,46 @@ def process_regular_detail_images():
     if has_animated:
         total_files = process_mixed_images(filtered_images, current_dir, new_image_prefix)
         reporter.detail_stats['processed'] += total_files
+        reporter.detail_stats['generated'] += total_files
     else:
         small_images = [(f, w, h) for f, w, h, _ in filtered_images if w <= enlarge_step1_width]
         large_images = [(f, w, h) for f, w, h, _ in filtered_images if w > enlarge_step1_width]
         
         if small_images and not large_images:
-            _process_small_images(small_images, current_dir)
+            generated = _process_small_images(small_images, current_dir)
             reporter.detail_stats['processed'] += len(small_images)
+            reporter.detail_stats['generated'] += generated
         elif large_images and not small_images:
-            _process_large_images(large_images, current_dir)
+            generated = _process_large_images(large_images, current_dir)
             reporter.detail_stats['processed'] += len(large_images)
+            reporter.detail_stats['generated'] += generated
         elif small_images and large_images:
             small_count = len(small_images)
             large_count = len(large_images)
             ratio = small_count / large_count if large_count > 0 else float('inf')
             
             if ratio >= 10:
-                _process_small_images(small_images, current_dir)
+                generated = _process_small_images(small_images, current_dir)
                 reporter.detail_stats['processed'] += len(small_images)
+                reporter.detail_stats['generated'] += generated
             elif ratio <= 0.1:
-                _process_large_images(large_images, current_dir)
+                generated = _process_large_images(large_images, current_dir)
                 reporter.detail_stats['processed'] += len(large_images)
+                reporter.detail_stats['generated'] += generated
             else:
-                _process_mixed_size_images(small_images, large_images, current_dir)
+                generated = _process_mixed_size_images(small_images, large_images, current_dir)
                 reporter.detail_stats['processed'] += len(small_images) + len(large_images)
+                reporter.detail_stats['generated'] += generated
     
     reporter.show_section_summary("详情图处理完成", reporter.detail_stats)
 
 
 def _process_small_images(small_images, current_dir):
-    """处理小图放大拼接流程"""
+    """处理小图放大拼接流程
+    
+    Returns:
+        int: 生成的图片数量
+    """
     images = []
     总高度 = 0
     
@@ -746,7 +760,7 @@ def _process_small_images(small_images, current_dir):
     reporter.complete_progress("详情图")
     
     if not images:
-        return
+        return 0
     
     target_width = enlarge_step2_width
     拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))
@@ -758,11 +772,15 @@ def _process_small_images(small_images, current_dir):
         拼接图片.paste(img, (0, 当前高度))
         当前高度 += img.height
     
-    split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
+    return split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
 
 
 def _process_large_images(large_images, current_dir):
-    """处理大图拼接流程"""
+    """处理大图拼接流程
+    
+    Returns:
+        int: 生成的图片数量
+    """
     总高度 = 0
     images = []
     
@@ -797,7 +815,7 @@ def _process_large_images(large_images, current_dir):
     reporter.complete_progress("详情图")
     
     if not images:
-        return
+        return 0
     
     拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))
     
@@ -806,7 +824,7 @@ def _process_large_images(large_images, current_dir):
         拼接图片.paste(img, (0, 当前高度))
         当前高度 += img.height
     
-    split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
+    return split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
 
 
 def _process_mixed_size_images(small_images, large_images, current_dir):
@@ -818,6 +836,9 @@ def _process_mixed_size_images(small_images, large_images, current_dir):
         small_images: 小图列表 [(file_path, width, height), ...]
         large_images: 大图列表 [(file_path, width, height), ...]
         current_dir: 当前目录
+    
+    Returns:
+        int: 生成的图片数量
     """
     总高度 = 0
     images = []
@@ -860,7 +881,7 @@ def _process_mixed_size_images(small_images, large_images, current_dir):
     reporter.complete_progress("详情图")
     
     if not images:
-        return
+        return 0
     
     拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))
     
@@ -869,7 +890,7 @@ def _process_mixed_size_images(small_images, large_images, current_dir):
         拼接图片.paste(img, (0, 当前高度))
         当前高度 += img.height
     
-    split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
+    return split_merged_image(拼接图片, target_width, 总高度, current_dir, new_image_prefix)
 
 
 def process_single_image(image_path):

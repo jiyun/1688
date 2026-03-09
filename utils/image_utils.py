@@ -132,12 +132,13 @@ def split_merged_image(merged_image, target_width, total_height, output_dir, out
         total_height: 总高度
         output_dir: 输出目录
         output_prefix: 输出文件前缀
-    """
+    
+    Returns:
+        int: 生成的图片数量
+      """
     max_single_height = target_width * 2
     
     if total_height <= max_single_height:
-        print(f"\n拼接图片高度未超过2倍宽度，直接保存为单张图片")
-        
         if OUTPUT_WEBP:
             save_path = os.path.join(output_dir, f"{output_prefix}1.webp")
             merged_image.save(save_path, format="WebP", quality=jpeg_quality)
@@ -145,7 +146,7 @@ def split_merged_image(merged_image, target_width, total_height, output_dir, out
             save_path = os.path.join(output_dir, f"{output_prefix}1.jpg")
             merged_image.save(save_path, quality=jpeg_quality)
         
-        return
+        return 1
     
     切割份数 = (total_height + max_single_height - 1) // max_single_height
     
@@ -175,7 +176,7 @@ def split_merged_image(merged_image, target_width, total_height, output_dir, out
         
         当前高度 = 结束高度
     
-    print(f"\n拼接图切割完成，共 {切割份数} 份")
+    return 切割份数
 
 
 def convert_animated_image(file_path, output_path, target_width=None):
