@@ -135,6 +135,15 @@ class ContextMenuCommands:
                         if line:
                             line = line.strip()
                             if line:
+                                # 提取进度类型
+                                progress_type = None
+                                if "主图处理" in line:
+                                    progress_type = "主图"
+                                elif "详情图处理" in line:
+                                    progress_type = "详情图"
+                                elif "色卡图处理" in line:
+                                    progress_type = "色卡图"
+                                
                                 # 捕获章节标题
                                 if "==================================================" in line:
                                     self.parent.log(line)

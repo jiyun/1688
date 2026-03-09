@@ -39,7 +39,7 @@ class QueueManager:
             progress_text: 进度文本
             progress_type: 进度类型 ('main', 'color', 'detail')
         """
-        self.file_progress[file_path] = progress_text
+        self.file_progress[file_path] = (progress_text, progress_type)
         self.file_status[file_path] = "processing"
         self.update_queue_list()
     
@@ -256,6 +256,10 @@ class QueueManager:
         for status, color in GUI_CONF['status_colors'].items():
             self.parent.queue_tree.tag_configure(status, foreground=color)
         
+        # 添加进度条颜色标记
+        for progress_type, color in GUI_CONF.get('progress_colors', {}).items():
+            self.parent.queue_tree.tag_configure(f"progress_{progress_type}", foreground=color)
+        
         for i, file_path in enumerate(self.file_queue, 1):
             file_dir = os.path.dirname(file_path)
             file_name = os.path.basename(file_path)
@@ -274,24 +278,29 @@ class QueueManager:
             output_path = self.get_output_directory(file_path)
             
             # 检查是否有进度信息
-            progress = self.file_progress.get(file_path, "")
-            if progress:
+            progress_info = self.file_progress.get(file_path)
+            if progress_info:
                 # 显示进度条
-                display_output_path = progress
+                progress_text, progress_type = progress_info
+                display_output_path = progress_text
+                tag = f"progress_{progress_type}" if progress_type else status
             else:
                 display_output_path = self._compress_output_path(output_path) if output_path else ""
+                tag = status
             
-            if output_path and not progress:
+            if output_path and not progress_info:
                 if self.check_duplicate_files(output_path):
                     status = "duplicate"
                     status_icon = GUI_CONF['status_icons'].get("duplicate", "")
                     self.file_status[file_path] = "duplicate"
+                    tag = "duplicate"
                 elif status == "none":
                     status = "exists"
                     status_icon = GUI_CONF['status_icons'].get("exists", "")
                     self.file_status[file_path] = "exists"
+                    tag = "exists"
             
-            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(status,))
+            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(tag,))
     
     def _compress_path_display(self, file_dir, file_name):
         """压缩文件路径显示
