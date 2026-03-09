@@ -73,3 +73,7 @@ Thumbs.db
 down.txt
 down_log.txt
 拼接结果.jpg
+tools/aria2c.exe
+
+# GUI config
+gui/.output_path

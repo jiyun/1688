@@ -73,6 +73,26 @@ class AlibabaScraperGUI:
         self.pause_btn = tk.Button(self.button_frame, text="暂停 (P)", command=self.pause, width=15, bg="#FF9800", fg="white", state=tk.DISABLED)
         self.pause_btn.pack(side=tk.RIGHT, padx=5)
         
+        # 创建输出路径配置框架
+        self.output_frame = tk.Frame(self.queue_tab)
+        self.output_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # 输出路径标签
+        self.output_label = tk.Label(self.output_frame, text="输出路径:")
+        self.output_label.pack(side=tk.LEFT, padx=5)
+        
+        # 输出路径输入框
+        self.output_path_var = tk.StringVar()
+        self.output_path_entry = tk.Entry(self.output_frame, textvariable=self.output_path_var, width=60)
+        self.output_path_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        
+        # 浏览按钮
+        self.browse_btn = tk.Button(self.output_frame, text="浏览...", command=self.browse_output_path, width=10)
+        self.browse_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 加载保存的输出路径
+        self.load_output_path()
+        
         # 添加快捷键绑定
         self.root.bind('<a>', lambda event: self.add_file())
         self.root.bind('<A>', lambda event: self.add_file())
@@ -271,6 +291,92 @@ class AlibabaScraperGUI:
         self.root.wait_window(top)
         
         return result.get()
+    
+    def browse_output_path(self):
+        """浏览并选择输出路径"""
+        from tkinter import filedialog
+        current_path = self.output_path_var.get()
+        if not current_path or not os.path.exists(current_path):
+            current_path = os.getcwd()
+        
+        selected_path = filedialog.askdirectory(
+            title="选择输出路径",
+            initialdir=current_path
+        )
+        
+        if selected_path:
+            # 验证路径有效性
+            if self.validate_output_path(selected_path):
+                self.output_path_var.set(selected_path)
+                self.save_output_path(selected_path)
+                self.log(f"输出路径已设置: {selected_path}")
+            else:
+                self.show_info("错误", "无效的输出路径或无写入权限")
+    
+    def validate_output_path(self, path):
+        """验证输出路径有效性
+        
+        Args:
+            path: 要验证的路径
+            
+        Returns:
+            bool: 路径有效返回True，否则返回False
+        """
+        if not path:
+            return False
+        
+        try:
+            # 检查路径是否存在，不存在则尝试创建
+            if not os.path.exists(path):
+                os.makedirs(path, exist_ok=True)
+            
+            # 检查写入权限
+            test_file = os.path.join(path, '.write_test')
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            
+            return True
+        except Exception as e:
+            self.log(f"路径验证失败: {e}", "error")
+            return False
+    
+    def save_output_path(self, path):
+        """保存输出路径到配置文件
+        
+        Args:
+            path: 要保存的路径
+        """
+        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.output_path')
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                f.write(path)
+        except Exception as e:
+            self.log(f"保存输出路径失败: {e}", "error")
+    
+    def load_output_path(self):
+        """加载保存的输出路径"""
+        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.output_path')
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    saved_path = f.read().strip()
+                    if saved_path and os.path.exists(saved_path):
+                        self.output_path_var.set(saved_path)
+                        self.log(f"已加载输出路径: {saved_path}")
+        except Exception as e:
+            self.log(f"加载输出路径失败: {e}", "error")
+    
+    def get_output_path(self):
+        """获取当前设置的输出路径
+        
+        Returns:
+            str: 输出路径，如果未设置或无效则返回None
+        """
+        path = self.output_path_var.get()
+        if path and self.validate_output_path(path):
+            return path
+        return None
     
     def load_help_content(self):
         """加载使用说明内容"""

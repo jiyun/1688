@@ -316,6 +316,11 @@ class QueueManager:
                     main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
                     cmd = ["python", main_py_path, file_path, "--no-rebuild"]
                     
+                    # 获取输出路径
+                    output_path = self.parent.get_output_path()
+                    if output_path:
+                        cmd.extend(["--output", output_path])
+                    
                     # 执行命令并捕获输出
                     # 使用目标 HTML 文件所在的目录作为工作目录
                     file_dir = os.path.dirname(file_path)

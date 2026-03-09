@@ -28,8 +28,9 @@ from utils.file_handler import FileHandler
 import config
 
 class AlibabaScraper:
-    def __init__(self, html_file):
+    def __init__(self, html_file, output_path=None):
         self.html_file = html_file
+        self.output_path = output_path
         self.product_id = self._extract_product_id()
         self.parser = None
         self.downloader = Downloader({
@@ -174,27 +175,36 @@ class AlibabaScraper:
         """运行完整流程"""
         print("=== 1688详情页资源采集工具 ====")
         
+        # 确定输出目录
+        if self.output_path:
+            # 使用自定义输出路径
+            output_dir = os.path.join(self.output_path, self.product_id)
+        else:
+            # 使用默认路径（HTML文件所在目录下的商品ID子目录）
+            html_dir = os.path.dirname(os.path.abspath(self.html_file))
+            output_dir = os.path.join(html_dir, self.product_id)
+        
         # 确保在正确的目录中工作
-        if not os.path.basename(os.getcwd()) == self.product_id:
+        if not os.path.basename(os.getcwd()) == self.product_id or self.output_path:
             # 如果当前目录不是商品ID目录，创建并进入
-            if os.path.exists(self.product_id):
+            if os.path.exists(output_dir):
                 # 检查是否是文件而非目录
-                if os.path.isfile(self.product_id):
-                    print(f"错误: '{self.product_id}' 是一个文件而非目录")
+                if os.path.isfile(output_dir):
+                    print(f"错误: '{output_dir}' 是一个文件而非目录")
                     print(f"请删除或重命名该文件后重试")
                     return False
             else:
                 try:
-                    os.makedirs(self.product_id)
+                    os.makedirs(output_dir, exist_ok=True)
                 except PermissionError as e:
-                    print(f"错误: 无法在当前目录创建文件夹 '{self.product_id}'")
-                    print(f"请检查当前目录是否有写入权限: {os.getcwd()}")
+                    print(f"错误: 无法创建文件夹 '{output_dir}'")
+                    print(f"请检查是否有写入权限")
                     print(f"详细错误: {e}")
                     return False
             try:
-                os.chdir(self.product_id)
+                os.chdir(output_dir)
             except PermissionError as e:
-                print(f"错误: 无法进入目录 '{self.product_id}'")
+                print(f"错误: 无法进入目录 '{output_dir}'")
                 print(f"详细错误: {e}")
                 return False
         
@@ -277,6 +287,7 @@ def main():
     output_webp = False
     convert_main = False
     convert_color = False
+    output_path = None  # 新增：输出路径参数
     
     # 检查帮助参数
     if len(sys.argv) > 1 and (sys.argv[1] == "--help" or sys.argv[1] == "-h"):
@@ -288,7 +299,7 @@ def main():
         print("描述: 用于采集1688详情页资源的工具，支持图片、视频和属性的提取与下载")
         print("====================================")
         print("用法:")
-        print("  python main.py <html_file> [--no-rebuild]")
+        print("  python main.py <html_file> [--no-rebuild] [--output <path>]")
         print("  python main.py --process-images [--webp [--t] [--color]] [--with-animated]")
         print("  python main.py <image_file> (处理单张图片)")
         print("  python main.py --gui (启动GUI模式)")
@@ -297,6 +308,7 @@ def main():
         print("参数说明:")
         print("  <html_file>          : 要处理的1688详情页HTML文件路径")
         print("  --no-rebuild         : 可选参数，不创建重建脚本")
+        print("  --output <path>      : 可选参数，指定输出目录路径")
         print("  --process-images     : 处理当前目录中的所有详情图")
         print("    --webp             : 输出图片格式为WebP")
         print("      --t              : 将主图转换为WebP格式")
@@ -378,9 +390,18 @@ def main():
                 # 路径不存在，当作HTML文件处理
                 html_file = file_path
             
-            # 检查是否有 --no-rebuild 参数
-            if len(sys.argv) > 2 and sys.argv[2] == "--no-rebuild":
-                create_rebuild_script = False
+            # 解析其他参数
+            args = sys.argv[2:]
+            i = 0
+            while i < len(args):
+                if args[i] == "--no-rebuild":
+                    create_rebuild_script = False
+                    i += 1
+                elif args[i] == "--output" and i + 1 < len(args):
+                    output_path = args[i + 1]
+                    i += 2
+                else:
+                    i += 1
     
     if process_images_flag:
         # 处理图片
@@ -406,7 +427,7 @@ def main():
         
         print(f"HTML文件存在，大小: {os.path.getsize(html_file)} 字节")
         
-        scraper = AlibabaScraper(html_file)
+        scraper = AlibabaScraper(html_file, output_path)
         success = scraper.run(create_rebuild_script)
         
         return 0 if success else 1
