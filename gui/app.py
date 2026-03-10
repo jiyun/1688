@@ -139,9 +139,12 @@ class AlibabaScraperGUI:
         self.log_frame = tk.LabelFrame(self.content_frame, text="日志输出")
         self.log_frame.pack(fill=tk.BOTH, expand=True, side=tk.BOTTOM)
         
+        # 获取可用字体
+        available_font = self._get_available_font()
+        
         self.log_text = ScrolledText(self.log_frame, width=100, height=15, state=tk.DISABLED, 
                                      bg="black", fg="white", 
-                                     font=('Courier New', 10))
+                                     font=(available_font, GUI_CONF.get('font_size', 10)))
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 初始化模块化组件
@@ -533,6 +536,30 @@ class AlibabaScraperGUI:
             self.log(f"已打开资源管理器: {path}")
         except Exception as e:
             self.log(f"打开资源管理器失败: {str(e)}", "error")
+    
+    def _get_available_font(self):
+        """获取可用的字体
+        
+        按优先级检测系统中可用的字体，返回第一个可用的字体
+        
+        Returns:
+            str: 可用的字体名称
+        """
+        import tkinter.font as tkfont
+        
+        # 获取系统所有可用字体
+        available_fonts = tkfont.families()
+        
+        # 按优先级检测字体
+        font_families = GUI_CONF.get('font_families', ['Courier New'])
+        
+        for font_name in font_families:
+            # 检查字体是否可用（支持中文名称和英文名称）
+            if font_name in available_fonts:
+                return font_name
+        
+        # 如果没有找到任何优先字体，返回默认字体
+        return 'Courier New'
     
     # 上下文菜单命令代理方法
     def context_stitch_images(self):

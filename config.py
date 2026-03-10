@@ -63,6 +63,16 @@ GUI_CONF = {
     'window_geometry': '800x600',
     'window_resizable': True,
     
+    # 字体配置（按优先级排序）
+    'font_families': [
+        'Alibaba PuHuiTi',    # 阿里巴巴普惠体
+        'Source Han Sans CN', # 思源黑体
+        'Smiley Sans',            # 得意黑
+        'Microsoft YaHei',    # 微软雅黑
+        'Courier New',        # 默认等宽字体
+    ],
+    'font_size': 10,          # 字体大小
+    
     # 日志配置
     'log_buffer_size': 1000,
     'log_colors': {
