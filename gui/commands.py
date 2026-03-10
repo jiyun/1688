@@ -73,8 +73,22 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
         
         # 运行图像处理
         utils.image_processor.enlarge_main_images()
-        utils.image_processor.process_regular_detail_images()
-        utils.image_processor.enlarge_color_card_images()
+        
+        # 处理详情图前，检查是否有文件需要处理
+        detail_files = utils.image_utils.collect_image_files(folder_path, utils.image_processor.detail_image_prefix)
+        if detail_files:
+            shared_dict['detail_total'] = len(detail_files)
+            utils.image_processor.process_regular_detail_images()
+            # 处理完成后更新进度
+            shared_dict['detail_current'] = shared_dict.get('detail_total', 0)
+        
+        # 处理色卡图前，检查是否有文件需要处理
+        color_files = utils.image_utils.collect_image_files(folder_path, utils.image_processor.color_option_prefix)
+        if color_files:
+            shared_dict['color_total'] = len(color_files)
+            utils.image_processor.enlarge_color_card_images()
+            # 处理完成后更新进度
+            shared_dict['color_current'] = shared_dict.get('color_total', 0)
         
         # 清理无用文件
         temp_files = ['down.txt', 'down_log.txt']
@@ -333,17 +347,27 @@ class ContextMenuCommands:
                     percent = int((main_current / main_total) * 100) if main_total > 0 else 0
                     self.parent.log(f"主图进度: {main_current}/{main_total} ({percent}%)")
                 
-                # 详情图进度（每次变化都显示）
-                if detail_total > 0 and detail_current != last_detail:
-                    self._last_detail_current = detail_current
-                    percent = int((detail_current / detail_total) * 100) if detail_total > 0 else 0
-                    self.parent.log(f"详情图进度: {detail_current}/{detail_total} ({percent}%)")
+                # 详情图进度
+                if detail_total > 0:
+                    if detail_current > 0 and detail_current != last_detail:
+                        self._last_detail_current = detail_current
+                        percent = int((detail_current / detail_total) * 100) if detail_total > 0 else 0
+                        self.parent.log(f"详情图进度: {detail_current}/{detail_total} ({percent}%)")
+                    elif detail_current == 0:
+                        # 队列存在但没有进度，显示处理中
+                        self.parent.log("详情图进度: 处理中...")
                 
-                # 色卡图进度（每次变化都显示）
-                if color_total > 0 and color_current != last_color:
-                    self._last_color_current = color_current
-                    percent = int((color_current / color_total) * 100) if color_total > 0 else 0
-                    self.parent.log(f"色卡图进度: {color_current}/{color_total} ({percent}%)")
+                # 色卡图进度
+                if color_total > 0:
+                    if color_current > 0 and color_current != last_color:
+                        self._last_color_current = color_current
+                        percent = int((color_current / color_total) * 100) if color_total > 0 else 0
+                        self.parent.log(f"色卡图进度: {color_current}/{color_total} ({percent}%)")
+                    elif color_current == color_total and color_total > 0:
+                        # 色卡图已完成，显示一次完成消息
+                        if not getattr(self, '_color_completed_shown', False):
+                            self._color_completed_shown = True
+                            self.parent.log("色卡图进度: 已完成")
             
             # 如果还在处理中，继续定时更新
             if status in ('pending', 'started', 'processing'):
