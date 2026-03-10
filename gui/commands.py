@@ -284,15 +284,20 @@ class ContextMenuCommands:
     
     def _start_progress_timer(self):
         """启动进度更新定时器"""
+        self._progress_stopped = False
         self._update_progress_display()
     
     def _stop_progress_timer(self):
         """停止进度更新定时器"""
-        pass
+        self._progress_stopped = True
     
     def _update_progress_display(self):
         """更新进度显示"""
         try:
+            # 检查是否已停止
+            if getattr(self, '_progress_stopped', False):
+                return
+            
             if not hasattr(self, 'shared_dict') or self.shared_dict is None:
                 return
             
@@ -330,7 +335,9 @@ class ContextMenuCommands:
             if status in ('pending', 'started', 'processing'):
                 self.parent.root.after(500, self._update_progress_display)
         except Exception as e:
-            self.parent.log(f"进度更新异常: {e}")
+            # 只在有实际错误时输出
+            if str(e):
+                self.parent.log(f"进度更新异常: {e}")
     
     def _show_final_report(self, shared_dict):
         """显示最终报告"""
