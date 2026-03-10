@@ -5,8 +5,7 @@
 """
 
 import time
-import threading
-from multiprocessing import Manager, Lock
+from multiprocessing import Manager
 
 
 class SharedProgressManager:
@@ -27,7 +26,9 @@ class SharedProgressManager:
             'generated': 0,
             'status': 'pending',
             'start_time': None,
-            'current': 0
+            'current': 0,
+            'percent': 0,
+            'elapsed': 0
         })
         
         self.detail_progress = self.manager.dict({
@@ -38,7 +39,9 @@ class SharedProgressManager:
             'status': 'pending',
             'start_time': None,
             'current': 0,
-            'step': 0
+            'step': 0,
+            'percent': 0,
+            'elapsed': 0
         })
         
         self.color_progress = self.manager.dict({
@@ -48,11 +51,18 @@ class SharedProgressManager:
             'generated': 0,
             'status': 'pending',
             'start_time': None,
-            'current': 0
+            'current': 0,
+            'percent': 0,
+            'elapsed': 0
         })
         
-        # 锁，确保线程安全
-        self.lock = Lock()
+        # 共享的整体状态
+        self.status = self.manager.Value('s', 'pending')
+        self.error = self.manager.Value('s', '')
+        self.deleted_count = self.manager.Value('i', 0)
+        
+        # 共享锁
+        self.lock = self.manager.Lock()
     
     def start_main(self):
         """开始主图处理"""
@@ -141,25 +151,25 @@ class SharedProgressManager:
                 'main': dict(self.main_progress),
                 'detail': dict(self.detail_progress),
                 'color': dict(self.color_progress),
-                'status': self.status,
-                'error': self.error,
-                'deleted_count': self.deleted_count
+                'status': self.status.value,
+                'error': self.error.value,
+                'deleted_count': self.deleted_count.value
             }
     
     def set_status(self, status):
         """设置整体状态"""
         with self.lock:
-            self.status = status
+            self.status.value = status
     
     def set_error(self, error):
         """设置错误信息"""
         with self.lock:
-            self.error = error
+            self.error.value = error
     
     def set_deleted_count(self, count):
         """设置删除文件数量"""
         with self.lock:
-            self.deleted_count = count
+            self.deleted_count.value = count
     
     def shutdown(self):
         """关闭进度管理器"""
