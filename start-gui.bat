@@ -23,4 +23,9 @@ if not exist %MAIN_SCRIPT% (
 
 :: 启动GUI模式
 echo 正在启动1688详情页资源采集工具 - GUI模式...
-%PYTHON% %MAIN_SCRIPT% --gui
+start "" /wait %PYTHON% %MAIN_SCRIPT% --gui
+if %errorlevel% neq 0 (
+    echo.
+    echo 程序异常退出，错误代码: %errorlevel%
+    pause
+)
