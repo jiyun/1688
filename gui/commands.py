@@ -14,11 +14,11 @@ import multiprocessing
 import traceback
 
 
-def _run_optimization_process(progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color):
+def _run_optimization_process(shared_dict, folder_path, with_animated, webp_support, convert_main, convert_color):
     """在子进程中运行图像优化
     
     Args:
-        progress_manager: 共享内存进度管理器
+        shared_dict: 共享字典，包含所有进度信息
         folder_path: 文件夹路径
         with_animated: 是否包含动图
         webp_support: 是否支持WebP
@@ -26,53 +26,53 @@ def _run_optimization_process(progress_manager, folder_path, with_animated, webp
         convert_color: 是否转换色卡图
     """
     import sys
-    import traceback
     
-    # 调试输出：子进程启动
-    print(f"[子进程] 启动，目标目录: {folder_path}", flush=True)
-    
-    # 添加项目路径
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    print(f"[子进程] 项目路径: {project_root}", flush=True)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    
-    # 切换到目标目录
-    os.chdir(folder_path)
-    print(f"[子进程] 当前工作目录: {os.getcwd()}", flush=True)
+    # 子进程启动信号
+    shared_dict['status'] = 'started'
     
     try:
+        # 添加项目路径
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        
+        # 切换到目标目录
+        os.chdir(folder_path)
+        
         # 导入图像处理模块
-        print("[子进程] 导入图像处理模块...", flush=True)
         import utils.image_utils
         import utils.image_processor
-        print("[子进程] 导入成功", flush=True)
         
         # 设置参数
         utils.image_utils.OUTPUT_WEBP = webp_support
         utils.image_utils.CONVERT_MAIN = convert_main
         utils.image_utils.CONVERT_COLOR = convert_color
-        print(f"[子进程] 参数设置: webp={webp_support}, main={convert_main}, color={convert_color}", flush=True)
         
-        # 设置进度管理器
-        utils.image_processor.reporter.set_progress_manager(progress_manager)
-        print("[子进程] 进度管理器设置完成", flush=True)
+        # 创建进度回调函数
+        def progress_callback(name, current, total):
+            percent = int((current / total) * 100) if total > 0 else 0
+            if '主图' in name:
+                shared_dict['main_current'] = current
+                shared_dict['main_total'] = total
+                shared_dict['main_percent'] = percent
+            elif '详情图' in name:
+                shared_dict['detail_current'] = current
+                shared_dict['detail_total'] = total
+                shared_dict['detail_percent'] = percent
+            elif '色卡' in name:
+                shared_dict['color_current'] = current
+                shared_dict['color_total'] = total
+                shared_dict['color_percent'] = percent
+        
+        # 设置进度回调
+        utils.image_processor.reporter.show_progress = progress_callback
         
         # 运行图像处理
-        print("[子进程] 开始处理主图...", flush=True)
         utils.image_processor.enlarge_main_images()
-        print("[子进程] 主图处理完成", flush=True)
-        
-        print("[子进程] 开始处理详情图...", flush=True)
         utils.image_processor.process_regular_detail_images()
-        print("[子进程] 详情图处理完成", flush=True)
-        
-        print("[子进程] 开始处理色卡图...", flush=True)
         utils.image_processor.enlarge_color_card_images()
-        print("[子进程] 色卡图处理完成", flush=True)
         
         # 清理无用文件
-        print("[子进程] 清理无用文件...", flush=True)
         temp_files = ['down.txt', 'down_log.txt']
         for f in temp_files:
             file_path = os.path.join(folder_path, f)
@@ -98,16 +98,12 @@ def _run_optimization_process(progress_manager, folder_path, with_animated, webp
                 except:
                     pass
         
-        print(f"[子进程] 删除了 {deleted_count} 个原采集文件", flush=True)
-        progress_manager.set_deleted_count(deleted_count)
-        progress_manager.set_status('completed')
-        print("[子进程] 处理完成", flush=True)
+        shared_dict['deleted_count'] = deleted_count
+        shared_dict['status'] = 'completed'
         
     except Exception as e:
-        print(f"[子进程] 错误: {e}", flush=True)
-        traceback.print_exc()
-        progress_manager.set_error(str(e))
-        progress_manager.set_status('error')
+        shared_dict['error'] = str(e)
+        shared_dict['status'] = 'error'
 
 
 class ContextMenuCommands:
@@ -199,6 +195,8 @@ class ContextMenuCommands:
             *args: 命令行参数
         """
         folder_path = self.get_selected_folder()
+        self.parent.log(f"[调试] folder_path = {folder_path}")
+        
         if folder_path and os.path.exists(folder_path):
             self.parent.log(f"执行图像优化: {folder_path}")
             
@@ -208,38 +206,68 @@ class ContextMenuCommands:
             convert_main = '--t' in args
             convert_color = '--color' in args
             
+            self.parent.log(f"[调试] 参数: animated={with_animated}, webp={webp_support}, main={convert_main}, color={convert_color}")
+            
             # 创建共享内存进度管理器
-            from utils.progress_manager import SharedProgressManager
-            self.progress_manager = SharedProgressManager()
+            self.parent.log("[调试] 创建共享内存进度管理器...")
+            from multiprocessing import Manager
+            self.manager = Manager()
+            self.shared_dict = self.manager.dict({
+                'status': 'pending',
+                'error': '',
+                'deleted_count': 0,
+                'main_current': 0,
+                'main_total': 0,
+                'main_percent': 0,
+                'detail_current': 0,
+                'detail_total': 0,
+                'detail_percent': 0,
+                'color_current': 0,
+                'color_total': 0,
+                'color_percent': 0
+            })
+            self.parent.log("[调试] 共享内存进度管理器创建成功")
             
             # 启动进度更新定时器
             self._start_progress_timer()
             
             # 启动子进程（使用模块级别的函数）
-            process = multiprocessing.Process(
-                target=_run_optimization_process,
-                args=(self.progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color)
-            )
-            process.start()
+            self.parent.log("[调试] 启动子进程...")
+            try:
+                process = multiprocessing.Process(
+                    target=_run_optimization_process,
+                    args=(self.shared_dict, folder_path, with_animated, webp_support, convert_main, convert_color)
+                )
+                process.start()
+                self.parent.log(f"[调试] 子进程已启动, PID={process.pid}")
+            except Exception as e:
+                self.parent.log(f"[调试] 子进程启动失败: {e}")
+                import traceback
+                traceback.print_exc()
+                return
             
             # 启动监控线程
             def monitor_thread():
+                self.parent.log("[调试] 监控线程启动，等待子进程完成...")
                 process.join()
+                self.parent.log(f"[调试] 子进程已结束, 退出码={process.exitcode}")
                 self._stop_progress_timer()
                 
                 # 获取最终结果
-                progress = self.progress_manager.get_progress()
+                status = self.shared_dict.get('status', 'unknown')
+                error = self.shared_dict.get('error', '')
+                self.parent.log(f"[调试] 进度状态: {status}")
                 
                 # 显示最终报告
-                self._show_final_report(progress)
+                self._show_final_report(dict(self.shared_dict))
                 
-                # 关闭进度管理器
-                self.progress_manager.shutdown()
+                # 关闭管理器
+                self.manager.shutdown()
                 
-                if progress.get('status') == 'completed':
+                if status == 'completed':
                     self.parent.log("图像优化完成", "success")
                 else:
-                    self.parent.log(f"图像优化失败: {progress.get('error', '未知错误')}", "error")
+                    self.parent.log(f"图像优化失败: {error or '未知错误'}", "error")
             
             thread = threading.Thread(target=monitor_thread)
             thread.daemon = True
@@ -257,65 +285,38 @@ class ContextMenuCommands:
     
     def _update_progress_display(self):
         """更新进度显示"""
-        if self.progress_manager is None:
+        if not hasattr(self, 'shared_dict') or self.shared_dict is None:
             return
         
-        progress = self.progress_manager.get_progress()
+        status = self.shared_dict.get('status', 'pending')
         
-        # 更新队列显示
-        self._update_queue_progress(progress)
+        # 更新进度显示
+        if status == 'started':
+            self.parent.log("[调试] 子进程已启动，正在初始化...")
+        elif status == 'processing':
+            main_percent = self.shared_dict.get('main_percent', 0)
+            detail_percent = self.shared_dict.get('detail_percent', 0)
+            color_percent = self.shared_dict.get('color_percent', 0)
+            if main_percent > 0:
+                self.parent.log(f"主图进度: {self.shared_dict.get('main_current', 0)}/{self.shared_dict.get('main_total', 0)} ({main_percent}%)")
+            if detail_percent > 0:
+                self.parent.log(f"详情图进度: {self.shared_dict.get('detail_current', 0)}/{self.shared_dict.get('detail_total', 0)} ({detail_percent}%)")
+            if color_percent > 0:
+                self.parent.log(f"色卡图进度: {self.shared_dict.get('color_current', 0)}/{self.shared_dict.get('color_total', 0)} ({color_percent}%)")
         
         # 如果还在处理中，继续定时更新
-        if progress.get('main', {}).get('status') == 'processing' or \
-           progress.get('detail', {}).get('status') == 'processing' or \
-           progress.get('color', {}).get('status') == 'processing':
+        if status in ('pending', 'started', 'processing'):
             self.parent.after(500, self._update_progress_display)
     
-    def _update_queue_progress(self, progress):
-        """更新队列进度显示"""
-        # 更新主图进度
-        main = progress.get('main', {})
-        if main.get('status') == 'processing':
-            current = main.get('current', 0)
-            total = main.get('total', 0)
-            percent = main.get('percent', 0)
-            self.parent.log(f"主图进度: {current}/{total} ({percent}%)")
-        
-        # 更新详情图进度
-        detail = progress.get('detail', {})
-        if detail.get('status') == 'processing':
-            current = detail.get('current', 0)
-            total = detail.get('total', 0)
-            percent = detail.get('percent', 0)
-            generated = detail.get('generated', 0)
-            self.parent.log(f"详情图进度: {current}/{total} ({percent}%) 生成: {generated}张")
-        
-        # 更新色卡图进度
-        color = progress.get('color', {})
-        if color.get('status') == 'processing':
-            current = color.get('current', 0)
-            total = color.get('total', 0)
-            percent = color.get('percent', 0)
-            self.parent.log(f"色卡图进度: {current}/{total} ({percent}%)")
-    
-    def _show_final_report(self, progress):
+    def _show_final_report(self, shared_dict):
         """显示最终报告"""
-        main = progress.get('main', {})
-        detail = progress.get('detail', {})
-        color = progress.get('color', {})
-        
         self.parent.log("\n" + "=" * 50)
         self.parent.log("图像优化处理报告")
         self.parent.log("=" * 50)
-        self.parent.log(f"  主图:   处理 {main.get('processed', 0)} 张, 跳过 {main.get('skipped', 0)} 张")
-        self.parent.log(f"  详情图: 处理 {detail.get('processed', 0)} 张, 跳过 {detail.get('skipped', 0)} 张, 生成 {detail.get('generated', 0)} 张")
-        self.parent.log(f"  色卡图: 处理 {color.get('processed', 0)} 张, 跳过 {color.get('skipped', 0)} 张")
-        
-        total_processed = main.get('processed', 0) + detail.get('processed', 0) + color.get('processed', 0)
-        total_skipped = main.get('skipped', 0) + detail.get('skipped', 0) + color.get('skipped', 0)
-        total_generated = main.get('generated', 0) + detail.get('generated', 0) + color.get('generated', 0)
-        
-        self.parent.log(f"  总计:   处理 {total_processed} 张, 跳过 {total_skipped} 张, 生成 {total_generated} 张")
+        self.parent.log(f"  删除原采集文件: {shared_dict.get('deleted_count', 0)} 个")
+        self.parent.log(f"  状态: {shared_dict.get('status', 'unknown')}")
+        if shared_dict.get('error'):
+            self.parent.log(f"  错误: {shared_dict.get('error')}")
         self.parent.log("=" * 50)
     
     def context_stitch_images_with_options(self, with_animated=False, webp_support=False, webp_main=False, webp_color=False):
