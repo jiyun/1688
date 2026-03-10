@@ -310,7 +310,9 @@ class ContextMenuCommands:
                 if status == 'started':
                     self.parent.log("正在初始化...")
                 elif status == 'processing':
-                    pass  # 处理中不输出
+                    self.parent.log("处理中...")
+                elif status == 'completed':
+                    self.parent.log("处理完成")
             
             # 更新进度显示
             if status == 'processing':
