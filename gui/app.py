@@ -554,9 +554,13 @@ class AlibabaScraperGUI:
         font_families = GUI_CONF.get('font_families', ['Courier New'])
         
         for font_name in font_families:
-            # 检查字体是否可用（支持中文名称和英文名称）
+            # 检查字体是否可用（支持中文名称、英文名称和带@前缀的名称）
             if font_name in available_fonts:
                 return font_name
+            
+            # 检查带@前缀的字体
+            if f'@{font_name}' in available_fonts:
+                return f'@{font_name}'
         
         # 如果没有找到任何优先字体，返回默认字体
         return 'Courier New'

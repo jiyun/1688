@@ -66,9 +66,13 @@ GUI_CONF = {
     # 字体配置（按优先级排序）
     'font_families': [
         'Alibaba PuHuiTi',    # 阿里巴巴普惠体
+        '阿里巴巴普惠体',      # 阿里巴巴普惠体（中文名）
         'Source Han Sans CN', # 思源黑体
-        'Smiley Sans',            # 得意黑
+        '思源黑体',            # 思源黑体（中文名）
+        'Smiley Sans',        # 得意黑
+        '得意黑',              # 得意黑（中文名）
         'Microsoft YaHei',    # 微软雅黑
+        '微软雅黑',            # 微软雅黑（中文名）
         'Courier New',        # 默认等宽字体
     ],
     'font_size': 10,          # 字体大小
