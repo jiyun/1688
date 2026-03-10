@@ -555,6 +555,14 @@ class AlibabaScraperGUI:
         """右键菜单：访问原址"""
         self.context_menu_commands.context_visit_url()
     
+    def context_consign_page(self):
+        """右键菜单：铺货页面"""
+        self.context_menu_commands.context_consign_page()
+    
+    def context_shop_new(self):
+        """右键菜单：店铺上新"""
+        self.context_menu_commands.context_shop_new()
+    
     def context_open_folder(self):
         """右键菜单：打开目录"""
         self.context_menu_commands.context_open_folder()
