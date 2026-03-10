@@ -628,6 +628,49 @@ class ContextMenuCommands:
         else:
             self.parent.show_info("提示", "无法获取有效的URL")
     
+    def _get_product_id(self):
+        """获取商品ID"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            return None
+        
+        file_name = os.path.basename(file_path)
+        product_id = os.path.splitext(file_name)[0]
+        return product_id
+    
+    def _copy_to_clipboard(self, text):
+        """复制文本到剪贴板"""
+        try:
+            self.parent.root.clipboard_clear()
+            self.parent.root.clipboard_append(text)
+            self.parent.root.update()
+            return True
+        except Exception as e:
+            self.parent.log(f"复制到剪贴板失败: {e}", "error")
+            return False
+    
+    def context_consign_page(self):
+        """右键菜单：铺货页面"""
+        product_id = self._get_product_id()
+        if not product_id:
+            return
+        
+        url = f"https://detail.1688.com/offer/{product_id}.html?sk=consign&biz=qianniu&isNeedCloseWinport=y"
+        
+        if self._copy_to_clipboard(url):
+            self.parent.log(f"已复制铺货页面链接: {url}")
+    
+    def context_shop_new(self):
+        """右键菜单：店铺上新"""
+        product_id = self._get_product_id()
+        if not product_id:
+            return
+        
+        url = f"https://item.upload.taobao.com/from1688/publish.htm?&sourceId={product_id}"
+        
+        if self._copy_to_clipboard(url):
+            self.parent.log(f"已复制店铺上新链接: {url}")
+    
     def context_open_folder(self):
         """右键菜单：打开目录"""
         folder_path = self.get_selected_folder()

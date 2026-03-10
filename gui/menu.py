@@ -100,6 +100,16 @@ class ContextMenuManager:
             label="访问原址",
             command=lambda: self._call_command("context_visit_url")
         )
+        self.context_menu.add_separator()
+        self.context_menu.add_command(
+            label="铺货页面",
+            command=lambda: self._call_command("context_consign_page")
+        )
+        self.context_menu.add_command(
+            label="店铺上新",
+            command=lambda: self._call_command("context_shop_new")
+        )
+        self.context_menu.add_separator()
         self.context_menu.add_command(
             label="打开目录",
             command=lambda: self._call_command("context_open_folder")
