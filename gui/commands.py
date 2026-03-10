@@ -195,7 +195,6 @@ class ContextMenuCommands:
             *args: 命令行参数
         """
         folder_path = self.get_selected_folder()
-        self.parent.log(f"[调试] folder_path = {folder_path}")
         
         if folder_path and os.path.exists(folder_path):
             self.parent.log(f"执行图像优化: {folder_path}")
@@ -206,10 +205,7 @@ class ContextMenuCommands:
             convert_main = '--t' in args
             convert_color = '--color' in args
             
-            self.parent.log(f"[调试] 参数: animated={with_animated}, webp={webp_support}, main={convert_main}, color={convert_color}")
-            
             # 创建共享内存进度管理器
-            self.parent.log("[调试] 创建共享内存进度管理器...")
             from multiprocessing import Manager
             self.manager = Manager()
             self.shared_dict = self.manager.dict({
@@ -226,37 +222,25 @@ class ContextMenuCommands:
                 'color_total': 0,
                 'color_percent': 0
             })
-            self.parent.log("[调试] 共享内存进度管理器创建成功")
             
             # 启动进度更新定时器
             self._start_progress_timer()
             
-            # 启动子进程（使用模块级别的函数）
-            self.parent.log("[调试] 启动子进程...")
-            try:
-                process = multiprocessing.Process(
-                    target=_run_optimization_process,
-                    args=(self.shared_dict, folder_path, with_animated, webp_support, convert_main, convert_color)
-                )
-                process.start()
-                self.parent.log(f"[调试] 子进程已启动, PID={process.pid}")
-            except Exception as e:
-                self.parent.log(f"[调试] 子进程启动失败: {e}")
-                import traceback
-                traceback.print_exc()
-                return
+            # 启动子进程
+            process = multiprocessing.Process(
+                target=_run_optimization_process,
+                args=(self.shared_dict, folder_path, with_animated, webp_support, convert_main, convert_color)
+            )
+            process.start()
             
             # 启动监控线程
             def monitor_thread():
-                self.parent.log("[调试] 监控线程启动，等待子进程完成...")
                 process.join()
-                self.parent.log(f"[调试] 子进程已结束, 退出码={process.exitcode}")
                 self._stop_progress_timer()
                 
                 # 获取最终结果
                 status = self.shared_dict.get('status', 'unknown')
                 error = self.shared_dict.get('error', '')
-                self.parent.log(f"[调试] 进度状态: {status}")
                 
                 # 显示最终报告
                 self._show_final_report(dict(self.shared_dict))
@@ -285,28 +269,45 @@ class ContextMenuCommands:
     
     def _update_progress_display(self):
         """更新进度显示"""
-        if not hasattr(self, 'shared_dict') or self.shared_dict is None:
-            return
-        
-        status = self.shared_dict.get('status', 'pending')
-        
-        # 更新进度显示
-        if status == 'started':
-            self.parent.log("[调试] 子进程已启动，正在初始化...")
-        elif status == 'processing':
-            main_percent = self.shared_dict.get('main_percent', 0)
-            detail_percent = self.shared_dict.get('detail_percent', 0)
-            color_percent = self.shared_dict.get('color_percent', 0)
-            if main_percent > 0:
-                self.parent.log(f"主图进度: {self.shared_dict.get('main_current', 0)}/{self.shared_dict.get('main_total', 0)} ({main_percent}%)")
-            if detail_percent > 0:
-                self.parent.log(f"详情图进度: {self.shared_dict.get('detail_current', 0)}/{self.shared_dict.get('detail_total', 0)} ({detail_percent}%)")
-            if color_percent > 0:
-                self.parent.log(f"色卡图进度: {self.shared_dict.get('color_current', 0)}/{self.shared_dict.get('color_total', 0)} ({color_percent}%)")
-        
-        # 如果还在处理中，继续定时更新
-        if status in ('pending', 'started', 'processing'):
-            self.parent.after(500, self._update_progress_display)
+        try:
+            if not hasattr(self, 'shared_dict') or self.shared_dict is None:
+                return
+            
+            status = self.shared_dict.get('status', 'pending')
+            last_status = getattr(self, '_last_status', None)
+            
+            # 只在状态变化时输出日志
+            if status != last_status:
+                self._last_status = status
+                if status == 'started':
+                    self.parent.log("正在初始化...")
+                elif status == 'processing':
+                    pass  # 处理中不输出
+            
+            # 更新进度显示
+            if status == 'processing':
+                main_percent = self.shared_dict.get('main_percent', 0)
+                detail_percent = self.shared_dict.get('detail_percent', 0)
+                color_percent = self.shared_dict.get('color_percent', 0)
+                last_main = getattr(self, '_last_main_percent', 0)
+                last_detail = getattr(self, '_last_detail_percent', 0)
+                last_color = getattr(self, '_last_color_percent', 0)
+                
+                if main_percent > 0 and main_percent != last_main:
+                    self._last_main_percent = main_percent
+                    self.parent.log(f"主图进度: {self.shared_dict.get('main_current', 0)}/{self.shared_dict.get('main_total', 0)} ({main_percent}%)")
+                if detail_percent > 0 and detail_percent != last_detail:
+                    self._last_detail_percent = detail_percent
+                    self.parent.log(f"详情图进度: {self.shared_dict.get('detail_current', 0)}/{self.shared_dict.get('detail_total', 0)} ({detail_percent}%)")
+                if color_percent > 0 and color_percent != last_color:
+                    self._last_color_percent = color_percent
+                    self.parent.log(f"色卡图进度: {self.shared_dict.get('color_current', 0)}/{self.shared_dict.get('color_total', 0)} ({color_percent}%)")
+            
+            # 如果还在处理中，继续定时更新
+            if status in ('pending', 'started', 'processing'):
+                self.parent.root.after(500, self._update_progress_display)
+        except Exception as e:
+            self.parent.log(f"进度更新异常: {e}")
     
     def _show_final_report(self, shared_dict):
         """显示最终报告"""
