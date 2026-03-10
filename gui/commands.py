@@ -11,6 +11,7 @@ import glob
 import webbrowser
 import threading
 import multiprocessing
+import traceback
 
 
 def _run_optimization_process(progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color):
@@ -25,34 +26,53 @@ def _run_optimization_process(progress_manager, folder_path, with_animated, webp
         convert_color: 是否转换色卡图
     """
     import sys
+    import traceback
     
-    # 切换到目标目录
-    os.chdir(folder_path)
+    # 调试输出：子进程启动
+    print(f"[子进程] 启动，目标目录: {folder_path}", flush=True)
     
     # 添加项目路径
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    print(f"[子进程] 项目路径: {project_root}", flush=True)
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
     
-    # 导入图像处理模块
-    import utils.image_utils
-    import utils.image_processor
-    
-    # 设置参数
-    utils.image_utils.OUTPUT_WEBP = webp_support
-    utils.image_utils.CONVERT_MAIN = convert_main
-    utils.image_utils.CONVERT_COLOR = convert_color
-    
-    # 设置进度管理器
-    utils.image_processor.reporter.set_progress_manager(progress_manager)
+    # 切换到目标目录
+    os.chdir(folder_path)
+    print(f"[子进程] 当前工作目录: {os.getcwd()}", flush=True)
     
     try:
+        # 导入图像处理模块
+        print("[子进程] 导入图像处理模块...", flush=True)
+        import utils.image_utils
+        import utils.image_processor
+        print("[子进程] 导入成功", flush=True)
+        
+        # 设置参数
+        utils.image_utils.OUTPUT_WEBP = webp_support
+        utils.image_utils.CONVERT_MAIN = convert_main
+        utils.image_utils.CONVERT_COLOR = convert_color
+        print(f"[子进程] 参数设置: webp={webp_support}, main={convert_main}, color={convert_color}", flush=True)
+        
+        # 设置进度管理器
+        utils.image_processor.reporter.set_progress_manager(progress_manager)
+        print("[子进程] 进度管理器设置完成", flush=True)
+        
         # 运行图像处理
+        print("[子进程] 开始处理主图...", flush=True)
         utils.image_processor.enlarge_main_images()
+        print("[子进程] 主图处理完成", flush=True)
+        
+        print("[子进程] 开始处理详情图...", flush=True)
         utils.image_processor.process_regular_detail_images()
+        print("[子进程] 详情图处理完成", flush=True)
+        
+        print("[子进程] 开始处理色卡图...", flush=True)
         utils.image_processor.enlarge_color_card_images()
+        print("[子进程] 色卡图处理完成", flush=True)
         
         # 清理无用文件
+        print("[子进程] 清理无用文件...", flush=True)
         temp_files = ['down.txt', 'down_log.txt']
         for f in temp_files:
             file_path = os.path.join(folder_path, f)
@@ -78,10 +98,14 @@ def _run_optimization_process(progress_manager, folder_path, with_animated, webp
                 except:
                     pass
         
+        print(f"[子进程] 删除了 {deleted_count} 个原采集文件", flush=True)
         progress_manager.set_deleted_count(deleted_count)
         progress_manager.set_status('completed')
+        print("[子进程] 处理完成", flush=True)
         
     except Exception as e:
+        print(f"[子进程] 错误: {e}", flush=True)
+        traceback.print_exc()
         progress_manager.set_error(str(e))
         progress_manager.set_status('error')
 
