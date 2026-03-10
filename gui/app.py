@@ -108,21 +108,23 @@ class AlibabaScraperGUI:
         self.queue_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(0, 10))
         
         # 创建表格
-        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "date", "output_path"), show="headings")
+        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "path", "name", "date", "output_path"), show="headings")
         
         # 设置列标题
         self.queue_tree.heading("index", text="序号")
         self.queue_tree.heading("status", text="状态", command=lambda: self.sort_treeview("status"))
+        self.queue_tree.heading("path", text="路径", command=lambda: self.sort_treeview("path"))
         self.queue_tree.heading("name", text="文件名", command=lambda: self.sort_treeview("name"))
         self.queue_tree.heading("date", text="修改日期", command=lambda: self.sort_treeview("date"))
         self.queue_tree.heading("output_path", text="输出路径", command=lambda: self.sort_treeview("output_path"))
         
         # 设置列宽
-        self.queue_tree.column("index", width=50, anchor=tk.CENTER)
-        self.queue_tree.column("status", width=80, anchor=tk.CENTER)
-        self.queue_tree.column("name", width=300, anchor=tk.W)
+        self.queue_tree.column("index", width=30, anchor=tk.CENTER)
+        self.queue_tree.column("status", width=50, anchor=tk.CENTER)
+        self.queue_tree.column("path", width=150, anchor=tk.W)
+        self.queue_tree.column("name", width=200, anchor=tk.W)
         self.queue_tree.column("date", width=120, anchor=tk.CENTER)
-        self.queue_tree.column("output_path", width=250, anchor=tk.W)
+        self.queue_tree.column("output_path", width=200, anchor=tk.W)
         
         # 添加滚动条
         self.queue_scrollbar = ttk.Scrollbar(self.queue_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
@@ -510,7 +512,7 @@ class AlibabaScraperGUI:
                         self.open_file_explorer(output_path)
                     else:
                         self.open_file_explorer(html_dir)
-                else:  # 其他列（包括文件名列）
+                else:  # 其他列（包括路径列和文件名列）
                     self.open_file_explorer(html_dir)
     
     def open_file_explorer(self, path):

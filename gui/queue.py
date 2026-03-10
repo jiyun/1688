@@ -208,6 +208,9 @@ class QueueManager:
                 # 定义状态优先级：none < error < success
                 return GUI_CONF['status_order'].get(status, 0)
             items.sort(key=status_sort_key)
+        elif column == "path":
+            # 按路径排序
+            items.sort(key=lambda x: os.path.dirname(x).lower())
         elif column == "name":
             # 按文件名排序（按数字大小）
             def natural_sort_key(file_path):
@@ -242,6 +245,7 @@ class QueueManager:
         column_names = {
             "index": "序号",
             "status": "状态",
+            "path": "路径",
             "name": "文件名",
             "date": "修改日期",
             "output_path": "输出路径"
@@ -260,11 +264,15 @@ class QueueManager:
         for progress_type, color in GUI_CONF.get('progress_colors', {}).items():
             self.parent.queue_tree.tag_configure(f"progress_{progress_type}", foreground=color)
         
+        # 添加路径灰色标记
+        self.parent.queue_tree.tag_configure("path_gray", foreground="gray")
+        
         for i, file_path in enumerate(self.file_queue, 1):
             file_dir = os.path.dirname(file_path)
             file_name = os.path.basename(file_path)
             
-            display_name = self._compress_path_display(file_dir, file_name)
+            # 压缩显示路径
+            display_path = self._compress_dir_path(file_dir)
             
             try:
                 mtime = os.path.getmtime(file_path)
@@ -300,7 +308,26 @@ class QueueManager:
                     self.file_status[file_path] = "exists"
                     tag = "exists"
             
-            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(tag,))
+            # 插入行：序号, 状态, 路径(灰色), 文件名, 修改日期, 输出路径
+            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_path, file_name, date_str, display_output_path), tags=(tag,))
+    
+    def _compress_dir_path(self, file_dir):
+        """压缩目录路径显示
+        
+        Args:
+            file_dir: 文件目录
+            
+        Returns:
+            str: 压缩后的显示文本
+        """
+        max_length = 20
+        
+        if not file_dir:
+            return ""
+        
+        if len(file_dir) > max_length:
+            return file_dir[:max_length//2] + "..." + file_dir[-max_length//2:]
+        return file_dir
     
     def _compress_path_display(self, file_dir, file_name):
         """压缩文件路径显示
