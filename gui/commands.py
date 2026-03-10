@@ -26,9 +26,11 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
         convert_color: 是否转换色卡图
     """
     import sys
+    import time
     
     # 子进程启动信号
     shared_dict['status'] = 'started'
+    shared_dict['start_time'] = time.time()
     
     try:
         # 添加项目路径
@@ -52,6 +54,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
         # 创建进度回调函数
         def progress_callback(name, current, total):
             percent = int((current / total) * 100) if total > 0 else 0
+            shared_dict['status'] = 'processing'
             if '主图' in name:
                 shared_dict['main_current'] = current
                 shared_dict['main_total'] = total
@@ -100,6 +103,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
                     pass
         
         shared_dict['deleted_count'] = deleted_count
+        shared_dict['end_time'] = time.time()
         shared_dict['status'] = 'completed'
         
     except Exception as e:
@@ -213,6 +217,8 @@ class ContextMenuCommands:
                 'status': 'pending',
                 'error': '',
                 'deleted_count': 0,
+                'start_time': 0,
+                'end_time': 0,
                 'main_current': 0,
                 'main_total': 0,
                 'main_percent': 0,
@@ -312,9 +318,19 @@ class ContextMenuCommands:
     
     def _show_final_report(self, shared_dict):
         """显示最终报告"""
+        import time
+        
         self.parent.log("\n" + "=" * 50)
         self.parent.log("图像优化处理报告")
         self.parent.log("=" * 50)
+        
+        # 计算耗时
+        start_time = shared_dict.get('start_time', 0)
+        end_time = shared_dict.get('end_time', 0)
+        if start_time and end_time:
+            elapsed = end_time - start_time
+            self.parent.log(f"  耗时: {elapsed:.1f} 秒")
+        
         self.parent.log(f"  删除原采集文件: {shared_dict.get('deleted_count', 0)} 个")
         self.parent.log(f"  状态: {shared_dict.get('status', 'unknown')}")
         if shared_dict.get('error'):
