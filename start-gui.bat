@@ -4,28 +4,28 @@ set PYTHONDONTWRITEBYTECODE=1
 set "PYTHON=python"
 set "MAIN_SCRIPT=main.py"
 
-:: 检查Python是否可用
+:: ���Python�Ƿ����
 %PYTHON% --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误：未找到Python解释器
-    echo 请确保Python已安装并添加到系统环境变量
+    echo ����δ�ҵ�Python������
+    echo ��ȷ��Python�Ѱ�װ�����ӵ�ϵͳ��������
     pause
     exit /b 1
 )
 
-:: 检查main.py是否存在
+:: ���main.py�Ƿ����
 if not exist %MAIN_SCRIPT% (
-    echo 错误：未找到main.py文件
-    echo 请确保此批处理文件与main.py在同一目录
+    echo ����δ�ҵ�main.py�ļ�
+    echo ��ȷ�����������ļ���main.py��ͬһĿ¼
     pause
     exit /b 1
 )
 
-:: 启动GUI模式
-echo 正在启动1688详情页资源采集工具 - GUI模式...
+:: ����GUIģʽ
+echo ��������1688����ҳ��Դ�ɼ����� - GUIģʽ...
 start "" /wait %PYTHON% %MAIN_SCRIPT% --gui
 if %errorlevel% neq 0 (
     echo.
-    echo 程序异常退出，错误代码: %errorlevel%
+    echo �����쳣�˳����������: %errorlevel%
     pause
 )
