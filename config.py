@@ -67,6 +67,10 @@ GUI_CONF = {
     'font_families': [
         'Alibaba PuHuiTi',    # 阿里巴巴普惠体
         '阿里巴巴普惠体',      # 阿里巴巴普惠体（中文名）
+        '阿里普惠体',          # 阿里普惠体
+        'HarmonyOS Sans',     # 华为鸿蒙字体
+        'MiSans',             # 小米字体
+        'OPPO Sans',          # OPPO字体
         'Source Han Sans CN', # 思源黑体
         '思源黑体',            # 思源黑体（中文名）
         'Smiley Sans',        # 得意黑
