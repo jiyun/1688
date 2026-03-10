@@ -47,6 +47,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
         utils.image_utils.OUTPUT_WEBP = webp_support
         utils.image_utils.CONVERT_MAIN = convert_main
         utils.image_utils.CONVERT_COLOR = convert_color
+        utils.image_utils.WITH_ANIMATED = with_animated  # 添加动图支持参数
         
         # 创建进度回调函数
         def progress_callback(name, current, total):
