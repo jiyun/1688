@@ -171,12 +171,23 @@ class HTMLParser:
         """获取颜色选项"""
         color_options = []
         
+        def sanitize_color_name(name):
+            """清理色卡名称中的不安全字符"""
+            if not name:
+                return name
+            # 替换文件名中的不安全字符
+            unsafe_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+            result = name
+            for char in unsafe_chars:
+                result = result.replace(char, '-')
+            return result
+        
         sku_filter_buttons = self.soup.find_all('button', class_=lambda x: x and 'sku-filter-button' in x.split())
         if sku_filter_buttons:
             for button in sku_filter_buttons:
                 label_name = button.find('span', class_=lambda x: x and 'label-name' in x.split() if x else False)
                 if label_name:
-                    color_name = label_name.get_text().strip()
+                    color_name = sanitize_color_name(label_name.get_text().strip())
                     
                     img = button.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
                     color_image = None
@@ -195,9 +206,9 @@ class HTMLParser:
                 
                 color_name = None
                 if label_name:
-                    color_name = label_name.get_text().strip()
+                    color_name = sanitize_color_name(label_name.get_text().strip())
                 elif item_label:
-                    color_name = item_label.get('title') or item_label.get_text().strip()
+                    color_name = sanitize_color_name(item_label.get('title') or item_label.get_text().strip())
                 
                 if color_name:
                     img = item.find('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
@@ -214,7 +225,7 @@ class HTMLParser:
             for prop_item_wrapper in prop_item_wrappers:
                 prop_names = prop_item_wrapper.find_all('div', class_='prop-name')
                 for prop_name in prop_names:
-                    color_name = prop_name.get_text().strip()
+                    color_name = sanitize_color_name(prop_name.get_text().strip())
                     color_options.append((color_name, None))
         
         return color_options
