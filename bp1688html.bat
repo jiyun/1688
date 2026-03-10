@@ -1,11 +1,11 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 set PYTHONDONTWRITEBYTECODE=1
-title ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½HTMLï¿½Ä¼ï¿½
+title ÅúÁ¿´¦ÀíHTMLÎÄ¼þ
 for %%F in (*.HTML) do (
-    echo ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: %%F
+    echo ´¦ÀíÖÐ: %%F
     call start1688.bat "%%F"
     timeout /t 1 >nul
 )
-echo ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+echo ÅúÁ¿´¦ÀíÍê³É
 pause

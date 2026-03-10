@@ -1,15 +1,15 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 set PYTHONDONTWRITEBYTECODE=1
 if "%1" == "" (
 	cls
-	echo è­¦å‘Š: ä¸è¦åœ¨æ²¡æœ‰å‚æ•°çš„æƒ…å†µä¸‹è¿è¡Œæ­¤æ‰¹å¤„ç†æ–‡ä»¶ï¼
-	echo ç›®æ ‡HTMLæ–‡ä»¶éœ€è¦ä½¿ç”¨singlefileæµè§ˆå™¨æ‰©å±•é¢„å¤„ç†ã€‚
-	echo æ­¤ç¨‹åºä½¿ç”¨Aria2cã€Pythonå’Œç›¸å…³åº“ï¼šrequestsã€subprocessã€splitextã€BeautifulSoupã€pandas
+	echo ¾¯¸æ: ²»ÒªÔÚÃ»ÓÐ²ÎÊýµÄÇé¿öÏÂÔËÐÐ´ËÅú´¦ÀíÎÄ¼þ£¡
+	echo Ä¿±êHTMLÎÄ¼þÐèÒªÊ¹ÓÃsinglefileä¯ÀÀÆ÷À©Õ¹Ô¤´¦Àí¡£
+	echo ´Ë³ÌÐòÊ¹ÓÃAria2c¡¢PythonºÍÏà¹Ø¿â£ºrequests¡¢subprocess¡¢splitext¡¢BeautifulSoup¡¢pandas
 	echo ----------
-	echo ä½¿ç”¨æ–¹æ³•ï¼šå°†HTMLæ–‡ä»¶æ‹–æ”¾åˆ°æ­¤æ‰¹å¤„ç†æ–‡ä»¶ä¸Šå¼€å§‹å¤„ç†ã€‚
-	echo å¦‚éœ€æ‰¹é‡å¤„ç†ï¼Œè¯·æ‰§è¡Œå¦ä¸€ä¸ªæ‰¹å¤„ç†æ–‡ä»¶ã€‚
-	echo ä¸è¦å¿˜è®°å®‰è£…ä¸Šè¿°æåˆ°çš„å¿…è¦ç¨‹åºå’Œæ‰©å±•ã€‚
+	echo Ê¹ÓÃ·½·¨£º½«HTMLÎÄ¼þÍÏ·Åµ½´ËÅú´¦ÀíÎÄ¼þÉÏ¿ªÊ¼´¦Àí¡£
+	echo ÈçÐèÅúÁ¿´¦Àí£¬ÇëÖ´ÐÐÁíÒ»¸öÅú´¦ÀíÎÄ¼þ¡£
+	echo ²»ÒªÍü¼Ç°²×°ÉÏÊöÌáµ½µÄ±ØÒª³ÌÐòºÍÀ©Õ¹¡£
 	pause >nul
 ) else (
 	@echo y|Cacls %* /c /t /p Everyone:f 2>nul
@@ -32,7 +32,7 @@ if "%1" == "" (
 	@echo URL=https://detail.1688.com/offer/%~n1.html>>#URL.url
 	@echo IconIndex=41>>#URL.url
 	@echo IconFile=C:\WINDOWS\system32\shell32.dll>>#URL.url
-	set var=å¤„ç†å®Œæˆï¼Œå€’è®¡æ—¶ 
+	set var=´¦ÀíÍê³É£¬µ¹¼ÆÊ± 
 	for /l %%i in (2,-1,1) do (  
 	@echo %var%%%i ...
 	ping -n 2 127.1>nul

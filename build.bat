@@ -1,53 +1,53 @@
 @echo off
-chcp 65001 >nul
+chcp 936 >nul
 set PYTHONDONTWRITEBYTECODE=1
 echo ====================================
-echo 1688è¯¦æƒ…é¡µèµ„æºé‡‡é›†å·¥å…· v0.3.0 æ‰“åŒ…è„šæœ¬
+echo 1688ÏêÇéÒ³×ÊÔ´²É¼¯¹¤¾ß v0.3.0 ´ò°ü½Å±¾
 echo ====================================
 echo.
 
-REM è®¾ç½®ç‰ˆæœ¬å·
+REM ÉèÖÃ°æ±¾ºÅ
 set VERSION=0.3.0
 set PACKAGE_NAME=1688-v%VERSION%
 
-REM åˆ›å»ºæ‰“åŒ…ç›®å½•
+REM ´´½¨´ò°üÄ¿Â¼
 if exist "dist" rmdir /s /q "dist"
 mkdir "dist\%PACKAGE_NAME%"
 
-echo æ­£åœ¨å¤åˆ¶æ–‡ä»¶...
+echo ÕýÔÚ¸´ÖÆÎÄ¼þ...
 
-REM å¤åˆ¶ä¸»è¦Pythonæ–‡ä»¶
+REM ¸´ÖÆÖ÷ÒªPythonÎÄ¼þ
 copy main.py "dist\%PACKAGE_NAME%\"
 copy config.py "dist\%PACKAGE_NAME%\"
 
-REM å¤åˆ¶æ‰¹å¤„ç†æ–‡ä»¶
+REM ¸´ÖÆÅú´¦ÀíÎÄ¼þ
 copy start1688.bat "dist\%PACKAGE_NAME%\"
 copy start-gui.bat "dist\%PACKAGE_NAME%\"
 copy bp1688html.bat "dist\%PACKAGE_NAME%\"
 
-REM å¤åˆ¶GUIæ¨¡å—
+REM ¸´ÖÆGUIÄ£¿é
 xcopy gui "dist\%PACKAGE_NAME%\gui\" /E /I /Y
 
-REM å¤åˆ¶å·¥å…·æ¨¡å—
+REM ¸´ÖÆ¹¤¾ßÄ£¿é
 xcopy utils "dist\%PACKAGE_NAME%\utils\" /E /I /Y
 
-REM å¤åˆ¶æ–‡æ¡£
+REM ¸´ÖÆÎÄµµ
 copy README.md "dist\%PACKAGE_NAME%\"
 copy CHANGELOG.md "dist\%PACKAGE_NAME%\"
 copy LICENSE "dist\%PACKAGE_NAME%\"
 
-REM å¤åˆ¶.gitignore
+REM ¸´ÖÆ.gitignore
 copy .gitignore "dist\%PACKAGE_NAME%\"
 
 echo.
-echo æ­£åœ¨åˆ›å»ºZIPåŽ‹ç¼©åŒ…...
+echo ÕýÔÚ´´½¨ZIPÑ¹Ëõ°ü...
 cd dist
 powershell -Command "Compress-Archive -Path '%PACKAGE_NAME%' -DestinationPath '%PACKAGE_NAME%.zip' -Force"
 cd ..
 
 echo.
 echo ====================================
-echo æ‰“åŒ…å®Œæˆï¼
-echo è¾“å‡ºæ–‡ä»¶: dist\%PACKAGE_NAME%.zip
+echo ´ò°üÍê³É£¡
+echo Êä³öÎÄ¼þ: dist\%PACKAGE_NAME%.zip
 echo ====================================
 pause
