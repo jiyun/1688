@@ -210,6 +210,22 @@ class ContextMenuCommands:
             convert_main = '--t' in args
             convert_color = '--color' in args
             
+            # 显示参数设置
+            params = []
+            if with_animated:
+                params.append("支持动图")
+            if webp_support:
+                params.append("WebP输出")
+            if convert_main:
+                params.append("主图WebP转换")
+            if convert_color:
+                params.append("色卡图WebP转换")
+            
+            if params:
+                self.parent.log(f"参数: {', '.join(params)}")
+            else:
+                self.parent.log("参数: 默认设置")
+            
             # 创建共享内存进度管理器
             from multiprocessing import Manager
             self.manager = Manager()
