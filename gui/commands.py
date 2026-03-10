@@ -331,6 +331,26 @@ class ContextMenuCommands:
             elapsed = end_time - start_time
             self.parent.log(f"  耗时: {elapsed:.1f} 秒")
         
+        # 显示各队列处理情况
+        main_total = shared_dict.get('main_total', 0)
+        detail_total = shared_dict.get('detail_total', 0)
+        color_total = shared_dict.get('color_total', 0)
+        
+        if main_total > 0:
+            self.parent.log(f"  主图: {shared_dict.get('main_current', 0)}/{main_total}")
+        else:
+            self.parent.log("  主图: 无需处理")
+        
+        if detail_total > 0:
+            self.parent.log(f"  详情图: {shared_dict.get('detail_current', 0)}/{detail_total}")
+        else:
+            self.parent.log("  详情图: 无需处理")
+        
+        if color_total > 0:
+            self.parent.log(f"  色卡图: {shared_dict.get('color_current', 0)}/{color_total}")
+        else:
+            self.parent.log("  色卡图: 无需处理")
+        
         self.parent.log(f"  删除原采集文件: {shared_dict.get('deleted_count', 0)} 个")
         self.parent.log(f"  状态: {shared_dict.get('status', 'unknown')}")
         if shared_dict.get('error'):
