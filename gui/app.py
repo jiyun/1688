@@ -169,9 +169,10 @@ class AlibabaScraperGUI:
         # 使用说明标签页内容
         if HAS_TKINTERWEB and HAS_MARKDOWN:
             # 使用 tkinterweb 渲染 Markdown（禁用调试消息）
-            self.help_frame = HtmlFrame(self.help_tab, messages_enabled=False)
-            self.help_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            self.load_help_content_html()
+            # 延迟加载，避免初始化时崩溃
+            self.help_frame = None
+            self.help_html_loaded = False
+            self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
         else:
             # 回退到纯文本显示
             self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
@@ -422,6 +423,36 @@ class AlibabaScraperGUI:
         self.help_text.delete(1.0, tk.END)
         self.help_text.insert(tk.END, help_content)
         self.help_text.config(state=tk.DISABLED)
+    
+    def _on_tab_changed(self, event):
+        """标签页切换事件处理"""
+        try:
+            # 获取当前选中的标签页
+            current_tab = self.notebook.index(self.notebook.select())
+            # 如果切换到使用说明标签页（索引为1）且尚未加载
+            if current_tab == 1 and not self.help_html_loaded:
+                self._load_help_frame()
+        except Exception as e:
+            self.log(f"标签页切换错误: {e}", "error")
+    
+    def _load_help_frame(self):
+        """加载帮助文档框架"""
+        try:
+            # 创建 HtmlFrame
+            self.help_frame = HtmlFrame(self.help_tab, messages_enabled=False)
+            self.help_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # 加载 HTML 内容
+            self.load_help_content_html()
+            self.help_html_loaded = True
+        except Exception as e:
+            # 如果加载失败，回退到纯文本
+            self.log(f"HTML渲染加载失败，回退到纯文本: {e}", "warning")
+            if self.help_frame:
+                self.help_frame.destroy()
+            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
+            self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.load_help_content()
     
     def load_help_content_html(self):
         """加载使用说明内容（HTML渲染）"""
