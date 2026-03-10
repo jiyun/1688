@@ -9,6 +9,8 @@ import subprocess
 import shutil
 import glob
 import webbrowser
+import threading
+import multiprocessing
 
 
 class ContextMenuCommands:
@@ -21,6 +23,8 @@ class ContextMenuCommands:
             parent: 父窗口实例，用于访问UI控件和日志记录
         """
         self.parent = parent
+        self.progress_manager = None  # 共享内存进度管理器
+        self.progress_timer = None  # 进度更新定时器
     
     def get_selected_folder(self):
         """获取选中项目对应的文件夹路径
@@ -107,77 +111,59 @@ class ContextMenuCommands:
             convert_main = '--t' in args
             convert_color = '--color' in args
             
-            # 创建并启动线程，避免阻塞GUI主线程
-            import threading
-            def optimization_thread():
+            # 创建共享内存进度管理器
+            from utils.progress_manager import SharedProgressManager
+            self.progress_manager = SharedProgressManager()
+            
+            # 启动进度更新定时器
+            self._start_progress_timer()
+            
+            # 定义子进程处理函数
+            def run_optimization_process(progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color):
+                """在子进程中运行图像优化"""
+                import os
+                import sys
+                import glob
+                
+                # 切换到目标目录
+                os.chdir(folder_path)
+                
+                # 添加项目路径
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if project_root not in sys.path:
+                    sys.path.insert(0, project_root)
+                
+                # 导入图像处理模块
+                import utils.image_utils
+                import utils.image_processor
+                
+                # 设置参数
+                utils.image_utils.OUTPUT_WEBP = webp_support
+                utils.image_utils.CONVERT_MAIN = convert_main
+                utils.image_utils.CONVERT_COLOR = convert_color
+                
+                # 设置进度管理器
+                utils.image_processor.reporter.set_progress_manager(progress_manager)
+                
                 try:
-                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                    
-                    self.parent.log("正在执行图像优化...")
-                    command = ["python", main_py_path] + list(args)
-                    process = subprocess.Popen(
-                        command,
-                        cwd=folder_path,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding='utf-8',
-                        bufsize=1,  # 行缓冲，确保实时输出
-                        universal_newlines=True
-                    )
-                    
-                    # 实时读取输出
-                    import re
-                    while True:
-                        line = process.stdout.readline()
-                        if not line and process.poll() is not None:
-                            break
-                        if line:
-                            line = line.strip()
-                            if line:
-                                # 提取进度类型
-                                progress_type = None
-                                if "主图处理" in line:
-                                    progress_type = "主图"
-                                elif "详情图处理" in line:
-                                    progress_type = "详情图"
-                                elif "色卡图处理" in line:
-                                    progress_type = "色卡图"
-                                
-                                # 捕获章节标题
-                                if "==================================================" in line:
-                                    self.parent.log(line)
-                                elif "主图处理" in line and "张)" in line:
-                                    self.parent.log(line)
-                                elif "详情图处理" in line and "张)" in line:
-                                    self.parent.log(line)
-                                elif "色卡图处理" in line and "张)" in line:
-                                    self.parent.log(line)
-                                # 捕获小结报告
-                                elif "处理完成:" in line or "跳过文件:" in line or "耗时:" in line:
-                                    self.parent.log(line)
-                                # 捕获总计信息
-                                elif "总计:" in line or "图像优化处理报告" in line:
-                                    self.parent.log(line)
-                    
-                    process.wait()
+                    # 运行图像处理
+                    utils.image_processor.enlarge_main_images()
+                    utils.image_processor.process_regular_detail_images()
+                    utils.image_processor.enlarge_color_card_images()
                     
                     # 清理无用文件
-                    self.parent.log("\n正在清理无用文件...")
                     temp_files = ['down.txt', 'down_log.txt']
                     for f in temp_files:
                         file_path = os.path.join(folder_path, f)
                         if os.path.exists(file_path):
                             os.remove(file_path)
                     
-                    # 删除拼接结果文件（如果存在)
+                    # 删除拼接结果文件
                     merged_path = os.path.join(folder_path, '拼接结果.jpg')
                     if os.path.exists(merged_path):
                         os.remove(merged_path)
                     
                     # 删除原采集文件
-                    # 注意：新生成的文件使用 new_ 前缀或 E_ 前缀，原始文件使用 C_ 和 T_ 前缀
-                    # 所以删除原始文件不会影响新生成的文件
                     patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png']
                     if with_animated:
                         patterns.extend(['C_*.gif', 'T_*.gif', 'color_*.gif'])
@@ -188,22 +174,118 @@ class ContextMenuCommands:
                             try:
                                 os.remove(f)
                                 deleted_count += 1
-                            except Exception as e:
-                                self.parent.log(f"删除文件失败 {f}: {e}")
+                            except:
+                                pass
                     
-                    if deleted_count > 0:
-                        self.parent.log(f"已删除 {deleted_count} 个原采集文件", "success")
+                    progress_manager.set_deleted_count(deleted_count)
+                    progress_manager.set_status('completed')
                     
-                    self.parent.log("图像优化完成", "success")
                 except Exception as e:
-                    self.parent.log(f"图像优化失败: {e}", "error")
+                    progress_manager.set_error(str(e))
+                    progress_manager.set_status('error')
             
-            # 启动优化线程
-            thread = threading.Thread(target=optimization_thread)
+            # 启动子进程
+            process = multiprocessing.Process(
+                target=run_optimization_process,
+                args=(self.progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color)
+            )
+            process.start()
+            
+            # 启动监控线程
+            def monitor_thread():
+                process.join()
+                self._stop_progress_timer()
+                
+                # 获取最终结果
+                progress = self.progress_manager.get_progress()
+                
+                # 显示最终报告
+                self._show_final_report(progress)
+                
+                # 关闭进度管理器
+                self.progress_manager.shutdown()
+                
+                if progress.get('status') == 'completed':
+                    self.parent.log("图像优化完成", "success")
+                else:
+                    self.parent.log(f"图像优化失败: {progress.get('error', '未知错误')}", "error")
+            
+            thread = threading.Thread(target=monitor_thread)
             thread.daemon = True
             thread.start()
         else:
             self.parent.show_info("提示", "文件夹不存在")
+    
+    def _start_progress_timer(self):
+        """启动进度更新定时器"""
+        self._update_progress_display()
+    
+    def _stop_progress_timer(self):
+        """停止进度更新定时器"""
+        pass
+    
+    def _update_progress_display(self):
+        """更新进度显示"""
+        if self.progress_manager is None:
+            return
+        
+        progress = self.progress_manager.get_progress()
+        
+        # 更新队列显示
+        self._update_queue_progress(progress)
+        
+        # 如果还在处理中，继续定时更新
+        if progress.get('main', {}).get('status') == 'processing' or \
+           progress.get('detail', {}).get('status') == 'processing' or \
+           progress.get('color', {}).get('status') == 'processing':
+            self.parent.after(500, self._update_progress_display)
+    
+    def _update_queue_progress(self, progress):
+        """更新队列进度显示"""
+        # 更新主图进度
+        main = progress.get('main', {})
+        if main.get('status') == 'processing':
+            current = main.get('current', 0)
+            total = main.get('total', 0)
+            percent = main.get('percent', 0)
+            self.parent.log(f"主图进度: {current}/{total} ({percent}%)")
+        
+        # 更新详情图进度
+        detail = progress.get('detail', {})
+        if detail.get('status') == 'processing':
+            current = detail.get('current', 0)
+            total = detail.get('total', 0)
+            percent = detail.get('percent', 0)
+            generated = detail.get('generated', 0)
+            self.parent.log(f"详情图进度: {current}/{total} ({percent}%) 生成: {generated}张")
+        
+        # 更新色卡图进度
+        color = progress.get('color', {})
+        if color.get('status') == 'processing':
+            current = color.get('current', 0)
+            total = color.get('total', 0)
+            percent = color.get('percent', 0)
+            self.parent.log(f"色卡图进度: {current}/{total} ({percent}%)")
+    
+    def _show_final_report(self, progress):
+        """显示最终报告"""
+        main = progress.get('main', {})
+        detail = progress.get('detail', {})
+        color = progress.get('color', {})
+        
+        self.parent.log("\n" + "=" * 50)
+        self.parent.log("图像优化处理报告")
+        self.parent.log("=" * 50)
+        self.parent.log(f"  主图:   处理 {main.get('processed', 0)} 张, 跳过 {main.get('skipped', 0)} 张")
+        self.parent.log(f"  详情图: 处理 {detail.get('processed', 0)} 张, 跳过 {detail.get('skipped', 0)} 张, 生成 {detail.get('generated', 0)} 张")
+        self.parent.log(f"  色卡图: 处理 {color.get('processed', 0)} 张, 跳过 {color.get('skipped', 0)} 张")
+        
+        total_processed = main.get('processed', 0) + detail.get('processed', 0) + color.get('processed', 0)
+        total_skipped = main.get('skipped', 0) + detail.get('skipped', 0) + color.get('skipped', 0)
+        total_generated = main.get('generated', 0) + detail.get('generated', 0) + color.get('generated', 0)
+        
+        self.parent.log(f"  总计:   处理 {total_processed} 张, 跳过 {total_skipped} 张, 生成 {total_generated} 张")
+        self.parent.log("=" * 50)
     
     def context_stitch_images_with_options(self, with_animated=False, webp_support=False, webp_main=False, webp_color=False):
         """右键菜单：带选项的图像优化

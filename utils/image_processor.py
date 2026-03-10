@@ -47,6 +47,7 @@ class ProgressReporter:
         self.color_stats = {'total': 0, 'processed': 0, 'skipped': 0, 'errors': 0, 'generated': 0}
         self.progress_callback = None  # 进度回调函数
         self.current_file = None  # 当前处理的文件
+        self.progress_manager = None  # 共享内存进度管理器
     
     def set_progress_callback(self, callback):
         """设置进度回调函数
@@ -64,17 +65,31 @@ class ProgressReporter:
         """
         self.current_file = file_path
     
+    def set_progress_manager(self, manager):
+        """设置共享内存进度管理器
+        
+        Args:
+            manager: SharedProgressManager实例
+        """
+        self.progress_manager = manager
+    
     def start_main(self):
         """开始主图处理"""
         self.main_start_time = time.time()
+        if self.progress_manager:
+            self.progress_manager.start_main()
     
     def start_detail(self):
         """开始详情图处理"""
         self.detail_start_time = time.time()
+        if self.progress_manager:
+            self.progress_manager.start_detail()
     
     def start_color(self):
         """开始色卡图处理"""
         self.color_start_time = time.time()
+        if self.progress_manager:
+            self.progress_manager.start_color()
     
     def show_progress(self, name, current, total):
         """显示进度条"""
@@ -92,12 +107,30 @@ class ProgressReporter:
             elif '色卡' in name:
                 progress_type = 'color'
             self.progress_callback(self.current_file, progress_text, progress_type)
+        
+        # 更新共享内存进度
+        if self.progress_manager:
+            if '主图' in name:
+                self.progress_manager.update_main(current=current, total=total)
+            elif '详情图' in name:
+                self.progress_manager.update_detail(current=current, total=total)
+            elif '色卡' in name:
+                self.progress_manager.update_color(current=current, total=total)
     
     def complete_progress(self, name):
         """完成进度显示"""
         # 通知GUI清除进度
         if self.progress_callback and self.current_file:
             self.progress_callback(self.current_file, "", "")
+        
+        # 更新共享内存状态
+        if self.progress_manager:
+            if '主图' in name:
+                self.progress_manager.complete_main()
+            elif '详情图' in name:
+                self.progress_manager.complete_detail()
+            elif '色卡' in name:
+                self.progress_manager.complete_color()
     
     def show_section_header(self, name, count):
         """显示章节标题"""
