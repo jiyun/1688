@@ -8,6 +8,7 @@ import os
 import sys
 import tkinter as tk
 from tkinter import ttk
+import multiprocessing
 
 # 导入模块化组件
 from gui.utils import hide_console, ScrolledText
@@ -572,6 +573,9 @@ class AlibabaScraperGUI:
 
 def main():
     """主函数"""
+    # Windows上使用multiprocessing需要调用freeze_support
+    multiprocessing.freeze_support()
+    
     root = tk.Tk()
     app = AlibabaScraperGUI(root)
     app.run()
