@@ -13,6 +13,79 @@ import threading
 import multiprocessing
 
 
+def _run_optimization_process(progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color):
+    """在子进程中运行图像优化
+    
+    Args:
+        progress_manager: 共享内存进度管理器
+        folder_path: 文件夹路径
+        with_animated: 是否包含动图
+        webp_support: 是否支持WebP
+        convert_main: 是否转换主图
+        convert_color: 是否转换色卡图
+    """
+    import sys
+    
+    # 切换到目标目录
+    os.chdir(folder_path)
+    
+    # 添加项目路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    # 导入图像处理模块
+    import utils.image_utils
+    import utils.image_processor
+    
+    # 设置参数
+    utils.image_utils.OUTPUT_WEBP = webp_support
+    utils.image_utils.CONVERT_MAIN = convert_main
+    utils.image_utils.CONVERT_COLOR = convert_color
+    
+    # 设置进度管理器
+    utils.image_processor.reporter.set_progress_manager(progress_manager)
+    
+    try:
+        # 运行图像处理
+        utils.image_processor.enlarge_main_images()
+        utils.image_processor.process_regular_detail_images()
+        utils.image_processor.enlarge_color_card_images()
+        
+        # 清理无用文件
+        temp_files = ['down.txt', 'down_log.txt']
+        for f in temp_files:
+            file_path = os.path.join(folder_path, f)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        # 删除拼接结果文件
+        merged_path = os.path.join(folder_path, '拼接结果.jpg')
+        if os.path.exists(merged_path):
+            os.remove(merged_path)
+        
+        # 删除原采集文件
+        patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png']
+        if with_animated:
+            patterns.extend(['C_*.gif', 'T_*.gif', 'color_*.gif'])
+        
+        deleted_count = 0
+        for pattern in patterns:
+            for f in glob.glob(os.path.join(folder_path, pattern)):
+                try:
+                    os.remove(f)
+                    deleted_count += 1
+                except:
+                    pass
+        
+        progress_manager.set_deleted_count(deleted_count)
+        progress_manager.set_status('completed')
+        
+    except Exception as e:
+        progress_manager.set_error(str(e))
+        progress_manager.set_status('error')
+
+
 class ContextMenuCommands:
     """上下文菜单命令类"""
     
@@ -118,75 +191,9 @@ class ContextMenuCommands:
             # 启动进度更新定时器
             self._start_progress_timer()
             
-            # 定义子进程处理函数
-            def run_optimization_process(progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color):
-                """在子进程中运行图像优化"""
-                import os
-                import sys
-                import glob
-                
-                # 切换到目标目录
-                os.chdir(folder_path)
-                
-                # 添加项目路径
-                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                if project_root not in sys.path:
-                    sys.path.insert(0, project_root)
-                
-                # 导入图像处理模块
-                import utils.image_utils
-                import utils.image_processor
-                
-                # 设置参数
-                utils.image_utils.OUTPUT_WEBP = webp_support
-                utils.image_utils.CONVERT_MAIN = convert_main
-                utils.image_utils.CONVERT_COLOR = convert_color
-                
-                # 设置进度管理器
-                utils.image_processor.reporter.set_progress_manager(progress_manager)
-                
-                try:
-                    # 运行图像处理
-                    utils.image_processor.enlarge_main_images()
-                    utils.image_processor.process_regular_detail_images()
-                    utils.image_processor.enlarge_color_card_images()
-                    
-                    # 清理无用文件
-                    temp_files = ['down.txt', 'down_log.txt']
-                    for f in temp_files:
-                        file_path = os.path.join(folder_path, f)
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                    
-                    # 删除拼接结果文件
-                    merged_path = os.path.join(folder_path, '拼接结果.jpg')
-                    if os.path.exists(merged_path):
-                        os.remove(merged_path)
-                    
-                    # 删除原采集文件
-                    patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png']
-                    if with_animated:
-                        patterns.extend(['C_*.gif', 'T_*.gif', 'color_*.gif'])
-                    
-                    deleted_count = 0
-                    for pattern in patterns:
-                        for f in glob.glob(os.path.join(folder_path, pattern)):
-                            try:
-                                os.remove(f)
-                                deleted_count += 1
-                            except:
-                                pass
-                    
-                    progress_manager.set_deleted_count(deleted_count)
-                    progress_manager.set_status('completed')
-                    
-                except Exception as e:
-                    progress_manager.set_error(str(e))
-                    progress_manager.set_status('error')
-            
-            # 启动子进程
+            # 启动子进程（使用模块级别的函数）
             process = multiprocessing.Process(
-                target=run_optimization_process,
+                target=_run_optimization_process,
                 args=(self.progress_manager, folder_path, with_animated, webp_support, convert_main, convert_color)
             )
             process.start()
