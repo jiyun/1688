@@ -168,8 +168,8 @@ class AlibabaScraperGUI:
         
         # 使用说明标签页内容
         if HAS_TKINTERWEB and HAS_MARKDOWN:
-            # 使用 tkinterweb 渲染 Markdown
-            self.help_frame = HtmlFrame(self.help_tab)
+            # 使用 tkinterweb 渲染 Markdown（禁用调试消息）
+            self.help_frame = HtmlFrame(self.help_tab, messages_enabled=False)
             self.help_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
             self.load_help_content_html()
         else:
