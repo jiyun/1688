@@ -392,7 +392,6 @@ def process_mixed_images(images_info, current_dir, base_output_name):
     
     if all_static_widths:
         max_width = max(all_static_widths)
-        print(f"最大宽度: {max_width}", flush=True)
         
         if max_width <= enlarge_step1_width:
             target_width = enlarge_step2_width
@@ -401,10 +400,7 @@ def process_mixed_images(images_info, current_dir, base_output_name):
             for w in all_static_widths:
                 width_counts[w] = width_counts.get(w, 0) + 1
             main_width = max(width_counts.keys(), key=lambda w: width_counts[w])
-            print(f"主宽度: {main_width}", flush=True)
             target_width = get_enlarge_target_width(main_width)
-        
-        print(f"目标宽度: {target_width}", flush=True)
     
     processed_count = 0
     
@@ -885,9 +881,8 @@ def _process_mixed_size_images(small_images, large_images, current_dir):
     总高度 = 0
     images = []
     
-    # 计算大图的平均宽度作为目标宽度
-    large_widths = [w for _, w, _ in large_images]
-    target_width = int(sum(large_widths) / len(large_widths))
+    # 使用 enlarge_step2_width 作为目标宽度，而不是大图的平均宽度
+    target_width = enlarge_step2_width
     
     # 合并并排序所有图片
     all_images = small_images + large_images
