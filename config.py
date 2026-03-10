@@ -60,7 +60,7 @@ EXCLUDE_FILES = {
 GUI_CONF = {
     # 窗口配置
     'window_title': '1688详情页资源采集工具',
-    'window_geometry': '800x600',
+    'window_geometry': '1024x768',
     'window_resizable': True,
     
     # 字体配置（按优先级排序）
@@ -70,13 +70,17 @@ GUI_CONF = {
         '阿里普惠体',          # 阿里普惠体
         'HarmonyOS Sans',     # 华为鸿蒙字体
         'MiSans',             # 小米字体
+        '小米兰亭',            # 小米兰亭
         'OPPO Sans',          # OPPO字体
         'Source Han Sans CN', # 思源黑体
         '思源黑体',            # 思源黑体（中文名）
+        '更纱黑体 SC',         # 更纱黑体
         'Smiley Sans',        # 得意黑
         '得意黑',              # 得意黑（中文名）
         'Microsoft YaHei',    # 微软雅黑
         '微软雅黑',            # 微软雅黑（中文名）
+        '等线',                # 等线
+        '黑体',                # 黑体
         'Courier New',        # 默认等宽字体
     ],
     'font_size': 10,          # 字体大小
