@@ -18,9 +18,6 @@ from gui.queue import QueueManager
 from gui.menu import ContextMenuManager
 from gui.commands import ContextMenuCommands
 
-# 隐藏控制台窗口（仅在Windows系统中）
-hide_console()
-
 
 class AlibabaScraperGUI:
     def __init__(self, root):
@@ -578,6 +575,10 @@ def main():
     
     root = tk.Tk()
     app = AlibabaScraperGUI(root)
+    
+    # 隐藏控制台窗口（在GUI窗口创建后）
+    hide_console()
+    
     app.run()
 
 
