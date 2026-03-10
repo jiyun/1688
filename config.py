@@ -85,7 +85,6 @@ GUI_CONF = {
     'font_size': 10,          # 字体大小
     
     # 日志配置
-    'log_buffer_size': 1000,
     'log_colors': {
         'info': 'white',
         'success': 'green',
@@ -93,15 +92,6 @@ GUI_CONF = {
         'error': 'red',
         'input': 'green'
     },
-    
-    # 队列配置
-    'queue_columns': (
-        ('index', '序号', 30),
-        ('status', '状态', 50),
-        ('name', '文件名', 150),
-        ('date', '修改日期', 120),
-        ('path', '路径', 350)
-    ),
     
     # 进度条配置
     'progress_colors': {
@@ -130,36 +120,6 @@ GUI_CONF = {
         'processing': 'blue'  # 处理中 - 蓝色
     },
     
-    # 进度条配置
-    'progress_colors': {
-        'main': '#4CAF50',      # 主图 - 绿色
-        'color': '#2196F3',     # 色卡图 - 蓝色
-        'detail': '#FF9800'    # 详情图 - 橙色
-    },
-    'progress_bar_width': 20,    # 进度条宽度（字符数）
-    'progress_bar_chars': ('█', '░'),  # 进度条字符（填充、空白）
-    
-    # 上下文菜单配置
-    'context_menu_items': [
-        ['图像优化', [
-            ('默认优化', 'context_stitch_images'),
-            ('WebP转换', 'context_stitch_images_webp'),
-            ('WebP转换(仅主图)', 'context_stitch_images_webp_main'),
-            ('WebP转换(仅色卡图)', 'context_stitch_images_webp_color'),
-            ('WebP转换(全部)', 'context_stitch_images_webp_all'),
-            ('separator', None),
-            ('包含动图', 'context_stitch_images_with_animated'),
-            ('包含动图 + WebP', 'context_stitch_images_webp_with_animated')
-        ]],
-        ('资源打包', 'context_pack_files'),
-        ('separator', None),
-        ('重新采集', 'context_recollect'),
-        ('separator', None),
-        ('访问原址', 'context_visit_url'),
-        ('打开目录', 'context_open_folder'),
-        ('删除项目', 'context_delete_item')
-    ],
-    
     # 文件选择配置
     'file_dialog': {
         'title': '选择 HTML 文件',
@@ -179,17 +139,5 @@ GUI_CONF = {
         'pause': '暂停 (P)',
         'execute_running': '执行中...',
         'resume': '恢复'
-    },
-    
-    # 标签页配置
-    'tab_names': {
-        'queue': '处理队列',
-        'help': '使用说明'
-    },
-    
-    # 标签帧配置
-    'label_frame_texts': {
-        'queue': '处理队列',
-        'log': '日志输出'
     }
 }
