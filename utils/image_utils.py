@@ -101,7 +101,9 @@ def get_enlarge_target_width(width):
         return width * 2
     if width <= enlarge_step1_width:
         return enlarge_step2_width
-    return width * 2
+    # 对于宽度在 enlarge_step1_width 和 detail_min_width 之间的图片
+    # 统一放大到 enlarge_step2_width
+    return enlarge_step2_width
 
 
 def check_aspect_ratio(width, height):
