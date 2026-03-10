@@ -74,6 +74,7 @@ class HTMLParser:
                     if any('recommend-gallery' in c for c in parent_classes):
                         continue
                     
+                    # 方法1: 查找 od-gallery-turn-item-wrapper 结构
                     wrapper_elements = element.find_all('div', class_=lambda x: x and 'od-gallery-turn-item-wrapper' in x.split())
                     for wrapper in wrapper_elements:
                         if wrapper.find('div', class_='od-video-wrapper'):
@@ -95,13 +96,46 @@ class HTMLParser:
                                 continue
                             
                             main_area_all_urls.append(img_url)
+                    
+                    # 方法2: 查找 ant-image 结构 (新版HTML结构)
+                    if not main_area_all_urls:
+                        ant_images = element.find_all('img', class_=lambda x: x and 'ant-image-img' in x.split() if x else False)
+                        for img in ant_images:
+                            if 'video-icon' in img.get('class', []):
+                                continue
+                            if 'data-sf-original-src' in img.attrs:
+                                img_url = self._normalize_url(img['data-sf-original-src'])
+                            elif 'src' in img.attrs and not img['src'].startswith('data:,'):
+                                img_url = self._normalize_url(img['src'])
+                            else:
+                                continue
+                            
+                            main_area_all_urls.append(img_url)
+                    
                 if main_area_all_urls:
                     break
         
         if not main_area_all_urls:
             return []
         
-        main_image_count = len(main_area_all_urls) - len(color_card_urls)
+        # 检查色卡区图片是否在主图区内
+        color_card_in_main = False
+        for color_url in color_card_urls:
+            color_id = self._extract_image_id(color_url)
+            for main_url in main_area_all_urls:
+                main_id = self._extract_image_id(main_url)
+                if color_id and main_id and color_id == main_id:
+                    color_card_in_main = True
+                    break
+            if color_card_in_main:
+                break
+        
+        if color_card_in_main:
+            # 色卡区图片在主图区内，需要排除
+            main_image_count = len(main_area_all_urls) - len(color_card_urls)
+        else:
+            # 色卡区图片与主图区独立，直接取主图区图片
+            main_image_count = len(main_area_all_urls)
         
         if main_image_count == 5:
             return main_area_all_urls[:5]
