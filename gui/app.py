@@ -18,6 +18,19 @@ from gui.queue import QueueManager
 from gui.menu import ContextMenuManager
 from gui.commands import ContextMenuCommands
 
+# 尝试导入 tkinterweb 和 markdown
+try:
+    from tkinterweb import HtmlFrame
+    HAS_TKINTERWEB = True
+except ImportError:
+    HAS_TKINTERWEB = False
+
+try:
+    import markdown
+    HAS_MARKDOWN = True
+except ImportError:
+    HAS_MARKDOWN = False
+
 
 class AlibabaScraperGUI:
     def __init__(self, root):
@@ -108,12 +121,11 @@ class AlibabaScraperGUI:
         self.queue_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(0, 10))
         
         # 创建表格
-        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "path", "name", "date", "output_path"), show="headings")
+        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "date", "output_path"), show="headings")
         
         # 设置列标题
         self.queue_tree.heading("index", text="序号")
         self.queue_tree.heading("status", text="状态", command=lambda: self.sort_treeview("status"))
-        self.queue_tree.heading("path", text="路径", command=lambda: self.sort_treeview("path"))
         self.queue_tree.heading("name", text="文件名", command=lambda: self.sort_treeview("name"))
         self.queue_tree.heading("date", text="修改日期", command=lambda: self.sort_treeview("date"))
         self.queue_tree.heading("output_path", text="输出路径", command=lambda: self.sort_treeview("output_path"))
@@ -121,10 +133,9 @@ class AlibabaScraperGUI:
         # 设置列宽
         self.queue_tree.column("index", width=30, anchor=tk.CENTER)
         self.queue_tree.column("status", width=50, anchor=tk.CENTER)
-        self.queue_tree.column("path", width=150, anchor=tk.W)
-        self.queue_tree.column("name", width=200, anchor=tk.W)
+        self.queue_tree.column("name", width=300, anchor=tk.W)
         self.queue_tree.column("date", width=120, anchor=tk.CENTER)
-        self.queue_tree.column("output_path", width=200, anchor=tk.W)
+        self.queue_tree.column("output_path", width=300, anchor=tk.W)
         
         # 添加滚动条
         self.queue_scrollbar = ttk.Scrollbar(self.queue_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
@@ -156,9 +167,16 @@ class AlibabaScraperGUI:
         self.load_output_path()
         
         # 使用说明标签页内容
-        self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
-        self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        self.load_help_content()
+        if HAS_TKINTERWEB and HAS_MARKDOWN:
+            # 使用 tkinterweb 渲染 Markdown
+            self.help_frame = HtmlFrame(self.help_tab)
+            self.help_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.load_help_content_html()
+        else:
+            # 回退到纯文本显示
+            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
+            self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.load_help_content()
         
         # 初始化日志
         self.log("1688详情页资源采集工具 - GUI 版本")
@@ -405,6 +423,129 @@ class AlibabaScraperGUI:
         self.help_text.insert(tk.END, help_content)
         self.help_text.config(state=tk.DISABLED)
     
+    def load_help_content_html(self):
+        """加载使用说明内容（HTML渲染）"""
+        help_content = ""
+        
+        # 检查是否存在 README.md 文件
+        readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "README.md")
+        if os.path.exists(readme_path):
+            try:
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    help_content = f.read()
+            except Exception as e:
+                help_content = f"# 错误\n\n读取 README.md 文件失败: {str(e)}"
+        else:
+            help_content = self.get_default_help_content()
+        
+        # 转换 Markdown 为 HTML
+        html_content = markdown.markdown(
+            help_content,
+            extensions=['tables', 'fenced_code', 'toc', 'nl2br']
+        )
+        
+        # 添加 CSS 样式
+        full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{
+            font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #34495e;
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 8px;
+            margin-top: 25px;
+        }}
+        h3 {{
+            color: #7f8c8d;
+            margin-top: 20px;
+        }}
+        code {{
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+        }}
+        pre {{
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e0e0e0;
+        }}
+        pre code {{
+            background: none;
+            padding: 0;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }}
+        th {{
+            background: #f5f5f5;
+            font-weight: bold;
+        }}
+        tr:hover {{
+            background: #f9f9f9;
+        }}
+        blockquote {{
+            border-left: 4px solid #3498db;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background: #f9f9f9;
+        }}
+        ul, ol {{
+            padding-left: 25px;
+        }}
+        li {{
+            margin: 5px 0;
+        }}
+        a {{
+            color: #3498db;
+            text-decoration: none;
+        }}
+        a:hover {{
+            text-decoration: underline;
+        }}
+        hr {{
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 20px 0;
+        }}
+        img {{
+            max-width: 100%;
+            height: auto;
+        }}
+    </style>
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
+        
+        # 显示 HTML 内容
+        self.help_frame.load_html(full_html)
+    
     def get_default_help_content(self):
         """获取默认的使用说明内容"""
         return "# 1688详情页资源采集工具 - 使用说明\n\n" \
@@ -512,7 +653,7 @@ class AlibabaScraperGUI:
                         self.open_file_explorer(output_path)
                     else:
                         self.open_file_explorer(html_dir)
-                else:  # 其他列（包括路径列和文件名列）
+                else:  # 其他列（包括文件名列）
                     self.open_file_explorer(html_dir)
     
     def open_file_explorer(self, path):
