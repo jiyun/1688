@@ -415,6 +415,7 @@ def process_mixed_images(images_info, current_dir, base_output_name):
                 processed_count += len(static_batch)
                 percent = int((processed_count / total_images) * 100)
                 print(f'混合图片处理进度: {processed_count}/{total_images} ({percent}%)', flush=True)
+                reporter.show_progress("详情图", processed_count, total_images)
                 
                 static_batch = []
             
@@ -426,6 +427,7 @@ def process_mixed_images(images_info, current_dir, base_output_name):
             processed_count += 1
             percent = int((processed_count / total_images) * 100)
             print(f'混合图片处理进度: {processed_count}/{total_images} ({percent}%)', flush=True)
+            reporter.show_progress("详情图", processed_count, total_images)
     
     if static_batch:
         if max(w for _, w, _ in static_batch) <= enlarge_step1_width:
@@ -436,6 +438,7 @@ def process_mixed_images(images_info, current_dir, base_output_name):
         processed_count += len(static_batch)
         percent = int((processed_count / total_images) * 100)
         print(f'混合图片处理进度: {processed_count}/{total_images} ({percent}%)', flush=True)
+        reporter.show_progress("详情图", processed_count, total_images)
     
     return file_index - 1
 

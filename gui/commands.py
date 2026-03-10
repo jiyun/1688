@@ -314,22 +314,34 @@ class ContextMenuCommands:
             
             # 更新进度显示
             if status == 'processing':
-                main_percent = self.shared_dict.get('main_percent', 0)
-                detail_percent = self.shared_dict.get('detail_percent', 0)
-                color_percent = self.shared_dict.get('color_percent', 0)
-                last_main = getattr(self, '_last_main_percent', 0)
-                last_detail = getattr(self, '_last_detail_percent', 0)
-                last_color = getattr(self, '_last_color_percent', 0)
+                main_current = self.shared_dict.get('main_current', 0)
+                main_total = self.shared_dict.get('main_total', 0)
+                detail_current = self.shared_dict.get('detail_current', 0)
+                detail_total = self.shared_dict.get('detail_total', 0)
+                color_current = self.shared_dict.get('color_current', 0)
+                color_total = self.shared_dict.get('color_total', 0)
                 
-                if main_percent > 0 and main_percent != last_main:
-                    self._last_main_percent = main_percent
-                    self.parent.log(f"主图进度: {self.shared_dict.get('main_current', 0)}/{self.shared_dict.get('main_total', 0)} ({main_percent}%)")
-                if detail_percent > 0 and detail_percent != last_detail:
-                    self._last_detail_percent = detail_percent
-                    self.parent.log(f"详情图进度: {self.shared_dict.get('detail_current', 0)}/{self.shared_dict.get('detail_total', 0)} ({detail_percent}%)")
-                if color_percent > 0 and color_percent != last_color:
-                    self._last_color_percent = color_percent
-                    self.parent.log(f"色卡图进度: {self.shared_dict.get('color_current', 0)}/{self.shared_dict.get('color_total', 0)} ({color_percent}%)")
+                last_main = getattr(self, '_last_main_current', 0)
+                last_detail = getattr(self, '_last_detail_current', 0)
+                last_color = getattr(self, '_last_color_current', 0)
+                
+                # 主图进度（每次变化都显示）
+                if main_total > 0 and main_current != last_main:
+                    self._last_main_current = main_current
+                    percent = int((main_current / main_total) * 100) if main_total > 0 else 0
+                    self.parent.log(f"主图进度: {main_current}/{main_total} ({percent}%)")
+                
+                # 详情图进度（每次变化都显示）
+                if detail_total > 0 and detail_current != last_detail:
+                    self._last_detail_current = detail_current
+                    percent = int((detail_current / detail_total) * 100) if detail_total > 0 else 0
+                    self.parent.log(f"详情图进度: {detail_current}/{detail_total} ({percent}%)")
+                
+                # 色卡图进度（每次变化都显示）
+                if color_total > 0 and color_current != last_color:
+                    self._last_color_current = color_current
+                    percent = int((color_current / color_total) * 100) if color_total > 0 else 0
+                    self.parent.log(f"色卡图进度: {color_current}/{color_total} ({percent}%)")
             
             # 如果还在处理中，继续定时更新
             if status in ('pending', 'started', 'processing'):
@@ -375,7 +387,19 @@ class ContextMenuCommands:
             self.parent.log("  色卡图: 无需处理")
         
         self.parent.log(f"  删除原采集文件: {shared_dict.get('deleted_count', 0)} 个")
-        self.parent.log(f"  状态: {shared_dict.get('status', 'unknown')}")
+        
+        # 状态中文显示
+        status = shared_dict.get('status', 'unknown')
+        status_map = {
+            'completed': '完成',
+            'error': '错误',
+            'pending': '等待',
+            'started': '已启动',
+            'processing': '处理中'
+        }
+        status_cn = status_map.get(status, status)
+        self.parent.log(f"  状态: {status_cn}")
+        
         if shared_dict.get('error'):
             self.parent.log(f"  错误: {shared_dict.get('error')}")
         self.parent.log("=" * 50)
