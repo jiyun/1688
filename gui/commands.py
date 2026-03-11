@@ -98,7 +98,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
                 os.remove(file_path)
         
         # 删除拼接结果文件
-        merged_path = os.path.join(folder_path, '拼接结果.jpg')
+        merged_path = os.path.join(folder_path, utils.image_utils.merged_image_name)
         if os.path.exists(merged_path):
             os.remove(merged_path)
         

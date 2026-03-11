@@ -118,54 +118,57 @@ class HTMLParser:
         if not main_area_all_urls:
             return []
         
-        # 检查色卡区图片是否在主图区内
-        color_card_in_main = False
-        for color_url in color_card_urls:
-            color_id = self._extract_image_id(color_url)
-            for main_url in main_area_all_urls:
-                main_id = self._extract_image_id(main_url)
-                if color_id and main_id and color_id == main_id:
-                    color_card_in_main = True
-                    break
-            if color_card_in_main:
-                break
+        # 统计主图区中有多少张图片在色卡区
+        main_area_color_card_count = 0
+        for main_url in main_area_all_urls:
+            main_id = self._extract_image_id(main_url)
+            if main_id and main_id in color_card_ids:
+                main_area_color_card_count += 1
         
-        if color_card_in_main:
-            # 色卡区图片在主图区内，需要排除
-            main_image_count = len(main_area_all_urls) - len(color_card_urls)
-        else:
-            # 色卡区图片与主图区独立，直接取主图区图片
-            main_image_count = len(main_area_all_urls)
-        
-        if main_image_count == 5:
+        # 主图数量 = 主图区总数 - 主图区中色卡图片数
+        # 但要确保至少取5张（如果主图区有5张的话）
+        if len(main_area_all_urls) == 5:
+            # 主图区刚好5张，直接返回
             return main_area_all_urls[:5]
         
-        if main_image_count < 5:
+        # 计算非色卡图片数量
+        non_color_card_count = len(main_area_all_urls) - main_area_color_card_count
+        
+        if non_color_card_count >= 5:
+            # 非色卡图片足够5张，直接取前5张非色卡图片
             main_images = []
-            added_urls = set()
-            
             for url in main_area_all_urls:
                 img_id = self._extract_image_id(url)
                 if img_id and img_id not in color_card_ids:
+                    main_images.append(url)
+                    if len(main_images) >= 5:
+                        break
+            return main_images
+        
+        # 非色卡图片不足5张，先取非色卡图片，再补充色卡图片
+        main_images = []
+        added_urls = set()
+        
+        # 先取非色卡图片
+        for url in main_area_all_urls:
+            img_id = self._extract_image_id(url)
+            if img_id and img_id not in color_card_ids:
+                if url not in added_urls:
+                    main_images.append(url)
+                    added_urls.add(url)
+        
+        # 再补充色卡图片凑够5张
+        if len(main_images) < 5:
+            for url in main_area_all_urls:
+                img_id = self._extract_image_id(url)
+                if img_id and img_id in color_card_ids:
                     if url not in added_urls:
                         main_images.append(url)
                         added_urls.add(url)
-                    if len(main_images) >= main_image_count:
-                        break
-            
-            if len(main_images) < main_image_count:
-                for url in main_area_all_urls:
-                    img_id = self._extract_image_id(url)
-                    if img_id and img_id in color_card_ids:
-                        if url not in added_urls:
-                            main_images.append(url)
-                            added_urls.add(url)
-                        if len(main_images) >= main_image_count:
+                        if len(main_images) >= 5:
                             break
-            
-            return main_images
         
-        return main_area_all_urls[:5]
+        return main_images
     
     def get_color_options(self):
         """获取颜色选项"""

@@ -182,9 +182,10 @@ class Downloader:
             
             def get_downloaded_count():
                 count = 0
+                merged_name = self.config['FILE_NAMING']['merged_image_name']
                 for f in os.listdir(current_dir):
                     if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov', '.webp')):
-                        if not f.startswith('new_') and f != '拼接结果.jpg':
+                        if not f.startswith('new_') and f != merged_name:
                             count += 1
                 return count
             

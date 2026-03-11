@@ -779,17 +779,19 @@ def _process_small_images(small_images, current_dir):
         int: 生成的图片数量
     """
     images = []
-    总高度 = 0
     
     small_images_sorted = sorted(small_images, key=lambda x: natural_sort_key(x[0]))
     total_files = len(small_images_sorted)
+    
+    target_width = enlarge_step2_width
     
     for i, (file_path, width, height) in enumerate(small_images_sorted, 1):
         try:
             with Image.open(file_path) as img:
                 img_resized, (new_width, new_height, desc) = enlarge_image(img)
+                if img_resized.width != target_width:
+                    img_resized = img_resized.resize((target_width, int(img_resized.height * target_width / img_resized.width)), Image.LANCZOS)
                 images.append(img_resized.copy())
-                总高度 += new_height
         except Exception as e:
             reporter.detail_stats['errors'] += 1
         
@@ -800,13 +802,11 @@ def _process_small_images(small_images, current_dir):
     if not images:
         return 0
     
-    target_width = enlarge_step2_width
+    总高度 = sum(img.height for img in images)
     拼接图片 = Image.new('RGB', (target_width, 总高度), (255, 255, 255))
     
     当前高度 = 0
     for img in images:
-        if img.width != target_width:
-            img = img.resize((target_width, int(img.height * target_width / img.width)), Image.LANCZOS)
         拼接图片.paste(img, (0, 当前高度))
         当前高度 += img.height
     
