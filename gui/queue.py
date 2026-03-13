@@ -30,6 +30,53 @@ class QueueManager:
         self.is_executing = False
         self.current_process = None
     
+    def check_resource_completeness(self, folder_path, product_id):
+        """检查资源完整性
+        
+        Args:
+            folder_path: 输出目录路径
+            product_id: 商品ID
+            
+        Returns:
+            str: 状态 ('success', 'exists', 'none')
+        """
+        if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+            return 'none'
+        
+        try:
+            from utils.database import db
+            resource_counts = db.get_resource_counts(product_id)
+            
+            if resource_counts:
+                main_count, color_count, detail_count, video_count = resource_counts
+                
+                main_pattern = re.compile(r'^(T_|E_T_)\d+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
+                color_pattern = re.compile(r'^(color_|new_color_).+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
+                video_pattern = re.compile(r'^video_\d+\.(mp4|avi|mov|wmv|flv|webm)$', re.IGNORECASE)
+                
+                actual_main = 0
+                actual_color = 0
+                actual_video = 0
+                
+                for item in os.listdir(folder_path):
+                    item_path = os.path.join(folder_path, item)
+                    if os.path.isfile(item_path):
+                        if main_pattern.match(item):
+                            actual_main += 1
+                        elif color_pattern.match(item):
+                            actual_color += 1
+                        elif video_pattern.match(item):
+                            actual_video += 1
+                
+                if actual_main >= main_count and actual_color >= color_count and actual_video >= video_count:
+                    return 'success'
+                else:
+                    return 'exists'
+            else:
+                return 'exists'
+        except:
+            return 'exists'
+    
     def add_file(self):
         """添加多个 HTML 文件到队列"""
         file_paths = filedialog.askopenfilename(
@@ -57,9 +104,12 @@ class QueueManager:
                     folder_path = os.path.join(os.path.dirname(normalized_path), folder_name)
                     
                     if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                        # 同名子目录存在，设置状态为exists
-                        self.file_status[normalized_path] = "exists"
-                        self.parent.log(f"已添加文件: {file_name} (检测到同名子目录)")
+                        status = self.check_resource_completeness(folder_path, folder_name)
+                        self.file_status[normalized_path] = status
+                        if status == 'success':
+                            self.parent.log(f"已添加文件: {file_name} (资源完整)")
+                        else:
+                            self.parent.log(f"已添加文件: {file_name} (检测到同名子目录)")
                     else:
                         # 同名子目录不存在，设置状态为none
                         self.file_status[normalized_path] = "none"
@@ -109,9 +159,12 @@ class QueueManager:
                         folder_path = os.path.join(os.path.dirname(normalized_path), folder_name)
                         
                         if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                            # 同名子目录存在，设置状态为exists
-                            self.file_status[normalized_path] = "exists"
-                            self.parent.log(f"已添加文件: {file_name} (检测到同名子目录)")
+                            status = self.check_resource_completeness(folder_path, folder_name)
+                            self.file_status[normalized_path] = status
+                            if status == 'success':
+                                self.parent.log(f"已添加文件: {file_name} (资源完整)")
+                            else:
+                                self.parent.log(f"已添加文件: {file_name} (检测到同名子目录)")
                         else:
                             # 同名子目录不存在，设置状态为none
                             self.file_status[normalized_path] = "none"
@@ -233,11 +286,26 @@ class QueueManager:
         for status, color in GUI_CONF['status_colors'].items():
             self.parent.queue_tree.tag_configure(status, foreground=color)
         
+        try:
+            from utils.database import db
+        except:
+            db = None
+        
         for i, file_path in enumerate(self.file_queue, 1):
             file_dir = os.path.dirname(file_path)
             file_name = os.path.basename(file_path)
             
             display_name = self._compress_path_display(file_dir, file_name)
+            
+            product_id = os.path.splitext(file_name)[0]
+            shop_product_id = ""
+            if db:
+                try:
+                    product_data = db.get_product(product_id)
+                    if product_data:
+                        shop_product_id = product_data.get('shop_product_id', '') or ''
+                except:
+                    pass
             
             try:
                 mtime = os.path.getmtime(file_path)
@@ -261,7 +329,7 @@ class QueueManager:
                     status_icon = GUI_CONF['status_icons'].get("exists", "")
                     self.file_status[file_path] = "exists"
             
-            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, date_str, display_output_path), tags=(status,))
+            item_id = self.parent.queue_tree.insert("", "end", values=(i, status_icon, display_name, shop_product_id, date_str, display_output_path), tags=(status,))
     
     def _compress_path_display(self, file_dir, file_name):
         """压缩文件路径显示
@@ -293,10 +361,24 @@ class QueueManager:
         Returns:
             str: 压缩后的显示文本
         """
-        max_length = 40
+        if not output_path:
+            return ""
         
-        if len(output_path) > max_length:
-            return output_path[:max_length//2] + "..." + output_path[-max_length//2:]
+        output_path = os.path.normpath(output_path)
+        parts = output_path.split(os.sep)
+        
+        if len(parts) >= 2:
+            product_id = parts[-1]
+            parent_path = os.sep.join(parts[:-1])
+            
+            max_parent_length = 25
+            if len(parent_path) > max_parent_length:
+                compressed_parent = parent_path[:max_parent_length//2] + "..."
+            else:
+                compressed_parent = parent_path
+            
+            return f"{compressed_parent}...{product_id}{os.sep}"
+        
         return output_path
     
     def check_output_directory_exists(self, file_path):
@@ -332,27 +414,43 @@ class QueueManager:
         
         return has_duplicate
     
-    def get_output_directory(self, html_file_path):
+    def get_output_directory(self, html_file_path, check_exists=True, include_product_id=True):
         """获取HTML文件对应的输出目录路径
         
         Args:
             html_file_path: HTML文件路径
+            check_exists: 是否检查目录存在，默认True
+            include_product_id: 是否包含商品ID子目录，默认True
             
         Returns:
-            str: 输出目录路径，如果目录不存在则返回空字符串
+            str: 输出目录路径
         """
         product_id = os.path.splitext(os.path.basename(html_file_path))[0]
         
         custom_output_path = self.parent.get_output_path()
         if custom_output_path:
-            output_dir = os.path.normpath(os.path.join(custom_output_path, product_id))
+            if include_product_id:
+                output_dir = os.path.normpath(os.path.join(custom_output_path, product_id))
+            else:
+                output_dir = os.path.normpath(custom_output_path)
         else:
             html_dir = os.path.dirname(os.path.abspath(html_file_path))
-            output_dir = os.path.normpath(os.path.join(html_dir, product_id))
+            if include_product_id:
+                output_dir = os.path.normpath(os.path.join(html_dir, product_id))
+            else:
+                output_dir = os.path.normpath(html_dir)
         
-        if os.path.exists(output_dir) and os.path.isdir(output_dir):
-            return output_dir
-        return ""
+        if check_exists:
+            if include_product_id:
+                if os.path.exists(output_dir) and os.path.isdir(output_dir):
+                    return output_dir
+                return ""
+            else:
+                if os.path.exists(output_dir) and os.path.isdir(output_dir):
+                    return output_dir
+                return ""
+        
+        return output_dir
     
     def execute(self):
         """执行主程序处理队列中的文件"""

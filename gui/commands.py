@@ -151,14 +151,23 @@ class ContextMenuCommands:
         item = selected_items[0]
         values = self.parent.queue_tree.item(item, 'values')
         if values:
-            output_path = values[4]  # 输出路径在第5列
-            if output_path and os.path.exists(output_path):
-                return output_path
-            # 如果输出路径不存在，返回HTML文件所在目录
-            file_index = int(values[0]) - 1  # 序号从1开始
+            file_index = int(values[0]) - 1
             if 0 <= file_index < len(self.parent.queue_manager.file_queue):
                 file_path = self.parent.queue_manager.file_queue[file_index]
-                return os.path.dirname(file_path)
+                product_id = os.path.splitext(os.path.basename(file_path))[0]
+                
+                output_path = values[5]
+                if output_path and os.path.exists(output_path):
+                    return output_path
+                
+                from utils.database import db
+                product_info = db.get_product(product_id)
+                if product_info and product_info.get('output_path'):
+                    db_output_path = product_info['output_path']
+                    if os.path.exists(db_output_path):
+                        return db_output_path
+                
+                return self.parent.queue_manager.get_output_directory(file_path, check_exists=False)
         return None
     
     def get_selected_file_path(self):
@@ -511,7 +520,15 @@ class ContextMenuCommands:
         if not file_path:
             return
         
+        product_id = os.path.splitext(os.path.basename(file_path))[0]
         folder_path = self.get_selected_folder()
+        
+        if folder_path:
+            folder_name = os.path.basename(os.path.normpath(folder_path))
+            if folder_name != product_id:
+                self.parent.log(f"安全检查: 输出目录名称 '{folder_name}' 与商品ID '{product_id}' 不匹配", "error")
+                self.parent.show_info("错误", f"输出目录名称与商品ID不匹配\n目录: {folder_name}\n商品ID: {product_id}")
+                return
         
         confirm = self.parent.ask_yes_no("确认", "是否重新采集该资源？\n这将删除现有文件并重新下载。")
         if not confirm:
@@ -523,8 +540,10 @@ class ContextMenuCommands:
         def recollect_thread():
             try:
                 if folder_path and os.path.exists(folder_path):
-                    self.parent.log("正在删除现有文件...")
+                    self.parent.log(f"正在删除: {folder_path}")
                     for item in os.listdir(folder_path):
+                        if item.startswith('.'):
+                            continue
                         item_path = os.path.join(folder_path, item)
                         if os.path.isfile(item_path):
                             os.remove(item_path)
@@ -533,7 +552,6 @@ class ContextMenuCommands:
                     
                     self.parent.log("正在重新采集...")
                     main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                    file_dir = os.path.dirname(file_path)
                     
                     output_path = self.parent.get_output_path()
                     cmd = ["python", main_py_path, file_path, "--no-rebuild"]
@@ -547,8 +565,7 @@ class ContextMenuCommands:
                         text=True,
                         encoding='utf-8',
                         bufsize=1,
-                        universal_newlines=True,
-                        cwd=file_dir
+                        universal_newlines=True
                     )
                     
                     while True:
@@ -576,7 +593,48 @@ class ContextMenuCommands:
                     
                     self.parent.queue_manager.update_queue_list()
                 else:
-                    self.parent.log("文件夹不存在", "error")
+                    self.parent.log("文件夹不存在，执行新采集...")
+                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
+                    
+                    output_path = self.parent.get_output_path()
+                    cmd = ["python", main_py_path, file_path, "--no-rebuild"]
+                    if output_path:
+                        cmd.extend(["--output", output_path])
+                    
+                    process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        encoding='utf-8',
+                        bufsize=1,
+                        universal_newlines=True
+                    )
+                    
+                    while True:
+                        line = process.stdout.readline()
+                        if not line and process.poll() is not None:
+                            break
+                        if line:
+                            line = line.strip()
+                            if line:
+                                if "错误" in line or "失败" in line or "[失败]" in line:
+                                    self.parent.log(line, "error")
+                                elif "成功" in line or "完成" in line:
+                                    self.parent.log(line, "success")
+                                else:
+                                    self.parent.log(line, "info")
+                    
+                    process.wait()
+                    
+                    if process.returncode == 0:
+                        self.parent.queue_manager.file_status[file_path] = "success"
+                        self.parent.log("采集完成", "success")
+                    else:
+                        self.parent.queue_manager.file_status[file_path] = "error"
+                        self.parent.log("采集失败", "error")
+                    
+                    self.parent.queue_manager.update_queue_list()
             except Exception as e:
                 self.parent.log(f"重新采集失败: {e}", "error")
         
@@ -700,3 +758,32 @@ class ContextMenuCommands:
                 del self.parent.queue_manager.file_status[file_path]
             self.parent.queue_manager.update_queue_list()
             self.parent.log(f"已移除: {file_name}")
+    
+    def context_edit_shop_id(self):
+        """右键菜单：编辑DSID"""
+        selected_items = self.parent.queue_tree.selection()
+        if not selected_items:
+            return
+        
+        item = selected_items[0]
+        values = self.parent.queue_tree.item(item, 'values')
+        if values:
+            self.parent._edit_shop_id(item, values)
+    
+    def context_copy_item_url(self):
+        """右键菜单：编辑商品 - 复制商品链接到剪切板"""
+        selected_items = self.parent.queue_tree.selection()
+        if not selected_items:
+            return
+        
+        item = selected_items[0]
+        values = self.parent.queue_tree.item(item, 'values')
+        if values and len(values) > 3:
+            dsid = values[3]
+            if dsid and str(dsid).strip():
+                url = f"https://item.upload.taobao.com/sell/v2/publish.htm?itemId={dsid}&fromAIPublish=true"                
+                self.parent.root.clipboard_clear()
+                self.parent.root.clipboard_append(url)
+                self.parent.log(f"已复制商品链接: {url}")
+            else:
+                self.parent.show_info("提示", "该商品DSID为空，无法生成链接")

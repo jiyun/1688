@@ -97,16 +97,16 @@ class ContextMenuManager:
         )
         self.context_menu.add_separator()
         self.context_menu.add_command(
-            label="访问原址",
+            label="访问原址 ©",
             command=lambda: self._call_command("context_visit_url")
         )
         self.context_menu.add_separator()
         self.context_menu.add_command(
-            label="铺货页面",
+            label="铺货页面 ©",
             command=lambda: self._call_command("context_consign_page")
         )
         self.context_menu.add_command(
-            label="店铺上新",
+            label="店铺上新 ©",
             command=lambda: self._call_command("context_shop_new")
         )
         self.context_menu.add_separator()
@@ -117,6 +117,15 @@ class ContextMenuManager:
         self.context_menu.add_command(
             label="删除项目",
             command=lambda: self._call_command("context_delete_item")
+        )
+        self.context_menu.add_separator()
+        self.context_menu.add_command(
+            label="编辑DSID",
+            command=lambda: self._call_command("context_edit_shop_id")
+        )
+        self.context_menu.add_command(
+            label="编辑商品 ©",
+            command=lambda: self._call_command("context_copy_item_url")
         )
     
     def _toggle_webp_options(self):

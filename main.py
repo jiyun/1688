@@ -68,32 +68,24 @@ class AlibabaScraper:
             print("请先加载HTML文件")
             return False
         
-        # 提取主图
         main_images = self.parser.get_main_images()
         
-        # 提取颜色选项
         color_options = self.parser.get_color_options()
         
-        # 提取颜色色卡图片
         color_card_images = []
         for color_name, color_image in color_options:
             if color_image:
                 color_card_images.append((color_image, color_name))
         
-        # 提取详情图
         detail_images = self.parser.get_detail_images()
         
-        # 提取视频
         videos = self.parser.get_videos()
         
-        # 提取属性
         attributes = self.parser.get_attributes()
         
-        # 关联主图和颜色选项，按顺序命名为T_[n].jpg
         main_images_with_names = []
         if main_images:
             for idx, img in enumerate(main_images):
-                # 按顺序命名为T_[n].jpg
                 main_images_with_names.append((img, f"{idx+1}"))
         
         self.resources = {
@@ -118,6 +110,42 @@ class AlibabaScraper:
             print(f"资源提取完成: {', '.join(parts)}")
         else:
             print("资源提取完成: 未发现有效资源")
+        return True
+    
+    def extract_prices(self):
+        """提取价格信息"""
+        if not self.parser:
+            print("请先加载HTML文件")
+            return False
+        
+        from utils.price_extractor import PriceExtractor
+        
+        with open(self.html_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        extractor = PriceExtractor(html_content)
+        prices = extractor.extract_all_prices()
+        
+        self.prices = prices
+        
+        try:
+            from utils.database import db
+            
+            if prices.get('main_price'):
+                mp = prices['main_price']
+                db.save_main_price(self.product_id, mp.get('price'), mp.get('min_amount', 1))
+            
+            if prices.get('sku_prices'):
+                db.save_sku_prices(self.product_id, prices['sku_prices'])
+                print(f"已保存SKU价格: {len(prices['sku_prices'])}条")
+            
+            if prices.get('consign_prices'):
+                db.save_consign_prices(self.product_id, prices['consign_prices'])
+                print(f"已保存代发价格: {len(prices['consign_prices'])}条")
+                
+        except Exception as e:
+            print(f"保存价格信息失败: {e}")
+        
         return True
     
     def download_resources(self):
@@ -228,24 +256,39 @@ class AlibabaScraper:
             print("加载HTML文件失败")
             return False
         
-        # 2. 提取资源
+        # 2. 提取价格信息
+        self.extract_prices()
+        
+        # 3. 提取资源
         if not self.extract_resources():
             print("提取资源失败")
             return False
         
-        # 3. 下载资源
+        # 4. 下载资源
         self.download_resources()
         
-        # 4. 保存属性
+        # 5. 保存属性
         self.save_attributes()
         
-        # 5. 生成URL快捷方式
+        # 6. 生成URL快捷方式
         self.generate_shortcut()
         
-        # 6. 创建脚本（仅在批处理模式下）
+        # 7. 创建脚本（仅在批处理模式下）
         if create_rebuild_script:
             self.create_rebuild_script()
             self.create_recutpic_script()
+        
+        # 8. 保存资源计数到数据库
+        try:
+            from utils.database import db
+            main_count = len(self.resources.get('main_images', []))
+            color_count = len(self.resources.get('color_card_images', []))
+            detail_count = len(self.resources.get('detail_images', []))
+            video_count = len(self.resources.get('videos', []))
+            db.update_resource_counts(self.product_id, main_count, color_count, detail_count, video_count, output_dir)
+            print(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})")
+        except Exception as e:
+            print(f"保存资源计数失败: {e}")
         
         print("=== 处理完成 ====")
         return True

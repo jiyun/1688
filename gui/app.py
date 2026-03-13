@@ -43,20 +43,20 @@ class AlibabaScraperGUI:
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 创建标签页
         self.notebook = ttk.Notebook(self.main_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         
-        # 创建处理队列标签页
         self.queue_tab = tk.Frame(self.notebook)
         self.notebook.add(self.queue_tab, text="处理队列")
         
-        # 创建使用说明标签页
         self.help_tab = tk.Frame(self.notebook)
         self.notebook.add(self.help_tab, text="使用说明")
         
-        # 处理队列标签页内容
-        # 创建顶部按钮框架
+        self.db_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.db_tab, text="数据库")
+        
+        self._init_db_tab()
+        
         self.button_frame = tk.Frame(self.queue_tab)
         self.button_frame.pack(fill=tk.X, pady=(0, 10))
         
@@ -75,6 +75,10 @@ class AlibabaScraperGUI:
         # 清空队列按钮
         self.clear_queue_btn = tk.Button(self.button_frame, text="清空队列", command=self.clear_queue, width=12)
         self.clear_queue_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 价格计算按钮
+        self.pricing_btn = tk.Button(self.button_frame, text="价格计算", command=self.open_pricing_tool, width=12)
+        self.pricing_btn.pack(side=tk.LEFT, padx=5)
         
         # 执行按钮
         self.execute_btn = tk.Button(self.button_frame, text="执行 (Enter)", command=self.execute, width=15, bg="#4CAF50", fg="white")
@@ -120,22 +124,21 @@ class AlibabaScraperGUI:
         self.queue_frame = tk.LabelFrame(self.content_frame, text="处理队列")
         self.queue_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(0, 10))
         
-        # 创建表格
-        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "date", "output_path"), show="headings")
+        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "shop_id", "date", "output_path"), show="headings")
         
-        # 设置列标题
         self.queue_tree.heading("index", text="序号")
         self.queue_tree.heading("status", text="状态", command=lambda: self.sort_treeview("status"))
         self.queue_tree.heading("name", text="文件名", command=lambda: self.sort_treeview("name"))
+        self.queue_tree.heading("shop_id", text="DSID", command=lambda: self.sort_treeview("shop_id"))
         self.queue_tree.heading("date", text="修改日期", command=lambda: self.sort_treeview("date"))
         self.queue_tree.heading("output_path", text="输出路径", command=lambda: self.sort_treeview("output_path"))
         
-        # 设置列宽
         self.queue_tree.column("index", width=30, anchor=tk.CENTER)
         self.queue_tree.column("status", width=50, anchor=tk.CENTER)
-        self.queue_tree.column("name", width=300, anchor=tk.W)
+        self.queue_tree.column("name", width=250, anchor=tk.W)
+        self.queue_tree.column("shop_id", width=80, anchor=tk.CENTER)
         self.queue_tree.column("date", width=120, anchor=tk.CENTER)
-        self.queue_tree.column("output_path", width=300, anchor=tk.W)
+        self.queue_tree.column("output_path", width=250, anchor=tk.W)
         
         # 添加滚动条
         self.queue_scrollbar = ttk.Scrollbar(self.queue_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
@@ -178,6 +181,7 @@ class AlibabaScraperGUI:
         
         # 初始化日志
         self.log("1688详情页资源采集工具 - GUI 版本")
+        self.log(f"日志字体: {available_font}")
         self.log("-----------------------------------")
         self.log("使用说明：")
         self.log("1. 点击 '添加文件' 按钮添加多个 HTML 文件（支持多选）")
@@ -188,6 +192,313 @@ class AlibabaScraperGUI:
         self.log("6. 点击 '暂停' 按钮暂停队列处理")
         self.log("7. 在下方日志窗口查看执行过程和结果")
         self.log("-----------------------------------")
+    
+    def _init_db_tab(self):
+        """初始化数据库选项卡"""
+        self.db_access_confirmed = False
+        
+        available_font = self._get_available_font()
+        font_size = GUI_CONF.get('font_size', 10)
+        
+        self.db_welcome_frame = tk.Frame(self.db_tab)
+        self.db_welcome_frame.pack(fill=tk.BOTH, expand=True)
+        
+        welcome_label = tk.Label(
+            self.db_welcome_frame, 
+            text="数据库管理\n\n此功能允许浏览和删除商品数据记录。\n\n点击下方按钮进入数据库管理界面。",
+            justify=tk.CENTER,
+            font=(available_font, font_size + 2)
+        )
+        welcome_label.pack(expand=True)
+        
+        enter_btn = tk.Button(
+            self.db_welcome_frame, 
+            text="进入数据库管理", 
+            command=self._confirm_db_access,
+            width=20,
+            height=2
+        )
+        enter_btn.pack(pady=20)
+        
+        self.db_content_frame = tk.Frame(self.db_tab)
+        
+        self.db_tree_frame = tk.Frame(self.db_content_frame)
+        self.db_tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        db_columns = ("product_id", "shop_product_id", "title", "cost_prices", "selling_prices", "resource_counts", "output_path", "status", "created_at")
+        self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
+        
+        self.db_tree.heading("product_id", text="商品ID")
+        self.db_tree.heading("shop_product_id", text="DSID")
+        self.db_tree.heading("title", text="标题")
+        self.db_tree.heading("cost_prices", text="采集成本")
+        self.db_tree.heading("selling_prices", text="价格设定")
+        self.db_tree.heading("resource_counts", text="资源计数")
+        self.db_tree.heading("output_path", text="输出路径")
+        self.db_tree.heading("status", text="状态")
+        self.db_tree.heading("created_at", text="创建时间")
+        
+        self.db_tree.column("product_id", width=100, anchor=tk.CENTER)
+        self.db_tree.column("shop_product_id", width=80, anchor=tk.CENTER)
+        self.db_tree.column("title", width=120, anchor=tk.W)
+        self.db_tree.column("cost_prices", width=80, anchor=tk.CENTER)
+        self.db_tree.column("selling_prices", width=80, anchor=tk.CENTER)
+        self.db_tree.column("resource_counts", width=80, anchor=tk.CENTER)
+        self.db_tree.column("output_path", width=150, anchor=tk.W)
+        self.db_tree.column("status", width=60, anchor=tk.CENTER)
+        self.db_tree.column("created_at", width=130, anchor=tk.CENTER)
+        
+        db_scrollbar = ttk.Scrollbar(self.db_tree_frame, orient=tk.VERTICAL, command=self.db_tree.yview)
+        self.db_tree.configure(yscrollcommand=db_scrollbar.set)
+        
+        self.db_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        db_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.db_tree.bind('<Double-Button-1>', self._db_tree_double_click)
+        
+        self.db_btn_frame = tk.Frame(self.db_content_frame)
+        self.db_btn_frame.pack(fill=tk.X, pady=5)
+        
+        self.db_refresh_btn = tk.Button(self.db_btn_frame, text="刷新", command=self._refresh_db_data, width=10)
+        self.db_refresh_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.db_price_btn = tk.Button(self.db_btn_frame, text="价格计算", command=self._open_pricing_for_selected, width=10)
+        self.db_price_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.db_delete_btn = tk.Button(self.db_btn_frame, text="删除选中", command=self._delete_db_record, width=10)
+        self.db_delete_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.db_status_label = tk.Label(self.db_btn_frame, text="")
+        self.db_status_label.pack(side=tk.RIGHT, padx=10)
+    
+    def _confirm_db_access(self):
+        """确认数据库访问"""
+        confirm = self.ask_yes_no("确认", "确定要进入数据库管理界面吗？\n\n请注意：删除操作不可撤销！")
+        if confirm:
+            self.db_access_confirmed = True
+            self.db_welcome_frame.pack_forget()
+            self.db_content_frame.pack(fill=tk.BOTH, expand=True)
+            self._refresh_db_data()
+    
+    def _refresh_db_data(self):
+        """刷新数据库数据"""
+        for item in self.db_tree.get_children():
+            self.db_tree.delete(item)
+        
+        try:
+            from utils.database import db
+            import json
+            products = db.get_all_products()
+            
+            for product in products:
+                output_path = product.get('output_path', '') or ''
+                if len(output_path) > 30:
+                    output_path = '...' + output_path[-27:]
+                
+                title = product.get('title', '') or ''
+                if len(title) > 15:
+                    title = title[:15] + '...'
+                
+                cost_prices_str = ''
+                cost_prices = product.get('cost_prices')
+                if cost_prices:
+                    try:
+                        cost_data = json.loads(cost_prices)
+                        cost_prices_str = f"{len(cost_data)}条"
+                    except:
+                        pass
+                
+                selling_prices_str = ''
+                selling_prices = product.get('selling_prices')
+                if selling_prices:
+                    try:
+                        selling_data = json.loads(selling_prices)
+                        selling_prices_str = f"{len(selling_data)}条"
+                    except:
+                        pass
+                
+                self.db_tree.insert("", "end", values=(
+                    product.get('product_id', ''),
+                    product.get('shop_product_id', ''),
+                    title,
+                    cost_prices_str,
+                    selling_prices_str,
+                    product.get('resource_counts', ''),
+                    output_path,
+                    product.get('status', ''),
+                    product.get('created_at', '')
+                ))
+            
+            self.db_status_label.config(text=f"共 {len(products)} 条记录")
+        except Exception as e:
+            self.log(f"读取数据库失败: {e}", "error")
+            self.db_status_label.config(text="读取失败")
+    
+    def _db_tree_double_click(self, event):
+        """双击数据库记录"""
+        region = self.db_tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+        
+        column = self.db_tree.identify_column(event.x)
+        selected = self.db_tree.selection()
+        if not selected:
+            return
+        
+        item = selected[0]
+        values = self.db_tree.item(item, 'values')
+        product_id = values[0]
+        
+        if column == "#5":
+            self._show_selling_prices(product_id)
+        else:
+            self._open_pricing_for_product(product_id)
+    
+    def _show_selling_prices(self, product_id):
+        """显示价格设定结果"""
+        try:
+            from utils.database import db
+            import json
+            
+            product = db.get_product(product_id)
+            if not product:
+                self.show_info("提示", f"未找到商品：{product_id}")
+                return
+            
+            selling_prices_str = product.get('selling_prices')
+            if not selling_prices_str:
+                self.show_info("提示", f"商品 {product_id} 没有价格设定数据")
+                return
+            
+            selling_prices = json.loads(selling_prices_str)
+            
+            result_window = tk.Toplevel(self.root)
+            result_window.title(f"价格设定 - {product_id}")
+            result_window.geometry("500x400")
+            
+            tree_frame = ttk.Frame(result_window)
+            tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            columns = ("sku_name", "price")
+            tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+            tree.heading("sku_name", text="SKU名称")
+            tree.heading("price", text="售价（元）")
+            tree.column("sku_name", width=300)
+            tree.column("price", width=100, anchor=tk.CENTER)
+            
+            scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+            
+            tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            for item in selling_prices:
+                if isinstance(item, dict):
+                    sku_name = item.get("sku_name", "")
+                    price = item.get("price", "")
+                else:
+                    sku_name = item[0] if len(item) > 0 else ""
+                    price = item[1] if len(item) > 1 else ""
+                tree.insert("", "end", values=(sku_name, price))
+            
+            def copy_price(event):
+                selected = tree.selection()
+                if selected:
+                    item = selected[0]
+                    values = tree.item(item, 'values')
+                    if values and len(values) > 1:
+                        price = values[1]
+                        result_window.clipboard_clear()
+                        result_window.clipboard_append(str(price))
+                        self.log(f"已复制价格: {price}")
+            
+            def show_copy_menu(event):
+                menu = tk.Menu(result_window, tearoff=0)
+                menu.add_command(label="复制价格", command=lambda: copy_price(None))
+                menu.add_command(label="复制SKU名称", command=lambda: copy_sku(None))
+                menu.post(event.x_root, event.y_root)
+            
+            def copy_sku(event):
+                selected = tree.selection()
+                if selected:
+                    item = selected[0]
+                    values = tree.item(item, 'values')
+                    if values and len(values) > 0:
+                        sku_name = values[0]
+                        result_window.clipboard_clear()
+                        result_window.clipboard_append(str(sku_name))
+                        self.log(f"已复制SKU名称: {sku_name}")
+            
+            def on_ctrl_c(event):
+                """Ctrl+C快捷键复制价格"""
+                copy_price(event)
+                return "break"
+            
+            tree.bind('<Double-Button-1>', copy_price)
+            tree.bind('<Button-3>', show_copy_menu)
+            tree.bind('<Control-c>', on_ctrl_c)
+            result_window.bind('<Control-c>', on_ctrl_c)
+            
+        except Exception as e:
+            self.show_info("错误", f"读取价格设定失败：{e}")
+    
+    def _open_pricing_for_product(self, product_id):
+        """打开指定商品的价格计算工具"""
+        try:
+            from gui.pricing_gui import PricingToolGUI
+            
+            pricing_window = tk.Toplevel(self.root)
+            pricing_window.title(f"商品定价计算工具 - {product_id}")
+            pricing_window.geometry("1000x700")
+            
+            pricing_app = PricingToolGUI(pricing_window, product_id)
+            
+        except ImportError as e:
+            self.show_info("错误", f"无法加载价格计算工具：{e}")
+        except Exception as e:
+            self.show_info("错误", f"打开价格计算工具失败：{e}")
+    
+    def _open_pricing_for_selected(self):
+        """打开选中商品的价格计算工具"""
+        selected = self.db_tree.selection()
+        if not selected:
+            self.show_info("提示", "请先选择要查看的商品")
+            return
+        
+        item = selected[0]
+        values = self.db_tree.item(item, 'values')
+        product_id = values[0]
+        self._open_pricing_for_product(product_id)
+    
+    def _delete_db_record(self):
+        """删除选中的数据库记录"""
+        selected = self.db_tree.selection()
+        if not selected:
+            self.show_info("提示", "请先选择要删除的记录")
+            return
+        
+        item = selected[0]
+        values = self.db_tree.item(item, 'values')
+        product_id = values[0]
+        
+        confirm = self.ask_yes_no("确认删除", f"确定要删除商品ID为 {product_id} 的记录吗？\n\n此操作不可撤销！")
+        if not confirm:
+            return
+        
+        confirm2 = self.ask_yes_no("二次确认", f"再次确认：删除商品ID {product_id}？")
+        if not confirm2:
+            return
+        
+        try:
+            from utils.database import db
+            if db.delete_product(product_id):
+                self.db_tree.delete(item)
+                self.log(f"已删除商品记录: {product_id}")
+                self._refresh_db_data()
+            else:
+                self.show_info("错误", "删除失败，记录可能不存在")
+        except Exception as e:
+            self.log(f"删除记录失败: {e}", "error")
     
     def _init_modules(self):
         """初始化模块化组件"""
@@ -698,20 +1009,117 @@ class AlibabaScraperGUI:
         if item:
             values = self.queue_tree.item(item, 'values')
             if values:
-                file_path = self.queue_manager.file_queue[int(values[0]) - 1]  # 通过序号获取文件路径
+                if column == "#4":
+                    self._edit_shop_id(item, values)
+                    return
+                
+                file_path = self.queue_manager.file_queue[int(values[0]) - 1]
                 html_dir = os.path.dirname(file_path)
                 
-                # 获取完整的输出路径
                 output_path = self.queue_manager.get_output_directory(file_path)
                 
-                # 根据点击的列执行不同操作
-                if column == "#5":  # 输出路径列
+                if column == "#6":
                     if output_path and os.path.exists(output_path):
                         self.open_file_explorer(output_path)
                     else:
                         self.open_file_explorer(html_dir)
-                else:  # 其他列（包括文件名列）
+                else:
                     self.open_file_explorer(html_dir)
+    
+    def _edit_shop_id(self, item, values):
+        """编辑DSID"""
+        current_shop_id = values[3] if len(values) > 3 else ""
+        
+        file_index = int(values[0]) - 1
+        if 0 <= file_index < len(self.queue_manager.file_queue):
+            file_path = self.queue_manager.file_queue[file_index]
+            product_id = os.path.splitext(os.path.basename(file_path))[0]
+        else:
+            product_id = ""
+        
+        dialog = tk.Toplevel(self.root)
+        dialog.title("编辑DSID")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.geometry("350x150")
+        dialog.resizable(False, False)
+        
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = tk.Frame(dialog, padx=20, pady=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        label_frame = tk.Frame(main_frame)
+        label_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(label_frame, text="商品ID:").pack(side=tk.LEFT)
+        tk.Label(label_frame, text=product_id, fg="gray").pack(side=tk.LEFT, padx=(5, 0))
+        
+        entry_frame = tk.Frame(main_frame)
+        entry_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        tk.Label(entry_frame, text="DSID:").pack(side=tk.LEFT)
+        
+        def validate_number(new_value):
+            if new_value == "":
+                return True
+            if new_value.isdigit() and not new_value.startswith('0'):
+                return True
+            if new_value == '0':
+                return True
+            return False
+        
+        vcmd = (dialog.register(validate_number), '%P')
+        entry = tk.Entry(entry_frame, width=25, validate='key', validatecommand=vcmd)
+        entry.pack(side=tk.LEFT, padx=(5, 0))
+        entry.insert(0, current_shop_id)
+        entry.focus_set()
+        entry.select_range(0, tk.END)
+        
+        error_label = tk.Label(main_frame, text="", fg="red")
+        error_label.pack(fill=tk.X)
+        
+        btn_frame = tk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        def save_shop_id():
+            new_shop_id = entry.get().strip()
+            
+            if not new_shop_id:
+                error_label.config(text="DSID不能为空")
+                return
+            
+            if not new_shop_id.isdigit():
+                error_label.config(text="DSID必须为纯数字")
+                return
+            
+            if new_shop_id.startswith('0') and len(new_shop_id) > 1:
+                error_label.config(text="DSID不能以0开头")
+                return
+            
+            try:
+                int(new_shop_id)
+            except ValueError:
+                error_label.config(text="DSID格式无效")
+                return
+            
+            self.queue_tree.set(item, column="shop_id", value=new_shop_id)
+            try:
+                from utils.database import db
+                db.update_shop_product_id(product_id, new_shop_id)
+                self.log(f"已保存DSID: {product_id} -> {new_shop_id}")
+            except Exception as e:
+                self.log(f"保存DSID失败: {e}", "warning")
+            dialog.destroy()
+        
+        tk.Button(btn_frame, text="保存", command=save_shop_id, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="取消", command=dialog.destroy, width=10).pack(side=tk.LEFT, padx=5)
+        
+        dialog.bind('<Return>', lambda e: save_shop_id())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
     
     def open_file_explorer(self, path):
         """打开资源管理器到指定路径"""
@@ -747,23 +1155,24 @@ class AlibabaScraperGUI:
         """
         import tkinter.font as tkfont
         
-        # 获取系统所有可用字体
         available_fonts = tkfont.families()
         
-        # 按优先级检测字体
-        font_families = GUI_CONF.get('font_families', ['Courier New'])
+        font_families = GUI_CONF.get('font_families', [])
         
         for font_name in font_families:
-            # 检查字体是否可用（支持中文名称、英文名称和带@前缀的名称）
             if font_name in available_fonts:
                 return font_name
             
-            # 检查带@前缀的字体
             if f'@{font_name}' in available_fonts:
                 return f'@{font_name}'
         
-        # 如果没有找到任何优先字体，返回默认字体
-        return 'Courier New'
+        for fallback in ['微软雅黑', '黑体', '宋体']:
+            if fallback in available_fonts:
+                return fallback
+            if f'@{fallback}' in available_fonts:
+                return f'@{fallback}'
+        
+        return 'TkDefaultFont'
     
     # 上下文菜单命令代理方法
     def context_stitch_images(self):
@@ -801,6 +1210,47 @@ class AlibabaScraperGUI:
     def context_delete_item(self):
         """右键菜单：删除项目"""
         self.context_menu_commands.context_delete_item()
+    
+    def context_edit_shop_id(self):
+        """右键菜单：编辑DSID"""
+        self.context_menu_commands.context_edit_shop_id()
+    
+    def context_copy_item_url(self):
+        """右键菜单：编辑商品 - 复制商品链接"""
+        self.context_menu_commands.context_copy_item_url()
+    
+    def open_pricing_tool(self):
+        """打开价格计算工具"""
+        try:
+            from gui.pricing_gui import PricingToolGUI
+            import re
+            
+            selected_product_id = None
+            selected_items = self.queue_tree.selection()
+            
+            if selected_items:
+                item = selected_items[0]
+                values = self.queue_tree.item(item, 'values')
+                
+                if values and len(values) > 2:
+                    display_name = values[2]
+                    match = re.search(r'(\d{10,12})\.html$', display_name)
+                    if match:
+                        selected_product_id = match.group(1)
+            
+            pricing_window = tk.Toplevel(self.root)
+            if selected_product_id:
+                pricing_window.title(f"商品定价计算工具 - {selected_product_id}")
+            else:
+                pricing_window.title("商品定价计算工具")
+            pricing_window.geometry("1000x700")
+            
+            pricing_app = PricingToolGUI(pricing_window, selected_product_id)
+            
+        except ImportError as e:
+            self.show_info("错误", f"无法加载价格计算工具：{e}")
+        except Exception as e:
+            self.show_info("错误", f"打开价格计算工具失败：{e}")
     
     def run(self):
         """运行GUI应用"""

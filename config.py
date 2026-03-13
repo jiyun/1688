@@ -63,24 +63,26 @@ GUI_CONF = {
     'window_geometry': '1024x768',
     'window_resizable': True,
     
-    # 字体配置（按优先级排序）
+    # 字体配置（按优先级排序，数字越小优先级越高）
     'font_families': [
-        # --- 大厂开源字体 (优先使用英文名) ---
-        'Alibaba PuHuiTi',      # 阿里巴巴普惠体 (官方英文名，兼容性好)
-        'HarmonyOS Sans',       # 华为鸿蒙字体 (官方英文名)
-        'MiSans',               # 小米字体 (官方英文名，覆盖旧版"小米兰亭")
-        'OPPO Sans',            # OPPO 字体 (官方英文名)
+        # 优先级 1-4: 大厂开源字体
+        'Alibaba PuHuiTi',      # 1. 阿里巴巴普惠体
+        'HarmonyOS Sans',       # 2. 华为鸿蒙字体
+        'MiSans',               # 3. 小米字体
+        'OPPO Sans',            # 4. OPPO 字体
         
-        # --- 经典开源字体 ---
-        'Source Han Sans CN',   # 思源黑体 (CN 代表简体中文，最标准的调用名)
-        'Smiley Sans',          # 得意黑 (官方英文名)
-        'Sarasa Gothic SC',     # 更纱黑体 (修正：原名应为 Sarasa Gothic SC)
+        # 优先级 5-7: 经典开源字体
+        'Source Han Sans CN',   # 5. 思源黑体
+        'Smiley Sans',          # 6. 得意黑
+        'Sarasa Gothic SC',     # 7. 更纱黑体
         
-        # --- 系统自带字体 (作为兜底) ---
-        'Microsoft YaHei',      # 微软雅黑 (Windows 标准英文名)
-        'DengXian',             # 等线 (Windows 10+ 标准英文名)
-        'SimHei',               # 黑体 (Windows 标准英文名)
-        'Courier New',          # 默认等宽字体
+        # 优先级 8-13: 系统自带字体（使用实际注册名称）
+        'Microsoft YaHei UI',   # 8. 微软雅黑 UI
+        '微软雅黑',              # 9. 微软雅黑（中文名）
+        '等线',                  # 10. 等线（中文名）
+        '黑体',                  # 11. 黑体（中文名）
+        '宋体',                  # 12. 宋体（中文名）
+        '仿宋',                  # 13. 仿宋（中文名）
     ],
     'font_size': 10,          # 字体大小
     
@@ -140,4 +142,17 @@ GUI_CONF = {
         'execute_running': '执行中...',
         'resume': '恢复'
     }
+}
+
+PRICING_CONF = {
+    'default_base_name': '本体1',
+    'default_base_cost': 0.0,
+    'default_pricing_strategy': 'multiplier',
+    'default_rounding': 0,
+    'default_max_price': 0.0,
+    'window_geometry': '1000x700',
+    'window_resizable': True,
+    'canvas_height': 150,
+    'listbox_height': 10,
+    'listbox_width': 70,
 }
