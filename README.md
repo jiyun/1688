@@ -156,14 +156,18 @@
 │   ├── logging.py      # 日志处理
 │   ├── menu.py         # 菜单管理
 │   ├── queue.py        # 队列管理
-│   └── utils.py        # GUI工具函数
+│   ├── utils.py        # GUI工具函数
+│   ├── pricing_gui.py  # 价格计算工具
+│   └── tiered_price_generator.py # 阶梯价格生成器
 ├── utils/              # 工具模块
 │   ├── parser.py       # HTML解析工具
 │   ├── downloader.py   # 下载管理工具
 │   ├── file_handler.py # 文件处理工具
 │   ├── tool_downloader.py # aria2c下载工具
 │   ├── image_utils.py  # 图像处理基础工具（放大、切割、转换、并行处理）
-│   └── image_processor.py # 图像处理流程（主图、详情图、色卡图、混合图片处理）
+│   ├── image_processor.py # 图像处理流程（主图、详情图、色卡图、混合图片处理）
+│   ├── database.py     # 数据库模块
+│   └── price_extractor.py # 价格提取器
 ├── LICENSE             # 许可证文件
 └── README.md           # 说明文档
 ```
@@ -171,19 +175,23 @@
 ### 模块说明
 
 - **main.py**：主脚本，整合所有功能，处理完整流程，支持命令行模式和GUI模式（通过 `--gui` 参数启用）
-- **config.py**：配置文件，包含下载参数、文件命名规则、图片处理配置和GUI配置等
+- **config.py**：配置文件，包含下载参数、文件命名规则、图片处理配置、GUI配置和价格计算配置等
 - **gui/app.py**：GUI应用主程序，创建主窗口和各个组件
 - **gui/commands.py**：上下文菜单命令，执行图像优化、资源打包、重新采集等操作
 - **gui/logging.py**：日志处理，显示处理进度和结果
 - **gui/menu.py**：菜单管理，创建和管理上下文菜单
 - **gui/queue.py**：队列管理，管理待处理文件列表
 - **gui/utils.py**：GUI工具函数，提供辅助功能
+- **gui/pricing_gui.py**：价格计算工具，基于成本数据自动计算商品价格
+- **gui/tiered_price_generator.py**：阶梯价格生成器，支持统一倍率和统一利润率定价策略
 - **utils/parser.py**：HTML解析工具，提取页面中的资源链接和属性
 - **utils/downloader.py**：下载管理工具，生成下载列表，调用aria2c下载
 - **utils/file_handler.py**：文件处理工具，创建目录，保存属性，生成快捷方式和批处理脚本
 - **utils/tool_downloader.py**：aria2c下载工具，检查和下载aria2c工具
 - **utils/image_utils.py**：图像处理基础工具，提供图片放大、切割、动图转换、文件收集、并行处理等功能
 - **utils/image_processor.py**：图像处理流程模块，实现主图、详情图、色卡图、混合图片的完整处理流程
+- **utils/database.py**：数据库模块，使用SQLite存储商品数据、价格信息
+- **utils/price_extractor.py**：价格提取器，从HTML中提取SKU价格信息
 
 ## 性能说明
 
