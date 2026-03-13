@@ -39,7 +39,9 @@ class AlibabaScraperGUI:
         self.root.geometry(GUI_CONF['window_geometry'])
         self.root.resizable(GUI_CONF['window_resizable'], GUI_CONF['window_resizable'])
         
-        # 创建主框架
+        self.easter_egg_counter = 0
+        self.db_tab_visible = False
+        
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -53,40 +55,35 @@ class AlibabaScraperGUI:
         self.notebook.add(self.help_tab, text="使用说明")
         
         self.db_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.db_tab, text="数据库")
+        
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.last_tab_index = -1
         
         self._init_db_tab()
         
         self.button_frame = tk.Frame(self.queue_tab)
         self.button_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # 添加文件按钮
-        self.add_file_btn = tk.Button(self.button_frame, text="添加文件 (A)", command=self.add_file, width=15)
-        self.add_file_btn.pack(side=tk.LEFT, padx=5)
+        self.add_file_btn = tk.Button(self.button_frame, text="添加文件 (A)", command=self.add_file, width=12)
+        self.add_file_btn.pack(side=tk.LEFT, padx=3)
         
-        # 添加目录按钮
-        self.add_dir_btn = tk.Button(self.button_frame, text="添加目录 (D)", command=self.add_directory, width=15)
-        self.add_dir_btn.pack(side=tk.LEFT, padx=5)
+        self.add_dir_btn = tk.Button(self.button_frame, text="添加目录 (D)", command=self.add_directory, width=12)
+        self.add_dir_btn.pack(side=tk.LEFT, padx=3)
         
-        # 移除文件按钮
-        self.remove_file_btn = tk.Button(self.button_frame, text="移除文件 (Del)", command=self.remove_file, width=15)
-        self.remove_file_btn.pack(side=tk.LEFT, padx=5)
+        self.remove_file_btn = tk.Button(self.button_frame, text="移除文件 (Del)", command=self.remove_file, width=12)
+        self.remove_file_btn.pack(side=tk.LEFT, padx=3)
         
-        # 清空队列按钮
         self.clear_queue_btn = tk.Button(self.button_frame, text="清空队列", command=self.clear_queue, width=12)
-        self.clear_queue_btn.pack(side=tk.LEFT, padx=5)
+        self.clear_queue_btn.pack(side=tk.LEFT, padx=3)
         
-        # 价格计算按钮
         self.pricing_btn = tk.Button(self.button_frame, text="价格计算", command=self.open_pricing_tool, width=12)
-        self.pricing_btn.pack(side=tk.LEFT, padx=5)
+        self.pricing_btn.pack(side=tk.LEFT, padx=3)
         
-        # 执行按钮
-        self.execute_btn = tk.Button(self.button_frame, text="执行 (Enter)", command=self.execute, width=15, bg="#4CAF50", fg="white")
-        self.execute_btn.pack(side=tk.RIGHT, padx=5)
+        self.pause_btn = tk.Button(self.button_frame, text="暂停 (P)", command=self.pause, width=12, bg="#FF9800", fg="white", state=tk.DISABLED)
+        self.pause_btn.pack(side=tk.RIGHT, padx=3)
         
-        # 暂停按钮
-        self.pause_btn = tk.Button(self.button_frame, text="暂停 (P)", command=self.pause, width=15, bg="#FF9800", fg="white", state=tk.DISABLED)
-        self.pause_btn.pack(side=tk.RIGHT, padx=5)
+        self.execute_btn = tk.Button(self.button_frame, text="执行 (Enter)", command=self.execute, width=12, bg="#4CAF50", fg="white")
+        self.execute_btn.pack(side=tk.RIGHT, padx=3)
         
         # 创建输出路径配置框架
         self.output_frame = tk.Frame(self.queue_tab)
@@ -268,6 +265,9 @@ class AlibabaScraperGUI:
         self.db_delete_btn = tk.Button(self.db_btn_frame, text="删除选中", command=self._delete_db_record, width=10)
         self.db_delete_btn.pack(side=tk.LEFT, padx=5)
         
+        self.db_close_btn = tk.Button(self.db_btn_frame, text="关闭数据库", command=self._close_db_tab, width=10)
+        self.db_close_btn.pack(side=tk.RIGHT, padx=5)
+        
         self.db_status_label = tk.Label(self.db_btn_frame, text="")
         self.db_status_label.pack(side=tk.RIGHT, padx=10)
     
@@ -279,6 +279,13 @@ class AlibabaScraperGUI:
             self.db_welcome_frame.pack_forget()
             self.db_content_frame.pack(fill=tk.BOTH, expand=True)
             self._refresh_db_data()
+    
+    def _close_db_tab(self):
+        """关闭数据库选项卡，返回处理队列"""
+        self.db_content_frame.pack_forget()
+        self.db_welcome_frame.pack(fill=tk.BOTH, expand=True)
+        self.db_access_confirmed = False
+        self.notebook.select(0)
     
     def _refresh_db_data(self):
         """刷新数据库数据"""
@@ -992,6 +999,29 @@ class AlibabaScraperGUI:
     def execute(self):
         """执行主程序处理队列中的文件"""
         self.queue_manager.execute()
+    
+    def _on_tab_changed(self, event):
+        """标签页切换事件（含彩蛋）"""
+        if self.db_tab_visible:
+            return
+        
+        current_index = self.notebook.index(self.notebook.select())
+        
+        if self.last_tab_index != -1 and current_index != self.last_tab_index:
+            if (current_index == 0 and self.last_tab_index == 1) or (current_index == 1 and self.last_tab_index == 0):
+                self.easter_egg_counter += 1
+                if self.easter_egg_counter >= 15:
+                    self._show_db_tab()
+                    self.easter_egg_counter = 0
+                    return
+        
+        self.last_tab_index = current_index
+    
+    def _show_db_tab(self):
+        """显示数据库选项卡"""
+        self.notebook.add(self.db_tab, text="数据库")
+        self.db_tab_visible = True
+        self.show_info("恭喜！", "你发现了隐藏的数据库选项卡！")
     
     def pause(self):
         """暂停/恢复队列处理"""
