@@ -167,7 +167,10 @@
 │   ├── image_utils.py  # 图像处理基础工具（放大、切割、转换、并行处理）
 │   ├── image_processor.py # 图像处理流程（主图、详情图、色卡图、混合图片处理）
 │   ├── database.py     # 数据库模块
-│   └── price_extractor.py # 价格提取器
+│   ├── price_extractor.py # 价格提取器
+│   ├── version.py      # 版本信息模块
+│   └── updater.py      # 版本检测升级模块
+├── version.json        # 版本配置文件
 ├── LICENSE             # 许可证文件
 └── README.md           # 说明文档
 ```
@@ -192,6 +195,8 @@
 - **utils/image_processor.py**：图像处理流程模块，实现主图、详情图、色卡图、混合图片的完整处理流程
 - **utils/database.py**：数据库模块，使用SQLite存储商品数据、价格信息
 - **utils/price_extractor.py**：价格提取器，从HTML中提取SKU价格信息
+- **utils/version.py**：版本信息模块，管理当前版本号和版本信息
+- **utils/updater.py**：版本检测升级模块，支持自动检测更新、GitHub/Gitee双源切换、下载更新包
 
 ## 性能说明
 

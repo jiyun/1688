@@ -156,3 +156,16 @@ PRICING_CONF = {
     'listbox_height': 10,
     'listbox_width': 70,
 }
+
+UPDATE_CONF = {
+    'check_on_startup': True,
+    'check_interval': 86400,
+    'timeout': 10,
+    'github_api': 'https://api.github.com/repos/jiyun/1688',
+    'github_raw': 'https://raw.githubusercontent.com/jiyun/1688',
+    'gitee_api': 'https://gitee.com/api/v5/repos/jiyun/1688',
+    'gitee_raw': 'https://gitee.com/jiyun/1688/raw',
+    'version_file': 'version.json',
+    'changelog_file': 'CHANGELOG.md',
+    'download_dir': 'updates',
+}

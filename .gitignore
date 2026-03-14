@@ -87,3 +87,6 @@ sync.ffs_db
 # 测试目录
 test/
 products.db
+
+# 更新下载目录
+updates/

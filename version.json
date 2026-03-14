@@ -1,0 +1,15 @@
+{
+    "version": "0.3.2",
+    "release_date": "2026-03-13",
+    "min_python": "3.11",
+    "download_url": {
+        "github": "https://github.com/jiyun/1688/archive/refs/tags/v0.3.2.zip",
+        "gitee": "https://gitee.com/jiyun/1688/repository/archive/v0.3.2.zip"
+    },
+    "checksum": {
+        "sha256": ""
+    },
+    "changelog": "https://raw.githubusercontent.com/jiyun/1688/main/CHANGELOG.md",
+    "breaking_changes": false,
+    "mandatory": false
+}
