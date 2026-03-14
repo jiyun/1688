@@ -174,17 +174,11 @@ class AlibabaScraperGUI:
         # 加载保存的输出路径
         self.load_output_path()
         
-        # 使用说明标签页内容
         self.help_frame = None
         self.help_text = None
-        if HAS_TKINTERWEB and HAS_MARKDOWN:
-            self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-        else:
-            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
-            self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            self.load_help_content()
         
-        # 初始化日志
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+        
         self.log("1688详情页资源采集工具 - GUI 版本")
         self.log(f"日志字体: {available_font}")
         self.log("-----------------------------------")
@@ -747,17 +741,6 @@ class AlibabaScraperGUI:
         self.help_text.insert(tk.END, help_content)
         self.help_text.config(state=tk.DISABLED)
     
-    def _on_tab_changed(self, event):
-        """标签页切换事件处理"""
-        try:
-            current_tab = self.notebook.index(self.notebook.select())
-            if current_tab == 1:
-                self._load_help_frame()
-            else:
-                self._unload_help_frame()
-        except Exception as e:
-            self.log(f"标签页切换错误: {e}", "error")
-    
     def _load_help_frame(self):
         """加载帮助文档框架"""
         self._unload_help_frame()
@@ -1009,21 +992,27 @@ class AlibabaScraperGUI:
         self.queue_manager.execute()
     
     def _on_tab_changed(self, event):
-        """标签页切换事件（含彩蛋）"""
-        if self.db_tab_visible:
-            return
-        
-        current_index = self.notebook.index(self.notebook.select())
-        
-        if self.last_tab_index != -1 and current_index != self.last_tab_index:
-            if (current_index == 0 and self.last_tab_index == 1) or (current_index == 1 and self.last_tab_index == 0):
-                self.easter_egg_counter += 1
-                if self.easter_egg_counter >= 15:
-                    self._show_db_tab()
-                    self.easter_egg_counter = 0
-                    return
-        
-        self.last_tab_index = current_index
+        """标签页切换事件（含彩蛋和帮助文档加载）"""
+        try:
+            current_index = self.notebook.index(self.notebook.select())
+            
+            if current_index == 1:
+                self._load_help_frame()
+            else:
+                self._unload_help_frame()
+            
+            if not self.db_tab_visible:
+                if self.last_tab_index != -1 and current_index != self.last_tab_index:
+                    if (current_index == 0 and self.last_tab_index == 1) or (current_index == 1 and self.last_tab_index == 0):
+                        self.easter_egg_counter += 1
+                        if self.easter_egg_counter >= 15:
+                            self._show_db_tab()
+                            self.easter_egg_counter = 0
+                            return
+            
+            self.last_tab_index = current_index
+        except Exception as e:
+            self.log(f"标签页切换错误: {e}", "error")
     
     def _show_db_tab(self):
         """显示数据库选项卡"""
