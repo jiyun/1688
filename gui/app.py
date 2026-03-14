@@ -1333,7 +1333,109 @@ class AlibabaScraperGUI:
         else:
             result = self.ask_yes_no("发现新版本", message)
             if result:
-                self._open_download_page(version_info)
+                self._download_update(version_info)
+    
+    def _download_update(self, version_info):
+        """下载更新包"""
+        from utils.updater import UpdateDownloader
+        
+        self._current_version_info = version_info
+        
+        def download_in_thread():
+            try:
+                downloader = UpdateDownloader(use_mirror=True)
+                
+                def progress_callback(downloaded, total):
+                    if total > 0:
+                        percent = int(downloaded / total * 100)
+                        self.root.after(0, lambda: self._update_download_progress(percent))
+                
+                filepath = downloader.download_update(version_info, progress_callback)
+                
+                if filepath:
+                    self.root.after(0, lambda: self._on_download_complete(filepath, version_info))
+                else:
+                    self.root.after(0, lambda: self._on_download_failed())
+            except Exception as e:
+                self.root.after(0, lambda: self._on_download_error(str(e)))
+        
+        self._show_download_progress()
+        
+        import threading
+        thread = threading.Thread(target=download_in_thread, daemon=True)
+        thread.start()
+    
+    def _show_download_progress(self):
+        """显示下载进度窗口"""
+        self.download_window = tk.Toplevel(self.root)
+        self.download_window.title("下载更新")
+        self.download_window.geometry("400x120")
+        self.download_window.resizable(False, False)
+        self.download_window.transient(self.root)
+        self.download_window.grab_set()
+        
+        tk.Label(self.download_window, text="正在下载更新包...", font=('Arial', 10)).pack(pady=10)
+        
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(
+            self.download_window, 
+            variable=self.progress_var, 
+            maximum=100,
+            length=350
+        )
+        self.progress_bar.pack(pady=5)
+        
+        self.progress_label = tk.Label(self.download_window, text="0%", font=('Arial', 9))
+        self.progress_label.pack()
+        
+        self.cancel_download_btn = tk.Button(
+            self.download_window, 
+            text="取消", 
+            command=self._cancel_download,
+            width=10
+        )
+        self.cancel_download_btn.pack(pady=10)
+        
+        self.download_window.protocol("WM_DELETE_WINDOW", self._cancel_download)
+    
+    def _update_download_progress(self, percent):
+        """更新下载进度"""
+        if hasattr(self, 'progress_var') and hasattr(self, 'progress_label'):
+            self.progress_var.set(percent)
+            self.progress_label.config(text=f"{percent}%")
+    
+    def _on_download_complete(self, filepath, version_info):
+        """下载完成"""
+        if hasattr(self, 'download_window'):
+            self.download_window.destroy()
+        
+        message = f"更新包下载完成！\n\n"
+        message += f"版本: v{version_info.version}\n"
+        message += f"文件: {filepath}\n\n"
+        message += "请手动解压并替换文件。"
+        
+        self.show_info("下载完成", message)
+    
+    def _on_download_failed(self):
+        """下载失败"""
+        if hasattr(self, 'download_window'):
+            self.download_window.destroy()
+        
+        result = self.ask_yes_no("下载失败", "下载失败，是否在浏览器中打开下载页面？")
+        if result and hasattr(self, '_current_version_info'):
+            self._open_download_page(self._current_version_info)
+    
+    def _on_download_error(self, error):
+        """下载出错"""
+        if hasattr(self, 'download_window'):
+            self.download_window.destroy()
+        
+        self.show_info("下载出错", f"下载出错：{error}")
+    
+    def _cancel_download(self):
+        """取消下载"""
+        if hasattr(self, 'download_window'):
+            self.download_window.destroy()
     
     def _open_download_page(self, version_info):
         """打开下载页面"""

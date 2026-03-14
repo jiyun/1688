@@ -11,10 +11,17 @@ import hashlib
 import tempfile
 import zipfile
 import shutil
+import subprocess
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
+
+try:
+    from utils.tool_downloader import get_aria2c_path, ensure_aria2c
+    HAS_ARIA2C = True
+except ImportError:
+    HAS_ARIA2C = False
 
 try:
     from config import UPDATE_CONF
@@ -190,7 +197,7 @@ class UpdateDownloader:
     
     def download_update(self, version_info: VersionInfo, 
                         progress_callback=None) -> Optional[str]:
-        """下载更新包
+        """下载更新包（优先使用aria2c加速）
         
         Args:
             version_info: 版本信息
@@ -207,6 +214,75 @@ class UpdateDownloader:
         filename = f"v{version_info.version}.zip"
         filepath = os.path.join(self.download_dir, filename)
         
+        if HAS_ARIA2C:
+            result = self._download_with_aria2c(url, filepath, progress_callback)
+            if result:
+                return result
+        
+        return self._download_with_urllib(url, filepath, progress_callback)
+    
+    def _download_with_aria2c(self, url: str, filepath: str, 
+                               progress_callback=None) -> Optional[str]:
+        """使用aria2c下载更新包"""
+        try:
+            aria2c_path = get_aria2c_path()
+            
+            if not aria2c_path:
+                aria2c_path = ensure_aria2c()
+            
+            if not aria2c_path:
+                return None
+            
+            cmd = [
+                aria2c_path,
+                '--console-log-level=warn',
+                '-d', os.path.dirname(filepath),
+                '-o', os.path.basename(filepath),
+                url
+            ]
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            total_size = 0
+            downloaded = 0
+            
+            while process.poll() is None:
+                line = process.stdout.readline()
+                if not line:
+                    continue
+                
+                if 'LENGTH:' in line:
+                    try:
+                        parts = line.split('LENGTH:')
+                        if len(parts) > 1:
+                            size_str = parts[1].split()[0]
+                            total_size = int(size_str)
+                    except:
+                        pass
+                
+                if progress_callback and total_size > 0:
+                    if os.path.exists(filepath):
+                        downloaded = os.path.getsize(filepath)
+                        progress_callback(downloaded, total_size)
+            
+            if process.returncode == 0 and os.path.exists(filepath):
+                if progress_callback and total_size > 0:
+                    progress_callback(total_size, total_size)
+                return filepath
+            
+            return None
+        except Exception as e:
+            print(f"aria2c下载失败: {e}")
+            return None
+    
+    def _download_with_urllib(self, url: str, filepath: str,
+                               progress_callback=None) -> Optional[str]:
+        """使用urllib下载更新包（备用方案）"""
         try:
             request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urlopen(request, timeout=self.timeout) as response:
