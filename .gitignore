@@ -90,3 +90,6 @@ products.db
 
 # 更新下载目录
 updates/
+
+# 开发工具目录（不作为项目文件）
+tools/

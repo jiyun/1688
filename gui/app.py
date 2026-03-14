@@ -31,6 +31,13 @@ try:
 except ImportError:
     HAS_MARKDOWN = False
 
+try:
+    from utils.updater import check_for_updates
+    from utils.version import __version__
+    HAS_UPDATER = True
+except ImportError:
+    HAS_UPDATER = False
+
 
 class AlibabaScraperGUI:
     def __init__(self, root):
@@ -41,6 +48,7 @@ class AlibabaScraperGUI:
         
         self.easter_egg_counter = 0
         self.db_tab_visible = False
+        self._is_gui_mode = True
         
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -1284,7 +1292,57 @@ class AlibabaScraperGUI:
     
     def run(self):
         """运行GUI应用"""
+        if self._is_gui_mode and HAS_UPDATER:
+            self.root.after(1000, self._check_updates_on_startup)
         self.root.mainloop()
+    
+    def _check_updates_on_startup(self):
+        """启动后检测更新（仅在GUI模式）"""
+        try:
+            from config import UPDATE_CONF
+            if not UPDATE_CONF.get('check_on_startup', True):
+                return
+            
+            import threading
+            
+            def check_in_thread():
+                version_info = check_for_updates(silent=True)
+                if version_info:
+                    self.root.after(0, lambda: self._show_update_dialog(version_info))
+            
+            thread = threading.Thread(target=check_in_thread, daemon=True)
+            thread.start()
+        except Exception:
+            pass
+    
+    def _show_update_dialog(self, version_info):
+        """显示更新提示对话框"""
+        message = f"发现新版本: v{version_info.version}\n"
+        message += f"发布日期: {version_info.release_date}\n\n"
+        
+        if version_info.breaking_changes:
+            message += "⚠️ 此版本包含重大变更\n\n"
+        
+        if version_info.mandatory:
+            message += "此更新为强制更新"
+        else:
+            message += "是否立即下载更新？"
+        
+        if version_info.mandatory:
+            self.show_info("发现新版本", message)
+        else:
+            result = self.ask_yes_no("发现新版本", message)
+            if result:
+                self._open_download_page(version_info)
+    
+    def _open_download_page(self, version_info):
+        """打开下载页面"""
+        import webbrowser
+        
+        url = version_info.download_urls.get('gitee') or version_info.download_urls.get('github')
+        if url:
+            webbrowser.open(url)
+            self.show_info("下载更新", f"已在浏览器中打开下载页面\n版本: v{version_info.version}")
 
 
 def main():
