@@ -358,6 +358,8 @@ class AlibabaScraperGUI:
         
         if column == "#5":
             self._show_selling_prices(product_id)
+        elif column == "#6":
+            self._show_resources(product_id)
         else:
             self._open_pricing_for_product(product_id)
     
@@ -447,7 +449,79 @@ class AlibabaScraperGUI:
             result_window.bind('<Control-c>', on_ctrl_c)
             
         except Exception as e:
-            self.show_info("错误", f"读取价格设定失败：{e}")
+            self.show_info("错误", f"读取价格设定失败: {e}")
+    
+    def _show_resources(self, product_id):
+        """显示商品资源URL列表"""
+        try:
+            from utils.database import db
+            
+            resources = db.get_resources_by_type(product_id)
+            
+            if not any(resources.values()):
+                self.show_info("提示", f"商品 {product_id} 没有资源数据")
+                return
+            
+            result_window = tk.Toplevel(self.root)
+            result_window.title(f"资源列表 - {product_id}")
+            result_window.geometry("700x500")
+            
+            notebook = ttk.Notebook(result_window)
+            notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            type_names = {
+                'main_images': '主图',
+                'color_images': '色卡图',
+                'detail_images': '详情图',
+                'videos': '视频'
+            }
+            
+            for res_type, res_list in resources.items():
+                if not res_list:
+                    continue
+                
+                tab = ttk.Frame(notebook)
+                notebook.add(tab, text=f"{type_names.get(res_type, res_type)} ({len(res_list)})")
+                
+                tree_frame = ttk.Frame(tab)
+                tree_frame.pack(fill=tk.BOTH, expand=True)
+                
+                columns = ("name", "url", "downloaded")
+                tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+                tree.heading("name", text="名称")
+                tree.heading("url", text="URL")
+                tree.heading("downloaded", text="已下载")
+                tree.column("name", width=150)
+                tree.column("url", width=450)
+                tree.column("downloaded", width=60, anchor=tk.CENTER)
+                
+                scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
+                tree.configure(yscrollcommand=scrollbar.set)
+                
+                tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                
+                for res in res_list:
+                    name = res.get('resource_name', '')
+                    url = res.get('resource_url', '')
+                    downloaded = "是" if res.get('downloaded') else "否"
+                    tree.insert("", "end", values=(name, url, downloaded))
+                
+                def copy_url(event, tree_widget=tree, window=result_window):
+                    selected = tree_widget.selection()
+                    if selected:
+                        item = selected[0]
+                        values = tree_widget.item(item, 'values')
+                        if values and len(values) > 1:
+                            url = values[1]
+                            window.clipboard_clear()
+                            window.clipboard_append(str(url))
+                            self.log(f"已复制URL: {url[:50]}...")
+                
+                tree.bind('<Double-Button-1>', copy_url)
+            
+        except Exception as e:
+            self.show_info("错误", f"读取资源数据失败: {e}")
     
     def _open_pricing_for_product(self, product_id):
         """打开指定商品的价格计算工具"""
