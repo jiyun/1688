@@ -1,24 +1,28 @@
 @echo off
+chcp 936 >nul
 if "%1" == "" (
 	cls
-	echo 注意：不要空运行此批处理！目标HTML需要使用singlefile浏览器插件进行预处理。
-	echo 本程序调用了Aria2c 与 Python 以及相关库 requests、subprocess、splitext、BeautifulSoup、pandas
+	echo 警告: 不要在没有参数的情况下运行此批处理文件！
+	echo 目标HTML文件需要使用singlefile浏览器扩展预处理。
+	echo 此程序使用Aria2c、Python和相关库：requests、subprocess、splitext、BeautifulSoup、pandas
 	echo ----------
-	echo 用法：请将HTML文件拖放到这个批处理上启动。需要批量处理请执行另一个批处理。
-	echo 别忘记安装上面要求的程序与扩展。
+	echo 使用方法：将HTML文件拖放到此批处理文件上开始处理。
+	echo 如需批量处理，请执行另一个批处理文件。
+	echo 不要忘记安装上述提到的必要程序和扩展。
 	pause >nul
 ) else (
 	@echo y|Cacls %* /c /t /p Everyone:f 2>nul
 	if not exist "%~n1" (
-		mkdir "%~n1"&cd %~n1
-		python ..\1688-1.py
+		mkdir "%~n1"
+		cd "%~n1"
+		python ..\main.py "%~f1"
 	) else (
 		if exist "%~n1\rebuild.bat" (
-			cd %~n1
+			cd "%~n1"
 			call rebuild.bat
 		) else (
-			cd %~n1
-			python ..\1688-1.py
+			cd "%~n1"
+			python ..\main.py "%~f1"
 		)
 	)
 	@echo [DEFAULT]>>#URL.url
@@ -33,11 +37,4 @@ if "%1" == "" (
 	ping -n 2 127.1>nul
 	)
 	cd ..
-
-	more +38 "%~f0" >>%~n1\rebuild.bat
-	goto :eof
-	@echo off
-	title 正在重建...
-	del C_*.* 2>nul&del T_*.* 2>nul&del video_*.* 2>nul&del *.jpg 2>nul&del *.png 2>nul&del *.gif 2>nul&del down*.txt 2>nul
-	python ..\1688-1.py
 )
