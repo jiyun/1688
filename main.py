@@ -355,6 +355,7 @@ def main():
         print("  python main.py --process-images [--webp [--t] [--color]] [--with-animated]")
         print("  python main.py <image_file> (处理单张图片)")
         print("  python main.py --gui (启动GUI模式)")
+        print("  python main.py --cli (强制使用命令行模式)")
         print("  python main.py --help | -h (显示此帮助信息)")
         print("====================================")
         print("参数说明:")
@@ -369,13 +370,17 @@ def main():
         print("    --with-animated    : 包含GIF、WebP等动图")
         print("  <image_file>         : 要处理的单张图片文件路径")
         print("  --gui                : 启动图形用户界面模式")
+        print("  --cli                : 强制使用命令行模式（双击启动时）")
         print("  --help, -h           : 显示此帮助信息")
+        print("====================================")
+        print("提示: 双击启动时自动进入GUI模式")
         print("====================================")
         return 0
     
-    # 检查是否启动GUI模式
-    if len(sys.argv) > 1 and sys.argv[1] == "--gui":
-        # 启动GUI模式
+    # 检测启动方式，自动判断GUI/CLI模式
+    from utils.launcher import should_start_gui
+    
+    if should_start_gui():
         from gui.app import main as gui_main
         gui_main()
         return 0
