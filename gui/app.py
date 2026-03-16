@@ -491,8 +491,6 @@ class AlibabaScraperGUI:
         
         if column == "#1":
             self._open_product_page(product_id)
-        elif column == "#2":
-            self._open_shop_page(product_id)
         elif column == "#5":
             self._show_selling_prices(product_id)
         elif column == "#6":
