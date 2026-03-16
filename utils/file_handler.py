@@ -28,9 +28,19 @@ class FileHandler:
         print(f"属性保存到: {output_path}")
         return True
     
-    def generate_url_shortcut(self, product_id, directory='.'):
-        """生成URL快捷方式"""
-        url = f"https://detail.1688.com/offer/{product_id}.html"
+    def generate_url_shortcut(self, product_id, directory='.', platform='alibaba'):
+        """生成URL快捷方式
+        
+        Args:
+            product_id: 商品ID
+            directory: 输出目录
+            platform: 平台标识 ('alibaba' 或 'jd')
+        """
+        # 根据平台生成不同的URL
+        if platform == 'jd':
+            url = f"https://item.jd.com/{product_id}.html"
+        else:
+            url = f"https://detail.1688.com/offer/{product_id}.html"
         
         # 根据操作系统生成不同格式的快捷方式
         import platform

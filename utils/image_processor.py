@@ -516,46 +516,19 @@ def enlarge_main_images():
         
         reporter.complete_progress("主图")
     
-    need_step2 = False
-    for file_path in step1_queue:
-        try:
-            with Image.open(file_path) as img:
-                width, height = img.size
-                if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
-                    need_step2 = True
-                    break
-        except:
-            pass
-    
-    if not need_step2:
-        if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_MAIN:
-            for i, file_path in enumerate(step1_queue, 1):
-                try:
-                    with Image.open(file_path) as img:
-                        base_name = os.path.basename(file_path)
-                        name, ext = os.path.splitext(base_name)
-                        webp_path = os.path.join(current_dir, f"{name}.webp")
-                        img.save(webp_path, format="WebP", quality=jpeg_quality)
-                except Exception as e:
-                    reporter.main_stats['errors'] += 1
-        
-        reporter.show_section_summary("主图处理完成", reporter.main_stats)
-        return
-
     for i, file_path in enumerate(step1_queue, 1):
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
-
+                if name.startswith('E_'):
+                    continue
                 new_name = f"E_{name}{ext}"
                 output_path = os.path.join(current_dir, new_name)
-
                 if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_MAIN:
                     webp_path = os.path.join(current_dir, f"E_{name}.webp")
-                    if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
+                    if width < main_image_target_size or height < main_image_target_size:
                         img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
                         img_resized.save(webp_path, format="WebP", quality=jpeg_quality)
                         reporter.main_stats['processed'] += 1
@@ -563,7 +536,7 @@ def enlarge_main_images():
                         img.save(webp_path, format="WebP", quality=jpeg_quality)
                         reporter.main_stats['skipped'] += 1
                 else:
-                    if main_image_min_size <= width <= detail_min_width and main_image_min_size <= height <= detail_min_width:
+                    if width < main_image_target_size or height < main_image_target_size:
                         img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
                         img_resized.save(output_path, quality=jpeg_quality)
                         reporter.main_stats['processed'] += 1

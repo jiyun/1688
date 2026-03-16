@@ -27,7 +27,8 @@ class ContextMenuManager:
             'with_animated': tk.BooleanVar(value=False),
             'webp_support': tk.BooleanVar(value=False),
             'webp_main': tk.BooleanVar(value=False),
-            'webp_color': tk.BooleanVar(value=False)
+            'webp_color': tk.BooleanVar(value=False),
+            'avif_support': tk.BooleanVar(value=False)
         }
         
         self._create_context_menu()
@@ -39,10 +40,16 @@ class ContextMenuManager:
         # 创建图像优化子菜单
         image_menu = tk.Menu(self.context_menu, tearoff=0)
         
-        # 添加支持动图选项（放在首行，与--with-animated参数等价）
+        # 添加支持动图选项
         image_menu.add_checkbutton(
             label="支持动图",
             variable=self.checkbox_vars['with_animated']
+        )
+        
+        # 添加AVIF支持选项（京东平台专用）
+        image_menu.add_checkbutton(
+            label="AVIF支持",
+            variable=self.checkbox_vars['avif_support']
         )
         
         # 创建WebP支持子菜单
@@ -50,15 +57,15 @@ class ContextMenuManager:
         webp_menu.add_checkbutton(
             label="支持主图",
             variable=self.checkbox_vars['webp_main'],
-            state=tk.DISABLED  # 初始禁用，只有webp_support勾选时才启用
+            state=tk.DISABLED
         )
         webp_menu.add_checkbutton(
             label="支持色卡图",
             variable=self.checkbox_vars['webp_color'],
-            state=tk.DISABLED  # 初始禁用，只有webp_support勾选时才启用
+            state=tk.DISABLED
         )
         
-        # 添加WebP支持菜单项（带复选框）
+        # 添加WebP支持菜单项
         image_menu.add_checkbutton(
             label="WebP支持",
             variable=self.checkbox_vars['webp_support'],
@@ -67,7 +74,7 @@ class ContextMenuManager:
         image_menu.add_cascade(
             label="WebP选项",
             menu=webp_menu,
-            state=tk.DISABLED  # 初始禁用，只有webp_support勾选时才启用
+            state=tk.DISABLED
         )
         
         # 添加分隔线
@@ -85,7 +92,7 @@ class ContextMenuManager:
             menu=image_menu
         )
         
-        # 添加其他原有菜单项
+        # 添加其他菜单项
         self.context_menu.add_command(
             label="资源打包",
             command=lambda: self._call_command("context_pack_files")
@@ -159,6 +166,10 @@ class ContextMenuManager:
                 webp_color=webp_color
             )
     
+    def get_avif_support(self) -> bool:
+        """获取AVIF支持状态"""
+        return self.checkbox_vars['avif_support'].get()
+    
     def _call_command(self, command_name):
         """调用父控件的命令方法
         
@@ -180,13 +191,12 @@ class ContextMenuManager:
             self.parent_widget.queue_tree.selection_set(item)
             values = self.parent_widget.queue_tree.item(item, 'values')
             if values:
-                file_index = int(values[0]) - 1  # 序号从1开始
+                file_index = int(values[0]) - 1
                 if 0 <= file_index < len(self.parent_widget.queue_manager.file_queue):
                     file_path = self.parent_widget.queue_manager.file_queue[file_index]
                     status = self.parent_widget.file_status.get(file_path, "none")
                     
                     # 根据状态启用/禁用菜单项
-                    # 只有执行过采集（success、error、exists或duplicate）才启用前三项
                     state = tk.NORMAL if status in ["success", "error", "exists", "duplicate"] else tk.DISABLED
                     
                     self.context_menu.entryconfig("图像优化", state=state)

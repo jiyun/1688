@@ -6,10 +6,12 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, filedialog
 import csv
 import json
 from typing import List, Dict, Any
+
+from gui.dialog import show_info, show_warning, show_error, ask_yes_no
 
 try:
     from config import PRICING_CONF
@@ -198,13 +200,13 @@ class PricingToolGUI:
     def _delete_base(self, index):
         if 0 <= index < len(self.bases):
             if len(self.bases) <= 1:
-                messagebox.showwarning("警告", "至少需要保留一个本体")
+                show_warning(self.root, "警告", "至少需要保留一个本体")
                 return
             
             base_name = self.bases[index]["name"]
             for sku in self.sku_configs:
                 if sku["base_name"] == base_name:
-                    messagebox.showwarning("警告", f"有SKU正在使用该本体：{base_name}，无法删除")
+                    show_warning(self.root, "警告", f"有SKU正在使用该本体：{base_name}，无法删除")
                     return
             
             del self.bases[index]
@@ -372,7 +374,7 @@ class PricingToolGUI:
             selected_attachments = [name for name, var in attachment_vars.items() if var.get()]
             
             if not sku_name:
-                messagebox.showwarning("警告", "请输入SKU名称")
+                show_warning(self.root, "警告", "请输入SKU名称")
                 return
             
             self.sku_configs.append({
@@ -388,7 +390,7 @@ class PricingToolGUI:
     
     def _auto_generate_sku(self):
         if not self.bases:
-            messagebox.showwarning("警告", "请先添加本体")
+            show_warning(self.root, "警告", "请先添加本体")
             return
         
         self.sku_configs = []
@@ -413,12 +415,12 @@ class PricingToolGUI:
         
         self._update_sku_list()
         self._update_target_sku_combobox()
-        messagebox.showinfo("成功", f"已自动生成 {len(self.sku_configs)} 个SKU")
+        show_info(self.root, "成功", f"已自动生成 {len(self.sku_configs)} 个SKU")
     
     def _edit_sku(self):
         selection = self.sku_listbox.curselection()
         if not selection:
-            messagebox.showwarning("警告", "请先选择要编辑的SKU")
+            show_warning(self.root, "警告", "请先选择要编辑的SKU")
             return
         
         index = selection[0]
@@ -463,7 +465,7 @@ class PricingToolGUI:
     def _delete_sku(self):
         selection = self.sku_listbox.curselection()
         if not selection:
-            messagebox.showwarning("警告", "请先选择要删除的SKU")
+            show_warning(self.root, "警告", "请先选择要删除的SKU")
             return
         
         index = selection[0]
@@ -473,14 +475,14 @@ class PricingToolGUI:
     
     def _calculate_prices(self):
         if not self.sku_configs:
-            messagebox.showwarning("警告", "请先配置SKU")
+            show_warning(self.root, "警告", "请先配置SKU")
             return
         
         target_sku = self.target_sku_var.get()
         max_price = self.max_price_var.get()
         
         if not target_sku or max_price <= 0:
-            messagebox.showwarning("警告", "请选择定价基准SKU并设置最高售价")
+            show_warning(self.root, "警告", "请选择定价基准SKU并设置最高售价")
             return
         
         target_sku_config = None
@@ -490,12 +492,12 @@ class PricingToolGUI:
                 break
         
         if not target_sku_config:
-            messagebox.showwarning("警告", "找不到目标SKU配置")
+            show_warning(self.root, "警告", "找不到目标SKU配置")
             return
         
         target_cost = self._calculate_sku_cost(target_sku_config)
         if target_cost <= 0:
-            messagebox.showwarning("警告", "目标SKU成本无效")
+            show_warning(self.root, "警告", "目标SKU成本无效")
             return
         
         strategy = self.strategy_var.get()
@@ -552,7 +554,7 @@ class PricingToolGUI:
     
     def _save_to_database(self):
         if not self.product_id:
-            messagebox.showwarning("警告", "请先选择商品")
+            show_warning(self.root, "警告", "请先选择商品")
             return
         
         results = []
@@ -565,19 +567,19 @@ class PricingToolGUI:
                 })
         
         if not results:
-            messagebox.showwarning("警告", "请先计算价格")
+            show_warning(self.root, "警告", "请先计算价格")
             return
         
         try:
             from utils.database import db
             db.save_selling_prices(self.product_id, results)
-            messagebox.showinfo("成功", f"已保存 {len(results)} 条价格数据到数据库")
+            show_info(self.root, "成功", f"已保存 {len(results)} 条价格数据到数据库")
         except Exception as e:
-            messagebox.showerror("错误", f"保存失败：{str(e)}")
+            show_error(self.root, "错误", f"保存失败：{str(e)}")
     
     def _export_results(self):
         if not self.result_tree.get_children():
-            messagebox.showwarning("警告", "请先计算价格")
+            show_warning(self.root, "警告", "请先计算价格")
             return
         
         file_path = filedialog.asksaveasfilename(
@@ -596,9 +598,9 @@ class PricingToolGUI:
                         values = self.result_tree.item(item, 'values')
                         writer.writerow(values)
                 
-                messagebox.showinfo("成功", f"结果已导出到：{file_path}")
+                show_info(self.root, "成功", f"结果已导出到：{file_path}")
             except Exception as e:
-                messagebox.showerror("错误", f"导出失败：{str(e)}")
+                show_error(self.root, "错误", f"导出失败：{str(e)}")
     
     def _load_from_database(self, product_id):
         try:

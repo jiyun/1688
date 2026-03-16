@@ -103,7 +103,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
             os.remove(merged_path)
         
         # 删除原采集文件
-        patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png']
+        patterns = ['C_*.jpg', 'C_*.png', 'T_*.jpg', 'T_*.png', 'color_*.jpg', 'color_*.png', 'C_*.avif', 'T_*.avif', 'color_*.avif']
         if with_animated:
             patterns.extend(['C_*.gif', 'T_*.gif', 'color_*.gif'])
         
@@ -558,6 +558,10 @@ class ContextMenuCommands:
                     if output_path:
                         cmd.extend(["--output", output_path])
                     
+                    # 检查AVIF支持选项
+                    if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
+                        cmd.append("--keep-avif")
+                    
                     process = subprocess.Popen(
                         cmd,
                         stdout=subprocess.PIPE,
@@ -600,6 +604,10 @@ class ContextMenuCommands:
                     cmd = ["python", main_py_path, file_path, "--no-rebuild"]
                     if output_path:
                         cmd.extend(["--output", output_path])
+                    
+                    # 检查AVIF支持选项
+                    if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
+                        cmd.append("--keep-avif")
                     
                     process = subprocess.Popen(
                         cmd,

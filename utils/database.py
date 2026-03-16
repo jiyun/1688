@@ -70,10 +70,29 @@ class Database:
             ''')
             
             cursor.execute('''
+                CREATE TABLE IF NOT EXISTS resources (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    resource_url TEXT NOT NULL,
+                    resource_name TEXT,
+                    downloaded INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (product_id) REFERENCES products(product_id)
+                )
+            ''')
+            
+            cursor.execute('''
                 CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)
             ''')
             cursor.execute('''
                 CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)
             ''')
             
             try:
@@ -316,6 +335,150 @@ class Database:
             except:
                 return None
         return None
+    
+    def save_resources(self, product_id: str, resources: Dict[str, List]) -> bool:
+        """保存资源URL到数据库
+        
+        Args:
+            product_id: 商品ID
+            resources: 资源字典，包含 main_images, color_card_images, detail_images, videos
+        
+        Returns:
+            是否保存成功
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 先删除该商品的旧资源记录
+            cursor.execute('DELETE FROM resources WHERE product_id = ?', (product_id,))
+            
+            # 保存主图
+            main_images = resources.get('main_images', [])
+            for idx, item in enumerate(main_images):
+                if isinstance(item, tuple):
+                    url, name = item
+                else:
+                    url, name = item, str(idx + 1)
+                
+                cursor.execute('''
+                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
+                    VALUES (?, ?, ?, ?)
+                ''', (product_id, 'main_image', name, url))
+            
+            # 保存色卡图
+            color_cards = resources.get('color_card_images', [])
+            for item in color_cards:
+                if isinstance(item, tuple):
+                    url, name = item
+                else:
+                    url, name = item, ''
+                
+                if url:
+                    cursor.execute('''
+                        INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
+                        VALUES (?, ?, ?, ?)
+                    ''', (product_id, 'color_image', name, url))
+            
+            # 保存详情图
+            detail_images = resources.get('detail_images', [])
+            for idx, url in enumerate(detail_images):
+                cursor.execute('''
+                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
+                    VALUES (?, ?, ?, ?)
+                ''', (product_id, 'detail_image', str(idx + 1), url))
+            
+            # 保存视频
+            videos = resources.get('videos', [])
+            for idx, url in enumerate(videos):
+                cursor.execute('''
+                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
+                    VALUES (?, ?, ?, ?)
+                ''', (product_id, 'video', str(idx + 1), url))
+            
+            return True
+    
+    def get_resources(self, product_id: str, resource_type: str = None) -> List[Dict[str, Any]]:
+        """获取商品资源
+        
+        Args:
+            product_id: 商品ID
+            resource_type: 资源类型，None表示获取所有
+        
+        Returns:
+            资源列表
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            if resource_type:
+                cursor.execute('''
+                    SELECT * FROM resources 
+                    WHERE product_id = ? AND resource_type = ?
+                    ORDER BY id
+                ''', (product_id, resource_type))
+            else:
+                cursor.execute('''
+                    SELECT * FROM resources 
+                    WHERE product_id = ?
+                    ORDER BY 
+                        CASE resource_type
+                            WHEN 'main_image' THEN 1
+                            WHEN 'color_image' THEN 2
+                            WHEN 'video' THEN 3
+                            WHEN 'detail_image' THEN 4
+                        END,
+                        id
+                ''', (product_id,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    
+    def get_resources_by_type(self, product_id: str) -> Dict[str, List[Dict]]:
+        """按类型获取商品资源
+        
+        Args:
+            product_id: 商品ID
+        
+        Returns:
+            按类型分组的资源字典
+        """
+        resources = self.get_resources(product_id)
+        
+        result = {
+            'main_images': [],
+            'color_images': [],
+            'detail_images': [],
+            'videos': []
+        }
+        
+        for res in resources:
+            res_type = res.get('resource_type', '')
+            if res_type == 'main_image':
+                result['main_images'].append(res)
+            elif res_type == 'color_image':
+                result['color_images'].append(res)
+            elif res_type == 'detail_image':
+                result['detail_images'].append(res)
+            elif res_type == 'video':
+                result['videos'].append(res)
+        
+        return result
+    
+    def mark_resource_downloaded(self, resource_id: int) -> bool:
+        """标记资源已下载"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE resources SET downloaded = 1 WHERE id = ?
+            ''', (resource_id,))
+            return cursor.rowcount > 0
+    
+    def clear_resources(self, product_id: str) -> bool:
+        """清除商品的所有资源记录"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM resources WHERE product_id = ?', (product_id,))
+            return True
 
 
 db = Database()

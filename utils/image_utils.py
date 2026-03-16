@@ -240,7 +240,7 @@ def convert_animated_image(file_path, output_path, target_width=None):
 def collect_image_files(directory, prefix):
     """收集指定前缀的图片文件"""
     image_patterns = []
-    base_exts = ['jpg', 'png', 'jpeg']
+    base_exts = ['jpg', 'png', 'jpeg', 'avif']
     animated_exts = ['gif', 'webp'] if WITH_ANIMATED else []
     
     all_exts = base_exts + animated_exts

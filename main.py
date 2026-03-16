@@ -17,6 +17,7 @@ import sys
 import io
 
 sys.dont_write_bytecode = True
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -27,18 +28,20 @@ ensure_all_dependencies()
 from utils.parser import HTMLParser
 from utils.downloader import Downloader
 from utils.file_handler import FileHandler
+from utils.logger import log_info, log_success, log_warning, log_error
 import config
 
 class AlibabaScraper:
-    def __init__(self, html_file, output_path=None):
+    def __init__(self, html_file, output_path=None, keep_avif=False):
         self.html_file = html_file
         self.output_path = output_path
+        self.keep_avif = keep_avif
         self.product_id = self._extract_product_id()
         self.parser = None
         self.downloader = Downloader({
             'DOWNLOAD_CONF': config.DOWNLOAD_CONF,
             'FILE_NAMING': config.FILE_NAMING
-        })
+        }, keep_avif=self.keep_avif)
         self.file_handler = FileHandler({
             'DOWNLOAD_CONF': config.DOWNLOAD_CONF,
             'FILE_NAMING': config.FILE_NAMING
@@ -55,17 +58,17 @@ class AlibabaScraper:
         try:
             with open(self.html_file, 'r', encoding='utf-8') as f:
                 html_content = f.read()
-            self.parser = HTMLParser(html_content)
-            print(f"HTML文件加载成功: {self.html_file}")
+            self.parser = HTMLParser(html_content, keep_avif=self.keep_avif)
+            log_info(f"HTML文件加载成功: {self.html_file}", "Main")
             return True
         except Exception as e:
-            print(f"HTML文件加载失败: {e}")
+            log_error(f"HTML文件加载失败: {e}", "Main")
             return False
     
     def extract_resources(self):
         """提取资源"""
         if not self.parser:
-            print("请先加载HTML文件")
+            log_warning("请先加载HTML文件", "Main")
             return False
         
         main_images = self.parser.get_main_images()
@@ -107,15 +110,22 @@ class AlibabaScraper:
             parts.append(f"详情图({len(detail_images)})")
         
         if parts:
-            print(f"资源提取完成: {', '.join(parts)}")
+            log_info(f"资源提取完成: {', '.join(parts)}", "Main")
         else:
-            print("资源提取完成: 未发现有效资源")
+            log_info("资源提取完成: 未发现有效资源", "Main")
+        
+        try:
+            from utils.database import db
+            db.save_resources(self.product_id, self.resources)
+        except Exception as e:
+            log_error(f"保存资源信息失败: {e}", "Main")
+        
         return True
     
     def extract_prices(self):
         """提取价格信息"""
         if not self.parser:
-            print("请先加载HTML文件")
+            log_warning("请先加载HTML文件", "Main")
             return False
         
         from utils.price_extractor import PriceExtractor
@@ -137,28 +147,27 @@ class AlibabaScraper:
             
             if prices.get('sku_prices'):
                 db.save_sku_prices(self.product_id, prices['sku_prices'])
-                print(f"已保存SKU价格: {len(prices['sku_prices'])}条")
+                log_info(f"已保存SKU价格: {len(prices['sku_prices'])}条", "Main")
             
             if prices.get('consign_prices'):
                 db.save_consign_prices(self.product_id, prices['consign_prices'])
-                print(f"已保存代发价格: {len(prices['consign_prices'])}条")
+                log_info(f"已保存代发价格: {len(prices['consign_prices'])}条", "Main")
                 
         except Exception as e:
-            print(f"保存价格信息失败: {e}")
+            log_error(f"保存价格信息失败: {e}", "Main")
         
         return True
     
     def download_resources(self):
         """下载资源"""
         if not hasattr(self, 'resources'):
-            print("请先提取资源")
+            log_warning("请先提取资源", "Main")
             return False
         
-        # 生成下载列表
         download_list = self.downloader.generate_download_list(self.resources)
         
         if not download_list:
-            print("没有可下载的资源")
+            log_warning("没有可下载的资源", "Main")
             return False
         
         # 保存下载列表
@@ -176,7 +185,7 @@ class AlibabaScraper:
     def save_attributes(self):
         """保存属性"""
         if not hasattr(self, 'resources'):
-            print("请先提取资源")
+            log_warning("请先提取资源", "Main")
             return False
         
         attributes = self.resources.get('attributes', [])
@@ -187,7 +196,8 @@ class AlibabaScraper:
     
     def generate_shortcut(self):
         """生成URL快捷方式"""
-        self.file_handler.generate_url_shortcut(self.product_id)
+        platform = self.parser.get_platform() if self.parser else 'alibaba'
+        self.file_handler.generate_url_shortcut(self.product_id, platform=platform)
         return True
     
     def create_rebuild_script(self):
@@ -203,57 +213,48 @@ class AlibabaScraper:
     
     def run(self, create_rebuild_script=True):
         """运行完整流程"""
-        print("=== 1688详情页资源采集工具 ====")
+        log_info("=== 1688详情页资源采集工具 ====", "Main")
         
-        # 在切换目录前保存HTML文件的绝对路径
         html_abs_path = os.path.abspath(self.html_file)
         
-        # 检查HTML文件是否存在
         if not os.path.exists(html_abs_path):
-            print(f"错误: HTML文件不存在: {html_abs_path}")
+            log_error(f"HTML文件不存在: {html_abs_path}", "Main")
             return False
         
-        # 更新HTML文件路径为绝对路径
         self.html_file = html_abs_path
         
-        # 确定输出目录
         if self.output_path:
-            # 使用自定义输出路径
             output_dir = os.path.abspath(os.path.join(self.output_path, self.product_id))
         else:
-            # 使用默认路径（HTML文件所在目录下的商品ID子目录）
             html_dir = os.path.dirname(html_abs_path)
             output_dir = os.path.abspath(os.path.join(html_dir, self.product_id))
         
-        print(f"输出目录: {output_dir}")
+        log_info(f"输出目录: {output_dir}", "Main")
         
-        # 创建输出目录（如果不存在）
         if not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir, exist_ok=True)
-                print(f"已创建输出目录: {output_dir}")
+                log_info(f"已创建输出目录: {output_dir}", "Main")
             except PermissionError as e:
-                print(f"错误: 无法创建文件夹 '{output_dir}'")
-                print(f"请检查是否有写入权限")
-                print(f"详细错误: {e}")
+                log_error(f"无法创建文件夹 '{output_dir}'", "Main")
+                log_error(f"请检查是否有写入权限", "Main")
+                log_error(f"详细错误: {e}", "Main")
                 return False
         elif os.path.isfile(output_dir):
-            print(f"错误: '{output_dir}' 是一个文件而非目录")
-            print(f"请删除或重命名该文件后重试")
+            log_error(f"'{output_dir}' 是一个文件而非目录", "Main")
+            log_error(f"请删除或重命名该文件后重试", "Main")
             return False
         
-        # 切换到输出目录
         try:
             os.chdir(output_dir)
-            print(f"工作目录: {os.getcwd()}")
+            log_info(f"工作目录: {os.getcwd()}", "Main")
         except PermissionError as e:
-            print(f"错误: 无法进入目录 '{output_dir}'")
-            print(f"详细错误: {e}")
+            log_error(f"无法进入目录 '{output_dir}'", "Main")
+            log_error(f"详细错误: {e}", "Main")
             return False
         
-        # 1. 加载HTML文件
         if not self.load_html():
-            print("加载HTML文件失败")
+            log_error("加载HTML文件失败", "Main")
             return False
         
         # 2. 提取价格信息
@@ -261,7 +262,7 @@ class AlibabaScraper:
         
         # 3. 提取资源
         if not self.extract_resources():
-            print("提取资源失败")
+            log_error("提取资源失败", "Main")
             return False
         
         # 4. 下载资源
@@ -286,11 +287,11 @@ class AlibabaScraper:
             detail_count = len(self.resources.get('detail_images', []))
             video_count = len(self.resources.get('videos', []))
             db.update_resource_counts(self.product_id, main_count, color_count, detail_count, video_count, output_dir)
-            print(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})")
+            log_info(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})", "Main")
         except Exception as e:
-            print(f"保存资源计数失败: {e}")
+            log_error(f"保存资源计数失败: {e}", "Main")
         
-        print("=== 处理完成 ====")
+        log_success("=== 处理完成 ====", "Main")
         return True
     
     def process_images(self, image_path=None, with_animated=False, output_webp=False, convert_main=False, convert_color=False):
@@ -337,6 +338,7 @@ def main():
     convert_main = False
     convert_color = False
     output_path = None  # 新增：输出路径参数
+    keep_avif = False  # 新增：保留AVIF格式参数
     
     # 检查帮助参数
     if len(sys.argv) > 1 and (sys.argv[1] == "--help" or sys.argv[1] == "-h"):
@@ -358,6 +360,7 @@ def main():
         print("  <html_file>          : 要处理的1688详情页HTML文件路径")
         print("  --no-rebuild         : 可选参数，不创建重建脚本")
         print("  --output <path>      : 可选参数，指定输出目录路径")
+        print("  --keep-avif          : 可选参数，保留AVIF格式（京东平台专用）")
         print("  --process-images     : 处理当前目录中的所有详情图")
         print("    --webp             : 输出图片格式为WebP")
         print("      --t              : 将主图转换为WebP格式")
@@ -396,6 +399,11 @@ def main():
                 continue  # 忽略子参数
             # 保留--no-rebuild参数
             if arg == "--no-rebuild":
+                filtered_args.append(arg)
+                i += 1
+                continue
+            # 保留--keep-avif参数
+            if arg == "--keep-avif":
                 filtered_args.append(arg)
                 i += 1
                 continue
@@ -458,6 +466,9 @@ def main():
                 if args[i] == "--no-rebuild":
                     create_rebuild_script = False
                     i += 1
+                elif args[i] == "--keep-avif":
+                    keep_avif = True
+                    i += 1
                 elif args[i] == "--output" and i + 1 < len(args):
                     output_path = args[i + 1]
                     i += 2
@@ -471,24 +482,22 @@ def main():
         success = scraper.process_images(with_animated=with_animated, output_webp=output_webp, convert_main=convert_main, convert_color=convert_color)
         return 0 if success else 1
     elif image_path:
-        # 处理单张图片
-        print(f"开始处理单张图片: {image_path}")
-        # 创建一个临时的 AlibabaScraper 实例
+        log_info(f"开始处理单张图片: {image_path}", "Main")
         scraper = AlibabaScraper("")
         success = scraper.process_images(image_path)
         return 0 if success else 1
     else:
-        print(f"处理文件: {html_file}")
+        log_info(f"处理文件: {html_file}", "Main")
         
         if not os.path.exists(html_file):
-            print(f"HTML文件不存在: {html_file}")
-            print(f"当前目录: {os.getcwd()}")
-            print(f"文件列表: {os.listdir('.')}")
+            log_error(f"HTML文件不存在: {html_file}", "Main")
+            log_info(f"当前目录: {os.getcwd()}", "Main")
+            log_info(f"文件列表: {os.listdir('.')}", "Main")
             return 1
         
-        print(f"HTML文件存在，大小: {os.path.getsize(html_file)} 字节")
+        log_info(f"HTML文件存在，大小: {os.path.getsize(html_file)} 字节", "Main")
         
-        scraper = AlibabaScraper(html_file, output_path)
+        scraper = AlibabaScraper(html_file, output_path, keep_avif)
         success = scraper.run(create_rebuild_script)
         
         return 0 if success else 1

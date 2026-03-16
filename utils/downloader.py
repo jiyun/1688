@@ -10,8 +10,9 @@ if sys.stdout:
     sys.stdout.reconfigure(line_buffering=True)
 
 class Downloader:
-    def __init__(self, config):
+    def __init__(self, config, keep_avif=False):
         self.config = config
+        self.keep_avif = keep_avif
     
     def _clean_duplicate_extension(self, url):
         """清理URL中的重复扩展名，如.jpg_b.jpg -> .jpg"""
@@ -43,10 +44,11 @@ class Downloader:
 
     def _clean_url(self, url):
         """清理URL，删除扩展名后的查询参数和重复扩展名"""
-        # 首先处理重复扩展名
         url = self._clean_duplicate_extension(url)
+        
+        if not self.keep_avif and url.endswith('.avif'):
+            url = url[:-5]
 
-        # 然后删除查询参数
         if '?' in url:
             base_url = url.split('?')[0]
             return base_url

@@ -17,6 +17,7 @@ from gui.logging import GUILogger
 from gui.queue import QueueManager
 from gui.menu import ContextMenuManager
 from gui.commands import ContextMenuCommands
+from gui.dnd import DynamicDropOverlay, HAS_DND
 
 # 尝试导入 tkinterweb 和 markdown
 try:
@@ -47,6 +48,8 @@ class AlibabaScraperGUI:
         self.root.resizable(GUI_CONF['window_resizable'], GUI_CONF['window_resizable'])
         
         self.easter_egg_counter = 0
+        self.alt_press_counter = 0
+        self.easter_egg_activated = False
         self.db_tab_visible = False
         self._is_gui_mode = True
         
@@ -93,24 +96,18 @@ class AlibabaScraperGUI:
         self.execute_btn = tk.Button(self.button_frame, text="执行 (Enter)", command=self.execute, width=12, bg="#4CAF50", fg="white")
         self.execute_btn.pack(side=tk.RIGHT, padx=3)
         
-        # 创建输出路径配置框架
         self.output_frame = tk.Frame(self.queue_tab)
-        self.output_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 输出路径标签
         self.output_label = tk.Label(self.output_frame, text="输出路径:")
         self.output_label.pack(side=tk.LEFT, padx=5)
         
-        # 输出路径输入框
         self.output_path_var = tk.StringVar()
         self.output_path_entry = tk.Entry(self.output_frame, textvariable=self.output_path_var, width=60)
         self.output_path_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         
-        # 浏览按钮
         self.browse_btn = tk.Button(self.output_frame, text="浏览...", command=self.browse_output_path, width=10)
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         
-        # 添加快捷键绑定
         self.root.bind('<a>', lambda event: self.add_file())
         self.root.bind('<A>', lambda event: self.add_file())
         self.root.bind('<d>', lambda event: self.add_directory())
@@ -120,6 +117,10 @@ class AlibabaScraperGUI:
         self.root.bind('<P>', lambda event: self.pause())
         self.root.bind('<Return>', lambda event: self.execute())
         self.root.bind('<Pause>', lambda event: self.pause())
+        self.root.bind('<Alt_L>', self._on_alt_press)
+        self.root.bind('<Alt_R>', self._on_alt_press)
+        self.root.bind('<KeyRelease-Alt_L>', self._on_alt_release)
+        self.root.bind('<KeyRelease-Alt_R>', self._on_alt_release)
         
         # 创建队列和日志框架
         self.content_frame = tk.Frame(self.queue_tab)
@@ -171,7 +172,8 @@ class AlibabaScraperGUI:
         # 初始化模块化组件
         self._init_modules()
         
-        # 加载保存的输出路径
+        self._init_drop_zone()
+        
         self.load_output_path()
         
         self.help_frame = None
@@ -180,16 +182,12 @@ class AlibabaScraperGUI:
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
         
         self.log("1688详情页资源采集工具 - GUI 版本")
-        self.log(f"日志字体: {available_font}")
         self.log("-----------------------------------")
         self.log("使用说明：")
-        self.log("1. 点击 '添加文件' 按钮添加多个 HTML 文件（支持多选）")
-        self.log("2. 点击 '添加目录' 按钮添加目录中所有 HTML 文件")
-        self.log("3. 在列表中选择文件后点击 '移除文件' 按钮移除选中的文件")
-        self.log("4. 点击 '清空队列' 按钮清空所有队列中的文件")
-        self.log("5. 点击 '执行' 按钮开始处理队列中的文件")
-        self.log("6. 点击 '暂停' 按钮暂停队列处理")
-        self.log("7. 在下方日志窗口查看执行过程和结果")
+        self.log("1. 添加文件/目录 或 拖放HTML文件到窗口")
+        self.log("2. 点击 '执行' 开始处理，'暂停' 暂停处理")
+        self.log("3. 选中文件后可移除或清空队列")
+        self.log("4. 日志窗口显示执行过程和结果")
         self.log("-----------------------------------")
     
     def _init_db_tab(self):
@@ -509,6 +507,34 @@ class AlibabaScraperGUI:
         except Exception as e:
             self.log(f"删除记录失败: {e}", "error")
     
+    def _init_drop_zone(self):
+        """初始化拖放覆盖层"""
+        if HAS_DND:
+            self.drop_overlay = DynamicDropOverlay(
+                self.root,
+                self.main_frame,
+                on_drop_callback=self._on_files_dropped
+            )
+        else:
+            self.drop_overlay = None
+    
+    def _on_files_dropped(self, files):
+        """处理拖放的文件
+        
+        Args:
+            files: 文件路径列表
+        """
+        added_count = 0
+        for file_path in files:
+            if file_path not in self.queue_manager.file_queue:
+                self.queue_manager.file_queue.append(file_path)
+                self.queue_manager.file_status[file_path] = "pending"
+                added_count += 1
+        
+        if added_count > 0:
+            self.queue_manager.update_queue_list()
+            self.log(f"通过拖放添加了 {added_count} 个HTML文件", "success")
+    
     def _init_modules(self):
         """初始化模块化组件"""
         # 初始化日志模块
@@ -631,6 +657,29 @@ class AlibabaScraperGUI:
         
         return result.get()
     
+    def _on_alt_press(self, event):
+        """Alt键按下事件处理"""
+        if not self.easter_egg_activated:
+            self.alt_press_counter += 1
+            if self.alt_press_counter >= 8:
+                self._activate_easter_egg()
+    
+    def _on_alt_release(self, event):
+        """Alt键释放事件处理"""
+        pass
+    
+    def _activate_easter_egg(self, show_message=True):
+        """激活彩蛋 - 显示输出路径区域
+        
+        Args:
+            show_message: 是否显示彩蛋激活消息
+        """
+        if not self.easter_egg_activated:
+            self.easter_egg_activated = True
+            self.output_frame.pack(fill=tk.X, pady=(0, 5), before=self.content_frame)
+            if show_message:
+                self.log("恭喜你发现了彩蛋！连续按8次Alt键激活了输出路径设置！", "success")
+    
     def browse_output_path(self):
         """浏览并选择输出路径"""
         from tkinter import filedialog
@@ -702,6 +751,7 @@ class AlibabaScraperGUI:
                     saved_path = f.read().strip()
                     if saved_path and os.path.exists(saved_path):
                         self.output_path_var.set(saved_path)
+                        self._activate_easter_egg(show_message=False)
                         self.log(f"已加载输出路径: {saved_path}")
         except Exception as e:
             self.log(f"加载输出路径失败: {e}", "error")
@@ -1438,13 +1488,16 @@ class AlibabaScraperGUI:
 
 def main():
     """主函数"""
-    # Windows上使用multiprocessing需要调用freeze_support
     multiprocessing.freeze_support()
     
-    root = tk.Tk()
+    if HAS_DND:
+        from gui.dnd import create_dnd_root
+        root = create_dnd_root()
+    else:
+        root = tk.Tk()
+    
     app = AlibabaScraperGUI(root)
     
-    # 隐藏控制台窗口（在GUI窗口创建后）
     hide_console()
     
     app.run()
