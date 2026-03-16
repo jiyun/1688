@@ -286,7 +286,8 @@ class AlibabaScraper:
             color_count = len(self.resources.get('color_card_images', []))
             detail_count = len(self.resources.get('detail_images', []))
             video_count = len(self.resources.get('videos', []))
-            db.update_resource_counts(self.product_id, main_count, color_count, detail_count, video_count, output_dir)
+            platform = self.parser.get_platform() if self.parser else 'alibaba'
+            db.update_resource_counts(self.product_id, main_count, color_count, detail_count, video_count, output_dir, platform)
             log_info(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})", "Main")
         except Exception as e:
             log_error(f"保存资源计数失败: {e}", "Main")

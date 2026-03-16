@@ -256,13 +256,29 @@ class AlibabaScraperGUI:
         self.db_btn_frame = tk.Frame(self.db_content_frame)
         self.db_btn_frame.pack(fill=tk.X, pady=5)
         
-        self.db_refresh_btn = tk.Button(self.db_btn_frame, text="刷新", command=self._refresh_db_data, width=10)
+        self.db_search_frame = tk.Frame(self.db_btn_frame)
+        self.db_search_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.db_search_var = tk.StringVar()
+        self.db_search_field = tk.StringVar(value='product_id')
+        
+        tk.Radiobutton(self.db_search_frame, text="商品ID", variable=self.db_search_field, value='product_id').pack(side=tk.LEFT)
+        tk.Radiobutton(self.db_search_frame, text="DSID", variable=self.db_search_field, value='shop_product_id').pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.db_search_entry = tk.Entry(self.db_search_frame, textvariable=self.db_search_var, width=15)
+        self.db_search_entry.pack(side=tk.LEFT, padx=2)
+        self.db_search_entry.bind('<Return>', lambda e: self._search_db_records())
+        
+        self.db_search_btn = tk.Button(self.db_search_frame, text="搜索", command=self._search_db_records, width=6)
+        self.db_search_btn.pack(side=tk.LEFT, padx=2)
+        
+        self.db_refresh_btn = tk.Button(self.db_btn_frame, text="刷新", command=self._refresh_db_data, width=8)
         self.db_refresh_btn.pack(side=tk.LEFT, padx=5)
         
-        self.db_price_btn = tk.Button(self.db_btn_frame, text="价格计算", command=self._open_pricing_for_selected, width=10)
+        self.db_price_btn = tk.Button(self.db_btn_frame, text="价格计算", command=self._open_pricing_for_selected, width=8)
         self.db_price_btn.pack(side=tk.LEFT, padx=5)
         
-        self.db_delete_btn = tk.Button(self.db_btn_frame, text="删除选中", command=self._delete_db_record, width=10)
+        self.db_delete_btn = tk.Button(self.db_btn_frame, text="删除选中", command=self._delete_db_record, width=8)
         self.db_delete_btn.pack(side=tk.LEFT, padx=5)
         
         self.db_close_btn = tk.Button(self.db_btn_frame, text="关闭数据库", command=self._close_db_tab, width=10)
@@ -270,6 +286,8 @@ class AlibabaScraperGUI:
         
         self.db_status_label = tk.Label(self.db_btn_frame, text="")
         self.db_status_label.pack(side=tk.RIGHT, padx=10)
+        
+        self.db_tree.bind('<Button-3>', self._show_db_context_menu)
     
     def _confirm_db_access(self):
         """确认数据库访问"""
@@ -344,6 +362,139 @@ class AlibabaScraperGUI:
         except Exception as e:
             self.log(f"读取数据库失败: {e}", "error")
             self.db_status_label.config(text="读取失败")
+    
+    def _search_db_records(self):
+        """搜索数据库记录"""
+        search_term = self.db_search_var.get().strip()
+        
+        if not search_term:
+            self._refresh_db_data()
+            return
+        
+        if not search_term.isdigit():
+            self.show_info("提示", "请输入数字进行搜索")
+            return
+        
+        for item in self.db_tree.get_children():
+            self.db_tree.delete(item)
+        
+        try:
+            from utils.database import db
+            import json
+            
+            search_field = self.db_search_field.get()
+            products = db.search_products(search_term, search_field)
+            
+            for product in products:
+                output_path = product.get('output_path', '') or ''
+                if len(output_path) > 30:
+                    output_path = '...' + output_path[-27:]
+                
+                title = product.get('title', '') or ''
+                if len(title) > 15:
+                    title = title[:15] + '...'
+                
+                cost_prices_str = ''
+                cost_prices = product.get('cost_prices')
+                if cost_prices:
+                    try:
+                        cost_data = json.loads(cost_prices)
+                        cost_prices_str = f"{len(cost_data)}条"
+                    except:
+                        pass
+                
+                selling_prices_str = ''
+                selling_prices = product.get('selling_prices')
+                if selling_prices:
+                    try:
+                        selling_data = json.loads(selling_prices)
+                        selling_prices_str = f"{len(selling_data)}条"
+                    except:
+                        pass
+                
+                product_id = product.get('product_id', '')
+                resource_counts = db.count_resources(product_id)
+                resource_counts_str = f"主{resource_counts['main_images']}/色{resource_counts['color_images']}/详{resource_counts['detail_images']}/视{resource_counts['videos']}"
+                
+                self.db_tree.insert("", "end", values=(
+                    product_id,
+                    product.get('shop_product_id', ''),
+                    title,
+                    cost_prices_str,
+                    selling_prices_str,
+                    resource_counts_str,
+                    output_path,
+                    product.get('status', ''),
+                    product.get('created_at', '')
+                ))
+            
+            field_name = "商品ID" if search_field == 'product_id' else "DSID"
+            self.db_status_label.config(text=f"搜索 {field_name}={search_term}: {len(products)} 条")
+            
+        except Exception as e:
+            self.log(f"搜索失败: {e}", "error")
+            self.db_status_label.config(text="搜索失败")
+    
+    def _show_db_context_menu(self, event):
+        """显示数据库右键菜单"""
+        selected = self.db_tree.selection()
+        if not selected:
+            return
+        
+        item = selected[0]
+        self.db_tree.selection_set(item)
+        
+        values = self.db_tree.item(item, 'values')
+        product_id = values[0]
+        
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="访问商品页面", command=lambda: self._open_product_page(product_id))
+        menu.add_command(label="访问店铺页面", command=lambda: self._open_shop_page(product_id))
+        menu.add_separator()
+        menu.add_command(label="删除记录", command=self._delete_db_record)
+        
+        menu.post(event.x_root, event.y_root)
+    
+    def _open_product_page(self, product_id):
+        """用浏览器打开商品页面"""
+        import webbrowser
+        from utils.database import db
+        
+        product = db.get_product(product_id)
+        platform = product.get('platform', 'alibaba') if product else 'alibaba'
+        
+        if platform == 'jd':
+            url = f"https://item.jd.com/{product_id}.html"
+        else:
+            url = f"https://detail.1688.com/offer/{product_id}.html"
+        
+        webbrowser.open(url)
+        self.log(f"已打开商品页面: {url}")
+    
+    def _open_shop_page(self, product_id):
+        """用浏览器打开店铺页面"""
+        import webbrowser
+        from utils.database import db
+        
+        product = db.get_product(product_id)
+        platform = product.get('platform', 'alibaba') if product else 'alibaba'
+        shop_product_id = product.get('shop_product_id', '') if product else ''
+        
+        if platform == 'jd':
+            if shop_product_id:
+                url = f"https://mall.jd.com/index-{shop_product_id}.html"
+            else:
+                self.show_info("提示", "该商品没有店铺ID信息")
+                return
+        else:
+            if shop_product_id:
+                url = f"https://{shop_product_id}.1688.com"
+            else:
+                self.show_info("提示", "该商品没有店铺ID信息")
+                return
+        
+        webbrowser.open(url)
+        self.log(f"已打开店铺页面: {url}")
     
     def _db_tree_double_click(self, event):
         """双击数据库记录"""

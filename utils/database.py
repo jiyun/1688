@@ -114,6 +114,35 @@ class Database:
                 cursor.execute('ALTER TABLE products ADD COLUMN selling_prices TEXT')
             except:
                 pass
+            
+            try:
+                cursor.execute('ALTER TABLE products ADD COLUMN platform TEXT')
+            except:
+                pass
+    
+    def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict[str, Any]]:
+        """搜索商品记录
+        
+        Args:
+            search_term: 搜索关键词（仅数字）
+            search_field: 搜索字段 ('product_id' 或 'shop_product_id')
+        
+        Returns:
+            匹配的商品列表
+        """
+        if not search_term:
+            return []
+        
+        if search_field not in ('product_id', 'shop_product_id'):
+            search_field = 'product_id'
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f'''
+                SELECT * FROM products WHERE {search_field} = ?
+            ''', (search_term,))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
     
     def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
@@ -175,22 +204,22 @@ class Database:
             
             return True
     
-    def update_resource_counts(self, product_id: str, main_images: int, color_images: int, detail_images: int, videos: int, output_path: str = None) -> bool:
+    def update_resource_counts(self, product_id: str, main_images: int, color_images: int, detail_images: int, videos: int, output_path: str = None, platform: str = 'alibaba') -> bool:
         resource_counts = json.dumps([main_images, color_images, detail_images, videos])
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE products 
-                SET resource_counts = ?, output_path = ?, status = 'completed', updated_at = CURRENT_TIMESTAMP
+                SET resource_counts = ?, output_path = ?, platform = ?, status = 'completed', updated_at = CURRENT_TIMESTAMP
                 WHERE product_id = ?
-            ''', (resource_counts, output_path, product_id))
+            ''', (resource_counts, output_path, platform, product_id))
             
             if cursor.rowcount == 0:
                 cursor.execute('''
-                    INSERT INTO products (product_id, resource_counts, output_path, status)
-                    VALUES (?, ?, ?, 'completed')
-                ''', (product_id, resource_counts, output_path))
+                    INSERT INTO products (product_id, resource_counts, output_path, platform, status)
+                    VALUES (?, ?, ?, ?, 'completed')
+                ''', (product_id, resource_counts, output_path, platform))
             
             return True
     
