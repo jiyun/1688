@@ -286,8 +286,6 @@ class AlibabaScraperGUI:
         
         self.db_status_label = tk.Label(self.db_btn_frame, text="")
         self.db_status_label.pack(side=tk.RIGHT, padx=10)
-        
-        self.db_tree.bind('<Button-3>', self._show_db_context_menu)
     
     def _confirm_db_access(self):
         """确认数据库访问"""
@@ -435,26 +433,6 @@ class AlibabaScraperGUI:
             self.log(f"搜索失败: {e}", "error")
             self.db_status_label.config(text="搜索失败")
     
-    def _show_db_context_menu(self, event):
-        """显示数据库右键菜单"""
-        selected = self.db_tree.selection()
-        if not selected:
-            return
-        
-        item = selected[0]
-        self.db_tree.selection_set(item)
-        
-        values = self.db_tree.item(item, 'values')
-        product_id = values[0]
-        
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="访问商品页面", command=lambda: self._open_product_page(product_id))
-        menu.add_command(label="访问店铺页面", command=lambda: self._open_shop_page(product_id))
-        menu.add_separator()
-        menu.add_command(label="删除记录", command=self._delete_db_record)
-        
-        menu.post(event.x_root, event.y_root)
-    
     def _open_product_page(self, product_id):
         """用浏览器打开商品页面"""
         import webbrowser
@@ -511,7 +489,11 @@ class AlibabaScraperGUI:
         values = self.db_tree.item(item, 'values')
         product_id = values[0]
         
-        if column == "#5":
+        if column == "#1":
+            self._open_product_page(product_id)
+        elif column == "#2":
+            self._open_shop_page(product_id)
+        elif column == "#5":
             self._show_selling_prices(product_id)
         elif column == "#6":
             self._show_resources(product_id)
