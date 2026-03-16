@@ -45,33 +45,32 @@ class QueueManager:
         
         try:
             from utils.database import db
-            resource_counts = db.get_resource_counts(product_id)
+            resource_counts = db.count_resources(product_id)
             
-            if resource_counts:
-                main_count, color_count, detail_count, video_count = resource_counts
-                
-                main_pattern = re.compile(r'^(T_|E_T_)\d+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
-                color_pattern = re.compile(r'^(color_|new_color_).+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
-                video_pattern = re.compile(r'^video_\d+\.(mp4|avi|mov|wmv|flv|webm)$', re.IGNORECASE)
-                
-                actual_main = 0
-                actual_color = 0
-                actual_video = 0
-                
-                for item in os.listdir(folder_path):
-                    item_path = os.path.join(folder_path, item)
-                    if os.path.isfile(item_path):
-                        if main_pattern.match(item):
-                            actual_main += 1
-                        elif color_pattern.match(item):
-                            actual_color += 1
-                        elif video_pattern.match(item):
-                            actual_video += 1
-                
-                if actual_main >= main_count and actual_color >= color_count and actual_video >= video_count:
-                    return 'success'
-                else:
-                    return 'exists'
+            main_count = resource_counts['main_images']
+            color_count = resource_counts['color_images']
+            video_count = resource_counts['videos']
+            
+            main_pattern = re.compile(r'^(T_|E_T_)\d+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
+            color_pattern = re.compile(r'^(color_|new_color_).+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
+            video_pattern = re.compile(r'^video_\d+\.(mp4|avi|mov|wmv|flv|webm)$', re.IGNORECASE)
+            
+            actual_main = 0
+            actual_color = 0
+            actual_video = 0
+            
+            for item in os.listdir(folder_path):
+                item_path = os.path.join(folder_path, item)
+                if os.path.isfile(item_path):
+                    if main_pattern.match(item):
+                        actual_main += 1
+                    elif color_pattern.match(item):
+                        actual_color += 1
+                    elif video_pattern.match(item):
+                        actual_video += 1
+            
+            if actual_main >= main_count and actual_color >= color_count and actual_video >= video_count:
+                return 'success'
             else:
                 return 'exists'
         except:

@@ -324,13 +324,17 @@ class AlibabaScraperGUI:
                     except:
                         pass
                 
+                product_id = product.get('product_id', '')
+                resource_counts = db.count_resources(product_id)
+                resource_counts_str = f"主{resource_counts['main_images']}/色{resource_counts['color_images']}/详{resource_counts['detail_images']}/视{resource_counts['videos']}"
+                
                 self.db_tree.insert("", "end", values=(
-                    product.get('product_id', ''),
+                    product_id,
                     product.get('shop_product_id', ''),
                     title,
                     cost_prices_str,
                     selling_prices_str,
-                    product.get('resource_counts', ''),
+                    resource_counts_str,
                     output_path,
                     product.get('status', ''),
                     product.get('created_at', '')

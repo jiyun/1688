@@ -479,6 +479,45 @@ class Database:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM resources WHERE product_id = ?', (product_id,))
             return True
+    
+    def count_resources(self, product_id: str) -> Dict[str, int]:
+        """从resources表实时计算资源计数
+        
+        Args:
+            product_id: 商品ID
+        
+        Returns:
+            各类型资源数量字典
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT resource_type, COUNT(*) as count
+                FROM resources
+                WHERE product_id = ?
+                GROUP BY resource_type
+            ''', (product_id,))
+            
+            result = {
+                'main_images': 0,
+                'color_images': 0,
+                'detail_images': 0,
+                'videos': 0
+            }
+            
+            for row in cursor.fetchall():
+                res_type = row['resource_type']
+                count = row['count']
+                if res_type == 'main_image':
+                    result['main_images'] = count
+                elif res_type == 'color_image':
+                    result['color_images'] = count
+                elif res_type == 'detail_image':
+                    result['detail_images'] = count
+                elif res_type == 'video':
+                    result['videos'] = count
+            
+            return result
 
 
 db = Database()
