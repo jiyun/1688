@@ -25,6 +25,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 from utils.tool_downloader import ensure_all_dependencies
 ensure_all_dependencies()
 
+from utils.version import __version__
 from utils.parser import HTMLParser
 from utils.downloader import Downloader
 from utils.file_handler import FileHandler
@@ -346,7 +347,7 @@ def main():
         print("====================================")
         print("1688详情页资源采集工具")
         print("====================================")
-        print("版本: 0.3.0")
+        print("版本:", __version__)
         print("作者: 急云")
         print("描述: 用于采集1688详情页资源的工具，支持图片、视频和属性的提取与下载")
         print("====================================")
@@ -355,7 +356,6 @@ def main():
         print("  python main.py --process-images [--webp [--t] [--color]] [--with-animated]")
         print("  python main.py <image_file> (处理单张图片)")
         print("  python main.py --gui (启动GUI模式)")
-        print("  python main.py --cli (强制使用命令行模式)")
         print("  python main.py --help | -h (显示此帮助信息)")
         print("====================================")
         print("参数说明:")
@@ -370,11 +370,7 @@ def main():
         print("    --with-animated    : 包含GIF、WebP等动图")
         print("  <image_file>         : 要处理的单张图片文件路径")
         print("  --gui                : 启动图形用户界面模式")
-        print("  --cli                : 强制使用命令行模式（双击启动时）")
         print("  --help, -h           : 显示此帮助信息")
-        print("====================================")
-        print("提示: 双击启动时自动进入GUI模式")
-        print("====================================")
         return 0
     
     # 检测启动方式，自动判断GUI/CLI模式

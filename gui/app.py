@@ -52,6 +52,7 @@ class AlibabaScraperGUI:
         self.easter_egg_activated = False
         self.db_tab_visible = False
         self._is_gui_mode = True
+        self._queue_shortcuts_bound = False
         
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -108,19 +109,12 @@ class AlibabaScraperGUI:
         self.browse_btn = tk.Button(self.output_frame, text="浏览...", command=self.browse_output_path, width=10)
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         
-        self.root.bind('<a>', lambda event: self.add_file())
-        self.root.bind('<A>', lambda event: self.add_file())
-        self.root.bind('<d>', lambda event: self.add_directory())
-        self.root.bind('<D>', lambda event: self.add_directory())
-        self.root.bind('<Delete>', lambda event: self.remove_file())
-        self.root.bind('<p>', lambda event: self.pause())
-        self.root.bind('<P>', lambda event: self.pause())
-        self.root.bind('<Return>', lambda event: self.execute())
-        self.root.bind('<Pause>', lambda event: self.pause())
         self.root.bind('<Alt_L>', self._on_alt_press)
         self.root.bind('<Alt_R>', self._on_alt_press)
         self.root.bind('<KeyRelease-Alt_L>', self._on_alt_release)
         self.root.bind('<KeyRelease-Alt_R>', self._on_alt_release)
+        
+        self._bind_queue_shortcuts()
         
         # 创建队列和日志框架
         self.content_frame = tk.Frame(self.queue_tab)
@@ -260,10 +254,9 @@ class AlibabaScraperGUI:
         self.db_search_frame.pack(side=tk.LEFT, padx=5)
         
         self.db_search_var = tk.StringVar()
-        self.db_search_field = tk.StringVar(value='product_id')
+        self.db_search_var.trace_add("write", self._validate_search_input)
         
-        tk.Radiobutton(self.db_search_frame, text="商品ID", variable=self.db_search_field, value='product_id').pack(side=tk.LEFT)
-        tk.Radiobutton(self.db_search_frame, text="DSID", variable=self.db_search_field, value='shop_product_id').pack(side=tk.LEFT, padx=(0, 5))
+        tk.Label(self.db_search_frame, text="搜索:").pack(side=tk.LEFT)
         
         self.db_search_entry = tk.Entry(self.db_search_frame, textvariable=self.db_search_var, width=15)
         self.db_search_entry.pack(side=tk.LEFT, padx=2)
@@ -362,15 +355,11 @@ class AlibabaScraperGUI:
             self.db_status_label.config(text="读取失败")
     
     def _search_db_records(self):
-        """搜索数据库记录"""
+        """搜索数据库记录 - 自动匹配商品ID和DSID"""
         search_term = self.db_search_var.get().strip()
         
         if not search_term:
             self._refresh_db_data()
-            return
-        
-        if not search_term.isdigit():
-            self.show_info("提示", "请输入数字进行搜索")
             return
         
         for item in self.db_tree.get_children():
@@ -380,8 +369,7 @@ class AlibabaScraperGUI:
             from utils.database import db
             import json
             
-            search_field = self.db_search_field.get()
-            products = db.search_products(search_term, search_field)
+            products = db.search_products_by_id(search_term)
             
             for product in products:
                 output_path = product.get('output_path', '') or ''
@@ -426,12 +414,17 @@ class AlibabaScraperGUI:
                     product.get('created_at', '')
                 ))
             
-            field_name = "商品ID" if search_field == 'product_id' else "DSID"
-            self.db_status_label.config(text=f"搜索 {field_name}={search_term}: {len(products)} 条")
+            self.db_status_label.config(text=f"搜索结果: {len(products)} 条")
             
         except Exception as e:
             self.log(f"搜索失败: {e}", "error")
             self.db_status_label.config(text="搜索失败")
+    
+    def _validate_search_input(self, *args):
+        """验证搜索输入，只允许数字"""
+        current = self.db_search_var.get()
+        if current and not current.isdigit():
+            self.db_search_var.set(''.join(filter(str.isdigit, current)))
     
     def _open_product_page(self, product_id):
         """用浏览器打开商品页面"""
@@ -877,6 +870,34 @@ class AlibabaScraperGUI:
         """Alt键释放事件处理"""
         pass
     
+    def _bind_queue_shortcuts(self):
+        """绑定处理队列快捷键"""
+        if not hasattr(self, '_queue_shortcuts_bound') or not self._queue_shortcuts_bound:
+            self.root.bind('<a>', lambda event: self.add_file())
+            self.root.bind('<A>', lambda event: self.add_file())
+            self.root.bind('<d>', lambda event: self.add_directory())
+            self.root.bind('<D>', lambda event: self.add_directory())
+            self.root.bind('<Delete>', lambda event: self.remove_file())
+            self.root.bind('<p>', lambda event: self.pause())
+            self.root.bind('<P>', lambda event: self.pause())
+            self.root.bind('<Return>', lambda event: self.execute())
+            self.root.bind('<Pause>', lambda event: self.pause())
+            self._queue_shortcuts_bound = True
+    
+    def _unbind_queue_shortcuts(self):
+        """解绑处理队列快捷键"""
+        if hasattr(self, '_queue_shortcuts_bound') and self._queue_shortcuts_bound:
+            self.root.unbind('<a>')
+            self.root.unbind('<A>')
+            self.root.unbind('<d>')
+            self.root.unbind('<D>')
+            self.root.unbind('<Delete>')
+            self.root.unbind('<p>')
+            self.root.unbind('<P>')
+            self.root.unbind('<Return>')
+            self.root.unbind('<Pause>')
+            self._queue_shortcuts_bound = False
+    
     def _activate_easter_egg(self, show_message=True):
         """激活彩蛋 - 显示输出路径区域
         
@@ -1254,6 +1275,11 @@ class AlibabaScraperGUI:
         """标签页切换事件（含彩蛋和帮助文档加载）"""
         try:
             current_index = self.notebook.index(self.notebook.select())
+            
+            if current_index == 0:
+                self._bind_queue_shortcuts()
+            else:
+                self._unbind_queue_shortcuts()
             
             if current_index == 1:
                 self._load_help_frame()

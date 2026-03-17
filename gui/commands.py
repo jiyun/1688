@@ -5,6 +5,7 @@ GUI上下文菜单命令模块
 """
 
 import os
+import sys
 import subprocess
 import shutil
 import glob
@@ -562,6 +563,10 @@ class ContextMenuCommands:
                     if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
                         cmd.append("--keep-avif")
                     
+                    env = os.environ.copy()
+                    env['NO_COLOR'] = '1'
+                    env['TERM'] = 'dumb'
+                    
                     process = subprocess.Popen(
                         cmd,
                         stdout=subprocess.PIPE,
@@ -569,7 +574,9 @@ class ContextMenuCommands:
                         text=True,
                         encoding='utf-8',
                         bufsize=1,
-                        universal_newlines=True
+                        universal_newlines=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                        env=env
                     )
                     
                     while True:
@@ -609,6 +616,10 @@ class ContextMenuCommands:
                     if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
                         cmd.append("--keep-avif")
                     
+                    env = os.environ.copy()
+                    env['NO_COLOR'] = '1'
+                    env['TERM'] = 'dumb'
+                    
                     process = subprocess.Popen(
                         cmd,
                         stdout=subprocess.PIPE,
@@ -616,7 +627,9 @@ class ContextMenuCommands:
                         text=True,
                         encoding='utf-8',
                         bufsize=1,
-                        universal_newlines=True
+                        universal_newlines=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                        env=env
                     )
                     
                     while True:

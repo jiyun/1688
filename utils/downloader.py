@@ -176,7 +176,8 @@ class Downloader:
                 cmd,
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
-                text=True
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
             )
             
             bar_length = 40

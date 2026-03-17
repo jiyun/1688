@@ -6,6 +6,7 @@ GUI队列管理模块
 
 import os
 import re
+import sys
 import subprocess
 import threading
 import time
@@ -514,13 +515,21 @@ class QueueManager:
                     # 执行命令并捕获输出
                     # 使用目标 HTML 文件所在的目录作为工作目录
                     file_dir = os.path.dirname(file_path)
+                    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                    
+                    env = os.environ.copy()
+                    env['NO_COLOR'] = '1'
+                    env['TERM'] = 'dumb'
+                    
                     self.current_process = subprocess.Popen(
                         cmd,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         text=True,
                         encoding='utf-8',
-                        cwd=file_dir
+                        cwd=file_dir,
+                        creationflags=creationflags,
+                        env=env
                     )
                     
                     # 读取输出并显示到日志窗口

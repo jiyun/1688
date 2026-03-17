@@ -33,6 +33,19 @@ def get_gui_logger():
     return _gui_logger_instance
 
 
+def _should_use_colors() -> bool:
+    """判断是否应该使用颜色输出"""
+    import os
+    if os.environ.get('NO_COLOR') or os.environ.get('TERM') == 'dumb':
+        return False
+    try:
+        if sys.stdout is None:
+            return False
+        return sys.stdout.isatty()
+    except:
+        return False
+
+
 class AppLogger:
     """应用统一日志器"""
     
@@ -43,17 +56,19 @@ class AppLogger:
     
     def _format_message(self, level: str, message: str) -> str:
         """格式化日志消息"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        return f"[{timestamp}] [{level}] [{self.name}] {message}"
+        return f"[{level}] {message}"
     
     def _log(self, level: str, message: str, gui_level: str = "info"):
         """内部日志方法"""
         formatted = self._format_message(level, message)
         
         if self._console_enabled:
-            color = LOG_COLORS.get(level, LOG_COLORS['INFO'])
-            reset = LOG_COLORS['RESET']
-            print(f"{color}{formatted}{reset}")
+            if _should_use_colors():
+                color = LOG_COLORS.get(level, LOG_COLORS['INFO'])
+                reset = LOG_COLORS['RESET']
+                print(f"{color}{formatted}{reset}")
+            else:
+                print(formatted)
         
         if self._gui_enabled and _gui_logger_instance:
             _gui_logger_instance.log(message, gui_level)

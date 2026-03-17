@@ -78,13 +78,9 @@ class PricingToolGUI:
         notebook.add(sku_frame, text="SKU配置")
         self._create_sku_config_tab(sku_frame)
         
-        strategy_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(strategy_frame, text="定价策略")
-        self._create_strategy_config_tab(strategy_frame)
-        
-        result_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(result_frame, text="计算结果")
-        self._create_result_tab(result_frame)
+        strategy_result_frame = ttk.Frame(notebook, padding="10")
+        notebook.add(strategy_result_frame, text="定价策略与结果")
+        self._create_strategy_result_tab(strategy_result_frame)
         
         button_frame = ttk.Frame(main_frame, padding="10")
         button_frame.pack(fill=tk.X, pady=10)
@@ -231,11 +227,15 @@ class PricingToolGUI:
             cost_entry.pack(side=tk.LEFT, padx=5)
             ttk.Label(attachment_frame, text="元").pack(side=tk.LEFT, padx=5)
             
+            stackable_var = tk.BooleanVar(value=attachment.get("stackable", False))
+            ttk.Checkbutton(attachment_frame, text="累加", variable=stackable_var).pack(side=tk.LEFT, padx=5)
+            
             delete_btn = ttk.Button(attachment_frame, text="删除", command=lambda idx=i: self._delete_attachment(idx))
             delete_btn.pack(side=tk.RIGHT, padx=5)
             
-            name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var: self._update_attachment(idx, nv.get(), cv.get()))
-            cost_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var: self._update_attachment(idx, nv.get(), cv.get()))
+            name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var, sv=stackable_var: self._update_attachment(idx, nv.get(), cv.get(), sv.get()))
+            cost_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var, sv=stackable_var: self._update_attachment(idx, nv.get(), cv.get(), sv.get()))
+            stackable_var.trace_add("write", lambda *args, idx=i, nv=name_var, cv=cost_var, sv=stackable_var: self._update_attachment(idx, nv.get(), cv.get(), sv.get()))
         
         self.attachments_frame.update_idletasks()
         if self.attachments_canvas:
@@ -243,12 +243,12 @@ class PricingToolGUI:
     
     def _add_attachment(self):
         new_index = len(self.attachments) + 1
-        self.attachments.append({"name": f"附件{chr(64 + new_index)}", "cost": 0.0})
+        self.attachments.append({"name": f"附件{chr(64 + new_index)}", "cost": 0.0, "stackable": False})
         self._update_attachments_list()
     
-    def _update_attachment(self, index, name, cost):
+    def _update_attachment(self, index, name, cost, stackable=False):
         if 0 <= index < len(self.attachments):
-            self.attachments[index] = {"name": name, "cost": cost}
+            self.attachments[index] = {"name": name, "cost": cost, "stackable": stackable}
     
     def _delete_attachment(self, index):
         if 0 <= index < len(self.attachments):
@@ -271,47 +271,43 @@ class PricingToolGUI:
         ttk.Button(sku_btn_frame, text="编辑SKU", command=self._edit_sku).pack(side=tk.LEFT, padx=5)
         ttk.Button(sku_btn_frame, text="删除SKU", command=self._delete_sku).pack(side=tk.LEFT, padx=5)
     
-    def _create_strategy_config_tab(self, parent):
-        ttk.Label(parent, text="定价策略", style="Header.TLabel").pack(anchor=tk.W, pady=5)
-        
-        strategy_frame = ttk.Frame(parent)
+    def _create_strategy_result_tab(self, parent):
+        strategy_frame = ttk.LabelFrame(parent, text="定价策略", padding="10")
         strategy_frame.pack(fill=tk.X, pady=5)
         
-        self.strategy_var = tk.StringVar(value=self.pricing_strategy)
-        ttk.Radiobutton(strategy_frame, text="统一倍率", variable=self.strategy_var, value="multiplier").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(strategy_frame, text="统一利润率", variable=self.strategy_var, value="margin").pack(side=tk.LEFT, padx=5)
+        row1 = ttk.Frame(strategy_frame)
+        row1.pack(fill=tk.X, pady=5)
         
-        target_sku_frame = ttk.Frame(parent)
-        target_sku_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(target_sku_frame, text="选择定价基准SKU：").pack(side=tk.LEFT, padx=5)
+        self.strategy_var = tk.StringVar(value=self.pricing_strategy)
+        ttk.Radiobutton(row1, text="统一倍率", variable=self.strategy_var, value="multiplier").pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(row1, text="统一利润率", variable=self.strategy_var, value="margin").pack(side=tk.LEFT, padx=10)
+        
+        row2 = ttk.Frame(strategy_frame)
+        row2.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(row2, text="定价基准SKU：").pack(side=tk.LEFT, padx=5)
         self.target_sku_var = tk.StringVar(value=self.target_sku)
-        self.target_sku_combobox = ttk.Combobox(target_sku_frame, textvariable=self.target_sku_var, width=15, state="readonly")
-        self._update_target_sku_combobox()
+        self.target_sku_combobox = ttk.Combobox(row2, textvariable=self.target_sku_var, width=12, state="readonly")
         self.target_sku_combobox.pack(side=tk.LEFT, padx=5)
         
-        max_price_frame = ttk.Frame(parent)
-        max_price_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(max_price_frame, text="目标SKU最高售价：").pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="目标售价：").pack(side=tk.LEFT, padx=5)
         self.max_price_var = tk.DoubleVar(value=self.max_price)
-        ttk.Entry(max_price_frame, textvariable=self.max_price_var, width=15).pack(side=tk.LEFT, padx=5)
-        ttk.Label(max_price_frame, text="元").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(row2, textvariable=self.max_price_var, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="元").pack(side=tk.LEFT, padx=2)
         
-        rounding_frame = ttk.Frame(parent)
-        rounding_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(rounding_frame, text="价格保留小数位数：").pack(side=tk.LEFT, padx=5)
-        self.rounding_var = tk.IntVar(value=self.rounding)
-        ttk.Entry(rounding_frame, textvariable=self.rounding_var, width=10).pack(side=tk.LEFT, padx=5)
-    
-    def _update_target_sku_combobox(self):
-        sku_names = [sku["name"] for sku in self.sku_configs]
-        self.target_sku_combobox['values'] = sku_names
-        if self.target_sku not in sku_names and sku_names:
-            self.target_sku = sku_names[0]
-            self.target_sku_var.set(self.target_sku)
-    
-    def _create_result_tab(self, parent):
+        ttk.Label(row2, text="小数位：").pack(side=tk.LEFT, padx=5)
+        self.rounding_var = tk.StringVar(value=str(self.rounding))
+        rounding_combo = ttk.Combobox(row2, textvariable=self.rounding_var, width=5, state="readonly")
+        rounding_combo['values'] = ['0', '1', '2']
+        rounding_combo.pack(side=tk.LEFT, padx=5)
+        
+        self._update_target_sku_combobox()
+        
+        result_frame = ttk.LabelFrame(parent, text="计算结果", padding="10")
+        result_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
         columns = ("sku_name", "cost", "price", "profit", "profit_rate")
-        self.result_tree = ttk.Treeview(parent, columns=columns, show="headings")
+        self.result_tree = ttk.Treeview(result_frame, columns=columns, show="headings")
         
         self.result_tree.heading("sku_name", text="SKU名称")
         self.result_tree.heading("cost", text="成本（元）")
@@ -325,9 +321,9 @@ class PricingToolGUI:
         self.result_tree.column("profit", width=100, anchor=tk.CENTER)
         self.result_tree.column("profit_rate", width=100, anchor=tk.CENTER)
         
-        self.result_tree.pack(fill=tk.BOTH, expand=True, pady=10)
+        self.result_tree.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        stats_frame = ttk.Frame(parent)
+        stats_frame = ttk.Frame(result_frame)
         stats_frame.pack(fill=tk.X, pady=5)
         
         self.total_cost_var = tk.StringVar(value="总生产成本：0.00 元")
@@ -335,6 +331,13 @@ class PricingToolGUI:
         
         self.average_profit_rate_var = tk.StringVar(value="平均利润率：0.00%")
         ttk.Label(stats_frame, textvariable=self.average_profit_rate_var, style="Result.TLabel").pack(side=tk.LEFT, padx=10)
+    
+    def _update_target_sku_combobox(self):
+        sku_names = [sku["name"] for sku in self.sku_configs]
+        self.target_sku_combobox['values'] = sku_names
+        if self.target_sku not in sku_names and sku_names:
+            self.target_sku = sku_names[0]
+            self.target_sku_var.set(self.target_sku)
     
     def _update_sku_list(self):
         self.sku_listbox.delete(0, tk.END)
@@ -396,22 +399,45 @@ class PricingToolGUI:
         self.sku_configs = []
         sku_index = 1
         
+        non_stackable = [a for a in self.attachments if not a.get("stackable", False)]
+        stackable = [a for a in self.attachments if a.get("stackable", False)]
+        
         for base in self.bases:
-            if not self.attachments:
+            self.sku_configs.append({
+                "name": f"SKU{sku_index}",
+                "base_name": base["name"],
+                "attachments": []
+            })
+            sku_index += 1
+            
+            for attachment in non_stackable:
                 self.sku_configs.append({
                     "name": f"SKU{sku_index}",
                     "base_name": base["name"],
-                    "attachments": []
+                    "attachments": [attachment["name"]]
                 })
                 sku_index += 1
-            else:
-                for attachment in self.attachments:
-                    self.sku_configs.append({
-                        "name": f"SKU{sku_index}",
-                        "base_name": base["name"],
-                        "attachments": [attachment["name"]]
-                    })
-                    sku_index += 1
+            
+            if stackable:
+                from itertools import combinations
+                for r in range(1, len(stackable) + 1):
+                    for combo in combinations(stackable, r):
+                        self.sku_configs.append({
+                            "name": f"SKU{sku_index}",
+                            "base_name": base["name"],
+                            "attachments": [a["name"] for a in combo]
+                        })
+                        sku_index += 1
+                
+                for attachment in non_stackable:
+                    for r in range(1, len(stackable) + 1):
+                        for combo in combinations(stackable, r):
+                            self.sku_configs.append({
+                                "name": f"SKU{sku_index}",
+                                "base_name": base["name"],
+                                "attachments": [attachment["name"]] + [a["name"] for a in combo]
+                            })
+                            sku_index += 1
         
         self._update_sku_list()
         self._update_target_sku_combobox()
@@ -501,13 +527,7 @@ class PricingToolGUI:
             return
         
         strategy = self.strategy_var.get()
-        rounding = self.rounding_var.get()
-        
-        if strategy == "multiplier":
-            factor = max_price / target_cost
-        else:
-            margin_rate = (max_price - target_cost) / target_cost
-            factor = 1 + margin_rate
+        rounding = int(self.rounding_var.get())
         
         for item in self.result_tree.get_children():
             self.result_tree.delete(item)
@@ -517,7 +537,14 @@ class PricingToolGUI:
         
         for sku in self.sku_configs:
             cost = self._calculate_sku_cost(sku)
-            price = round(cost * factor, rounding)
+            
+            if strategy == "multiplier":
+                factor = max_price / target_cost
+                price = round(cost * factor, rounding)
+            else:
+                fixed_profit = max_price - target_cost
+                price = round(cost + fixed_profit, rounding)
+            
             profit = price - cost
             profit_rate = (profit / cost) * 100 if cost > 0 else 0
             

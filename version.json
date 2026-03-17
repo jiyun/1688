@@ -1,10 +1,10 @@
 {
-    "version": "0.3.3",
-    "release_date": "2026-03-16",
+    "version": "0.3.4",
+    "release_date": "2026-03-17",
     "min_python": "3.11",
     "download_url": {
-        "github": "https://github.com/jiyun/1688/archive/refs/tags/v0.3.3.zip",
-        "gitee": "https://gitee.com/jiyunui/1688/repository/archive/v0.3.3.zip"
+        "github": "https://github.com/jiyun/1688/archive/refs/tags/v0.3.4.zip",
+        "gitee": "https://gitee.com/jiyunui/1688/repository/archive/v0.3.4.zip"
     },
     "checksum": {
         "sha256": ""

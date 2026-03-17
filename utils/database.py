@@ -144,6 +144,26 @@ class Database:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
+    def search_products_by_id(self, search_term: str) -> List[Dict[str, Any]]:
+        """自动匹配商品ID和DSID搜索
+        
+        Args:
+            search_term: 搜索关键词（仅数字）
+        
+        Returns:
+            匹配的商品列表
+        """
+        if not search_term:
+            return []
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM products WHERE product_id = ? OR shop_product_id = ?
+            ''', (search_term, search_term))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    
     def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
             cursor = conn.cursor()

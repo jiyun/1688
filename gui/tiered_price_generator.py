@@ -59,17 +59,17 @@ class TieredPriceGenerator:
         sorted_configs = sorted(self.configurations, key=lambda x: x['total_cost'])
         highest_cost = sorted_configs[-1]['total_cost']
         
-        if strategy == 'multiplier':
-            factor = self.highest_target_price / highest_cost
-        elif strategy == 'margin':
-            margin_rate = (self.highest_target_price - highest_cost) / highest_cost
-            factor = 1 + margin_rate
-        else:
-            raise ValueError(f"不支持的定价策略：{strategy}")
-        
         result = []
         for config in sorted_configs:
-            target_price = round(config['total_cost'] * factor, rounding)
+            if strategy == 'multiplier':
+                factor = self.highest_target_price / highest_cost
+                target_price = round(config['total_cost'] * factor, rounding)
+            elif strategy == 'margin':
+                fixed_profit = self.highest_target_price - highest_cost
+                target_price = round(config['total_cost'] + fixed_profit, rounding)
+            else:
+                raise ValueError(f"不支持的定价策略：{strategy}")
+            
             profit = target_price - config['total_cost']
             profit_rate = (profit / config['total_cost']) * 100 if config['total_cost'] > 0 else 0
             
@@ -78,8 +78,7 @@ class TieredPriceGenerator:
                 'total_cost': config['total_cost'],
                 'target_price': target_price,
                 'profit': round(profit, 2),
-                'profit_rate': round(profit_rate, 2),
-                'factor': round(factor, 4)
+                'profit_rate': round(profit_rate, 2)
             })
         
         return result
