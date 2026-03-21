@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-商品定价计算工具 - GUI版本
+商品定价计算工具 - GUI版本 (CustomTkinter)
 功能：基于成本数据和SKU组合，自动计算合理的商品价格
 """
 
 import tkinter as tk
 from tkinter import ttk, filedialog
+import customtkinter as ctk
 import csv
 import json
 from typing import List, Dict, Any
 
 from gui.dialog import show_info, show_warning, show_error, ask_yes_no
+from gui.utils import create_button
 
 try:
     from config import PRICING_CONF
@@ -33,7 +35,8 @@ except ImportError:
 class PricingToolGUI:
     def __init__(self, root, product_id=None):
         self.root = root
-        self.root.title("商品定价计算工具")
+        title_text = f"商品定价计算工具 - {product_id}" if product_id else "商品定价计算工具"
+        self.root.title(title_text)
         self.root.geometry(PRICING_CONF['window_geometry'])
         self.root.resizable(PRICING_CONF['window_resizable'], PRICING_CONF['window_resizable'])
         
@@ -60,57 +63,45 @@ class PricingToolGUI:
             self._load_from_database(self.product_id)
     
     def _create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        title_text = f"商品定价计算工具 - {self.product_id}" if self.product_id else "商品定价计算工具"
-        title_label = ttk.Label(main_frame, text=title_text, font=("Arial", 16, "bold"))
-        title_label.pack(pady=10)
+        main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         notebook = ttk.Notebook(main_frame)
-        notebook.pack(fill=tk.BOTH, expand=True, pady=10)
+        notebook.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        cost_frame = ttk.Frame(notebook, padding="10")
+        cost_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(cost_frame, text="成本配置")
         self._create_cost_config_tab(cost_frame)
         
-        sku_frame = ttk.Frame(notebook, padding="10")
+        sku_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(sku_frame, text="SKU配置")
         self._create_sku_config_tab(sku_frame)
         
-        strategy_result_frame = ttk.Frame(notebook, padding="10")
+        strategy_result_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(strategy_result_frame, text="定价策略与结果")
         self._create_strategy_result_tab(strategy_result_frame)
         
-        button_frame = ttk.Frame(main_frame, padding="10")
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(fill=tk.X, pady=10)
         
-        calculate_btn = ttk.Button(button_frame, text="计算价格", command=self._calculate_prices, style="Accent.TButton")
+        calculate_btn = create_button(button_frame, "计算价格", self._calculate_prices, 'success')
         calculate_btn.pack(side=tk.LEFT, padx=5)
         
-        save_btn = ttk.Button(button_frame, text="保存到数据库", command=self._save_to_database)
+        save_btn = create_button(button_frame, "保存到数据库", self._save_to_database, 'primary')
         save_btn.pack(side=tk.LEFT, padx=5)
         
-        export_btn = ttk.Button(button_frame, text="导出结果", command=self._export_results)
+        export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary')
         export_btn.pack(side=tk.RIGHT, padx=5)
-        
-        self._setup_styles()
-    
-    def _setup_styles(self):
-        style = ttk.Style()
-        style.configure("Accent.TButton", font=("Arial", 10, "bold"))
-        style.configure("Header.TLabel", font=("Arial", 12, "bold"))
-        style.configure("Result.TLabel", font=("Arial", 10))
     
     def _create_cost_config_tab(self, parent):
-        ttk.Label(parent, text="一级：商品本体（可增减）", style="Header.TLabel").pack(anchor=tk.W, pady=5)
+        ctk.CTkLabel(parent, text="一级：商品本体（可增减）", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
         
-        bases_container = ttk.Frame(parent)
+        bases_container = ctk.CTkFrame(parent, fg_color="transparent")
         bases_container.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        self.bases_canvas = tk.Canvas(bases_container, height=PRICING_CONF['canvas_height'])
-        bases_scrollbar = ttk.Scrollbar(bases_container, orient=tk.VERTICAL, command=self.bases_canvas.yview)
-        self.bases_frame = ttk.Frame(self.bases_canvas)
+        self.bases_canvas = tk.Canvas(bases_container, height=PRICING_CONF['canvas_height'], highlightthickness=0)
+        bases_scrollbar = ctk.CTkScrollbar(bases_container, command=self.bases_canvas.yview)
+        self.bases_frame = ctk.CTkFrame(self.bases_canvas, fg_color="transparent")
         
         self.bases_frame.bind("<Configure>", lambda e: self.bases_canvas.configure(scrollregion=self.bases_canvas.bbox("all")))
         self.bases_canvas.create_window((0, 0), window=self.bases_frame, anchor="nw")
@@ -124,19 +115,19 @@ class PricingToolGUI:
         
         self._update_bases_list()
         
-        base_btn_frame = ttk.Frame(parent)
+        base_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         base_btn_frame.pack(fill=tk.X, pady=5)
-        add_base_btn = ttk.Button(base_btn_frame, text="添加本体", command=self._add_base)
+        add_base_btn = create_button(base_btn_frame, "添加本体", self._add_base, 'primary')
         add_base_btn.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(parent, text="次级：附件配置（可增减）", style="Header.TLabel").pack(anchor=tk.W, pady=5, ipady=10)
+        ctk.CTkLabel(parent, text="次级：附件配置（可增减）", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5, ipady=10)
         
-        attachments_container = ttk.Frame(parent)
+        attachments_container = ctk.CTkFrame(parent, fg_color="transparent")
         attachments_container.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        self.attachments_canvas = tk.Canvas(attachments_container, height=PRICING_CONF['canvas_height'])
-        attachments_scrollbar = ttk.Scrollbar(attachments_container, orient=tk.VERTICAL, command=self.attachments_canvas.yview)
-        self.attachments_frame = ttk.Frame(self.attachments_canvas)
+        self.attachments_canvas = tk.Canvas(attachments_container, height=PRICING_CONF['canvas_height'], highlightthickness=0)
+        attachments_scrollbar = ctk.CTkScrollbar(attachments_container, command=self.attachments_canvas.yview)
+        self.attachments_frame = ctk.CTkFrame(self.attachments_canvas, fg_color="transparent")
         
         self.attachments_frame.bind("<Configure>", lambda e: self.attachments_canvas.configure(scrollregion=self.attachments_canvas.bbox("all")))
         self.attachments_canvas.create_window((0, 0), window=self.attachments_frame, anchor="nw")
@@ -150,9 +141,9 @@ class PricingToolGUI:
         
         self._update_attachments_list()
         
-        attachment_btn_frame = ttk.Frame(parent)
+        attachment_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         attachment_btn_frame.pack(fill=tk.X, pady=5)
-        add_attachment_btn = ttk.Button(attachment_btn_frame, text="添加附件", command=self._add_attachment)
+        add_attachment_btn = create_button(attachment_btn_frame, "添加附件", self._add_attachment, 'primary')
         add_attachment_btn.pack(side=tk.LEFT, padx=5)
     
     def _update_bases_list(self):
@@ -160,21 +151,21 @@ class PricingToolGUI:
             widget.destroy()
         
         for i, base in enumerate(self.bases):
-            base_frame = ttk.Frame(self.bases_frame)
+            base_frame = ctk.CTkFrame(self.bases_frame, fg_color="transparent")
             base_frame.pack(fill=tk.X, pady=5)
             
-            ttk.Label(base_frame, text="本体名称：").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(base_frame, text="本体名称：", width=70).pack(side=tk.LEFT, padx=5)
             name_var = tk.StringVar(value=base["name"])
-            name_entry = ttk.Entry(base_frame, textvariable=name_var, width=15)
+            name_entry = ctk.CTkEntry(base_frame, textvariable=name_var, width=120)
             name_entry.pack(side=tk.LEFT, padx=5)
             
-            ttk.Label(base_frame, text="成本：").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(base_frame, text="成本：", width=50).pack(side=tk.LEFT, padx=5)
             cost_var = tk.DoubleVar(value=base["cost"])
-            cost_entry = ttk.Entry(base_frame, textvariable=cost_var, width=10)
+            cost_entry = ctk.CTkEntry(base_frame, textvariable=cost_var, width=80)
             cost_entry.pack(side=tk.LEFT, padx=5)
-            ttk.Label(base_frame, text="元").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(base_frame, text="元", width=20).pack(side=tk.LEFT, padx=5)
             
-            delete_btn = ttk.Button(base_frame, text="删除", command=lambda idx=i: self._delete_base(idx))
+            delete_btn = create_button(base_frame, "删除", lambda idx=i: self._delete_base(idx), 'danger', width=60)
             delete_btn.pack(side=tk.RIGHT, padx=5)
             
             name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var: self._update_base(idx, nv.get(), cv.get()))
@@ -213,24 +204,24 @@ class PricingToolGUI:
             widget.destroy()
         
         for i, attachment in enumerate(self.attachments):
-            attachment_frame = ttk.Frame(self.attachments_frame)
+            attachment_frame = ctk.CTkFrame(self.attachments_frame, fg_color="transparent")
             attachment_frame.pack(fill=tk.X, pady=5)
             
-            ttk.Label(attachment_frame, text="附件名称：").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(attachment_frame, text="附件名称：", width=70).pack(side=tk.LEFT, padx=5)
             name_var = tk.StringVar(value=attachment["name"])
-            name_entry = ttk.Entry(attachment_frame, textvariable=name_var, width=15)
+            name_entry = ctk.CTkEntry(attachment_frame, textvariable=name_var, width=120)
             name_entry.pack(side=tk.LEFT, padx=5)
             
-            ttk.Label(attachment_frame, text="成本：").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(attachment_frame, text="成本：", width=50).pack(side=tk.LEFT, padx=5)
             cost_var = tk.DoubleVar(value=attachment["cost"])
-            cost_entry = ttk.Entry(attachment_frame, textvariable=cost_var, width=10)
+            cost_entry = ctk.CTkEntry(attachment_frame, textvariable=cost_var, width=80)
             cost_entry.pack(side=tk.LEFT, padx=5)
-            ttk.Label(attachment_frame, text="元").pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(attachment_frame, text="元", width=20).pack(side=tk.LEFT, padx=5)
             
             stackable_var = tk.BooleanVar(value=attachment.get("stackable", False))
-            ttk.Checkbutton(attachment_frame, text="累加", variable=stackable_var).pack(side=tk.LEFT, padx=5)
+            ctk.CTkCheckBox(attachment_frame, text="累加", variable=stackable_var, width=60).pack(side=tk.LEFT, padx=5)
             
-            delete_btn = ttk.Button(attachment_frame, text="删除", command=lambda idx=i: self._delete_attachment(idx))
+            delete_btn = create_button(attachment_frame, "删除", lambda idx=i: self._delete_attachment(idx), 'danger', width=60)
             delete_btn.pack(side=tk.RIGHT, padx=5)
             
             name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var, sv=stackable_var: self._update_attachment(idx, nv.get(), cv.get(), sv.get()))
@@ -256,58 +247,72 @@ class PricingToolGUI:
             self._update_attachments_list()
     
     def _create_sku_config_tab(self, parent):
-        ttk.Label(parent, text="SKU组合配置", style="Header.TLabel").pack(anchor=tk.W, pady=5)
+        ctk.CTkLabel(parent, text="SKU组合配置", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
         
-        self.sku_listbox = tk.Listbox(parent, height=PRICING_CONF['listbox_height'], width=PRICING_CONF['listbox_width'])
-        self.sku_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
+        listbox_frame = ctk.CTkFrame(parent)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.sku_listbox = tk.Listbox(listbox_frame, height=PRICING_CONF['listbox_height'], width=PRICING_CONF['listbox_width'])
+        self.sku_listbox.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         self._update_sku_list()
         
-        sku_btn_frame = ttk.Frame(parent)
+        sku_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         sku_btn_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(sku_btn_frame, text="添加SKU", command=self._add_sku).pack(side=tk.LEFT, padx=5)
-        ttk.Button(sku_btn_frame, text="自动生成SKU", command=self._auto_generate_sku).pack(side=tk.LEFT, padx=5)
-        ttk.Button(sku_btn_frame, text="编辑SKU", command=self._edit_sku).pack(side=tk.LEFT, padx=5)
-        ttk.Button(sku_btn_frame, text="删除SKU", command=self._delete_sku).pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "添加SKU", self._add_sku, 'primary').pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "自动生成SKU", self._auto_generate_sku, 'success').pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "编辑SKU", self._edit_sku, 'secondary').pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "删除SKU", self._delete_sku, 'danger').pack(side=tk.LEFT, padx=5)
     
     def _create_strategy_result_tab(self, parent):
-        strategy_frame = ttk.LabelFrame(parent, text="定价策略", padding="10")
+        strategy_frame = ctk.CTkFrame(parent)
         strategy_frame.pack(fill=tk.X, pady=5)
         
-        row1 = ttk.Frame(strategy_frame)
-        row1.pack(fill=tk.X, pady=5)
+        ctk.CTkLabel(strategy_frame, text="定价策略", font=("Arial", 14, "bold")).pack(anchor=tk.W, padx=10, pady=5)
+        
+        row1 = ctk.CTkFrame(strategy_frame, fg_color="transparent")
+        row1.pack(fill=tk.X, pady=5, padx=10)
         
         self.strategy_var = tk.StringVar(value=self.pricing_strategy)
-        ttk.Radiobutton(row1, text="统一倍率", variable=self.strategy_var, value="multiplier").pack(side=tk.LEFT, padx=10)
-        ttk.Radiobutton(row1, text="统一利润率", variable=self.strategy_var, value="margin").pack(side=tk.LEFT, padx=10)
+        ctk.CTkRadioButton(row1, text="统一倍率", variable=self.strategy_var, value="multiplier").pack(side=tk.LEFT, padx=10)
+        ctk.CTkRadioButton(row1, text="统一利润率", variable=self.strategy_var, value="margin").pack(side=tk.LEFT, padx=10)
         
-        row2 = ttk.Frame(strategy_frame)
-        row2.pack(fill=tk.X, pady=5)
+        row2 = ctk.CTkFrame(strategy_frame, fg_color="transparent")
+        row2.pack(fill=tk.X, pady=5, padx=10)
         
-        ttk.Label(row2, text="定价基准SKU：").pack(side=tk.LEFT, padx=5)
+        ctk.CTkLabel(row2, text="定价基准SKU：", width=100).pack(side=tk.LEFT, padx=5)
         self.target_sku_var = tk.StringVar(value=self.target_sku)
-        self.target_sku_combobox = ttk.Combobox(row2, textvariable=self.target_sku_var, width=12, state="readonly")
+        self.target_sku_combobox = ctk.CTkComboBox(row2, variable=self.target_sku_var, width=120, state="readonly")
         self.target_sku_combobox.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row2, text="目标售价：").pack(side=tk.LEFT, padx=5)
-        self.max_price_var = tk.DoubleVar(value=self.max_price)
-        ttk.Entry(row2, textvariable=self.max_price_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Label(row2, text="元").pack(side=tk.LEFT, padx=2)
+        ctk.CTkLabel(row2, text="目标售价：", width=80).pack(side=tk.LEFT, padx=5)
+        self.max_price_var = tk.StringVar(value=str(self.max_price) if self.max_price else "")
+        self.max_price_entry = ctk.CTkEntry(row2, textvariable=self.max_price_var, width=80)
+        self.max_price_entry.pack(side=tk.LEFT, padx=5)
+        self.max_price_entry.bind('<KeyRelease>', self._on_price_change)
+        ctk.CTkLabel(row2, text="元", width=20).pack(side=tk.LEFT, padx=2)
         
-        ttk.Label(row2, text="小数位：").pack(side=tk.LEFT, padx=5)
+        ctk.CTkLabel(row2, text="小数位：", width=60).pack(side=tk.LEFT, padx=5)
         self.rounding_var = tk.StringVar(value=str(self.rounding))
-        rounding_combo = ttk.Combobox(row2, textvariable=self.rounding_var, width=5, state="readonly")
-        rounding_combo['values'] = ['0', '1', '2']
-        rounding_combo.pack(side=tk.LEFT, padx=5)
+        self.rounding_combo = ctk.CTkComboBox(row2, variable=self.rounding_var, width=60, state="readonly")
+        self.rounding_combo.configure(values=['0', '1', '2'])
+        self.rounding_combo.pack(side=tk.LEFT, padx=5)
+        self.rounding_combo.bind('<Button-1>', self._on_rounding_click)
+        self._rounding_extended = False
         
         self._update_target_sku_combobox()
         
-        result_frame = ttk.LabelFrame(parent, text="计算结果", padding="10")
+        result_frame = ctk.CTkFrame(parent)
         result_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
+        ctk.CTkLabel(result_frame, text="计算结果", font=("Arial", 14, "bold")).pack(anchor=tk.W, padx=10, pady=5)
+        
+        tree_frame = ctk.CTkFrame(result_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
         columns = ("sku_name", "cost", "price", "profit", "profit_rate")
-        self.result_tree = ttk.Treeview(result_frame, columns=columns, show="headings")
+        self.result_tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
         
         self.result_tree.heading("sku_name", text="SKU名称")
         self.result_tree.heading("cost", text="成本（元）")
@@ -315,29 +320,50 @@ class PricingToolGUI:
         self.result_tree.heading("profit", text="利润（元）")
         self.result_tree.heading("profit_rate", text="利润率（%）")
         
-        self.result_tree.column("sku_name", width=150)
+        self.result_tree.column("sku_name", width=250)
         self.result_tree.column("cost", width=100, anchor=tk.CENTER)
         self.result_tree.column("price", width=100, anchor=tk.CENTER)
         self.result_tree.column("profit", width=100, anchor=tk.CENTER)
         self.result_tree.column("profit_rate", width=100, anchor=tk.CENTER)
         
-        self.result_tree.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.result_tree.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        stats_frame = ttk.Frame(result_frame)
-        stats_frame.pack(fill=tk.X, pady=5)
+        stats_frame = ctk.CTkFrame(result_frame, fg_color="transparent")
+        stats_frame.pack(fill=tk.X, pady=5, padx=10)
         
         self.total_cost_var = tk.StringVar(value="总生产成本：0.00 元")
-        ttk.Label(stats_frame, textvariable=self.total_cost_var, style="Result.TLabel").pack(side=tk.LEFT, padx=10)
+        ctk.CTkLabel(stats_frame, textvariable=self.total_cost_var, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
         
         self.average_profit_rate_var = tk.StringVar(value="平均利润率：0.00%")
-        ttk.Label(stats_frame, textvariable=self.average_profit_rate_var, style="Result.TLabel").pack(side=tk.LEFT, padx=10)
+        ctk.CTkLabel(stats_frame, textvariable=self.average_profit_rate_var, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
     
     def _update_target_sku_combobox(self):
         sku_names = [sku["name"] for sku in self.sku_configs]
-        self.target_sku_combobox['values'] = sku_names
+        self.target_sku_combobox.configure(values=sku_names)
         if self.target_sku not in sku_names and sku_names:
             self.target_sku = sku_names[0]
             self.target_sku_var.set(self.target_sku)
+    
+    def _on_price_change(self, event=None):
+        price_str = self.max_price_var.get()
+        try:
+            if '.' in price_str:
+                decimal_part = price_str.split('.')[1]
+                decimal_count = len(decimal_part)
+                current_rounding = int(self.rounding_var.get())
+                if decimal_count > current_rounding and decimal_count <= 2:
+                    self.rounding_var.set(str(decimal_count))
+        except (ValueError, IndexError):
+            pass
+    
+    def _on_rounding_click(self, event=None):
+        shift_pressed = event.state & 0x1 if event else False
+        if shift_pressed and not self._rounding_extended:
+            self.rounding_combo.configure(values=['0', '1', '2', '3', '4'])
+            self._rounding_extended = True
+        elif not shift_pressed and self._rounding_extended:
+            self.rounding_combo.configure(values=['0', '1', '2'])
+            self._rounding_extended = False
     
     def _update_sku_list(self):
         self.sku_listbox.delete(0, tk.END)
@@ -347,28 +373,38 @@ class PricingToolGUI:
             self.sku_listbox.insert(tk.END, display_text)
     
     def _add_sku(self):
-        add_window = tk.Toplevel(self.root)
+        add_window = ctk.CTkToplevel(self.root)
         add_window.title("添加SKU")
-        add_window.geometry("400x450")
+        add_window.geometry("400x520")
         add_window.resizable(False, False)
+        add_window.transient(self.root)
+        add_window.grab_set()
+        add_window.focus_force()
+        add_window.lift()
         
-        ttk.Label(add_window, text="SKU名称：").pack(pady=5, padx=10, anchor=tk.W)
+        main_frame = ctk.CTkFrame(add_window, fg_color="transparent")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        ctk.CTkLabel(main_frame, text="SKU名称：").pack(pady=5, anchor=tk.W)
         sku_name_var = tk.StringVar()
-        ttk.Entry(add_window, textvariable=sku_name_var, width=30).pack(pady=5, padx=10)
+        ctk.CTkEntry(main_frame, textvariable=sku_name_var, width=300).pack(pady=5)
         
-        ttk.Label(add_window, text="选择本体：").pack(pady=5, padx=10, anchor=tk.W)
+        ctk.CTkLabel(main_frame, text="选择本体：").pack(pady=5, anchor=tk.W)
         base_var = tk.StringVar(value=self.bases[0]["name"] if self.bases else "")
-        base_combobox = ttk.Combobox(add_window, textvariable=base_var, width=28, state="readonly")
-        base_combobox['values'] = [base["name"] for base in self.bases]
-        base_combobox.pack(pady=5, padx=10)
+        base_combobox = ctk.CTkComboBox(main_frame, variable=base_var, width=280, state="readonly")
+        base_combobox.configure(values=[base["name"] for base in self.bases])
+        base_combobox.pack(pady=5)
         
-        ttk.Label(add_window, text="选择附件：").pack(pady=5, padx=10, anchor=tk.W)
+        ctk.CTkLabel(main_frame, text="选择附件：").pack(pady=5, anchor=tk.W)
+        
+        attachment_frame = ctk.CTkScrollableFrame(main_frame, height=180)
+        attachment_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         attachment_vars = {}
         for attachment in self.attachments:
             var = tk.BooleanVar()
-            cb = ttk.Checkbutton(add_window, text=f"{attachment['name']} ({attachment['cost']}元)", variable=var)
-            cb.pack(anchor=tk.W, padx=20)
+            cb = ctk.CTkCheckBox(attachment_frame, text=f"{attachment['name']} ({attachment['cost']}元)", variable=var)
+            cb.pack(anchor=tk.W, pady=2)
             attachment_vars[attachment['name']] = var
         
         def do_add():
@@ -389,7 +425,9 @@ class PricingToolGUI:
             self._update_target_sku_combobox()
             add_window.destroy()
         
-        ttk.Button(add_window, text="添加", command=do_add).pack(pady=20)
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill=tk.X, pady=15)
+        create_button(btn_frame, "添加", do_add, 'success').pack(pady=5)
     
     def _auto_generate_sku(self):
         if not self.bases:
@@ -418,9 +456,27 @@ class PricingToolGUI:
                 })
                 sku_index += 1
             
-            if stackable:
+            for attachment in stackable:
+                self.sku_configs.append({
+                    "name": f"SKU{sku_index}",
+                    "base_name": base["name"],
+                    "attachments": [attachment["name"]]
+                })
+                sku_index += 1
+            
+            if non_stackable and stackable:
+                for ns in non_stackable:
+                    for s in stackable:
+                        self.sku_configs.append({
+                            "name": f"SKU{sku_index}",
+                            "base_name": base["name"],
+                            "attachments": [ns["name"], s["name"]]
+                        })
+                        sku_index += 1
+            
+            if len(stackable) > 1:
                 from itertools import combinations
-                for r in range(1, len(stackable) + 1):
+                for r in range(2, len(stackable) + 1):
                     for combo in combinations(stackable, r):
                         self.sku_configs.append({
                             "name": f"SKU{sku_index}",
@@ -428,20 +484,10 @@ class PricingToolGUI:
                             "attachments": [a["name"] for a in combo]
                         })
                         sku_index += 1
-                
-                for attachment in non_stackable:
-                    for r in range(1, len(stackable) + 1):
-                        for combo in combinations(stackable, r):
-                            self.sku_configs.append({
-                                "name": f"SKU{sku_index}",
-                                "base_name": base["name"],
-                                "attachments": [attachment["name"]] + [a["name"] for a in combo]
-                            })
-                            sku_index += 1
         
         self._update_sku_list()
         self._update_target_sku_combobox()
-        show_info(self.root, "成功", f"已自动生成 {len(self.sku_configs)} 个SKU")
+        show_info(self.root, "成功", f"已自动生成 {len(self.sku_configs)} 个SKU配置")
     
     def _edit_sku(self):
         selection = self.sku_listbox.curselection()
@@ -452,41 +498,61 @@ class PricingToolGUI:
         index = selection[0]
         sku = self.sku_configs[index]
         
-        edit_window = tk.Toplevel(self.root)
+        edit_window = ctk.CTkToplevel(self.root)
         edit_window.title("编辑SKU")
-        edit_window.geometry("400x450")
+        edit_window.geometry("400x520")
         edit_window.resizable(False, False)
+        edit_window.transient(self.root)
+        edit_window.grab_set()
+        edit_window.focus_force()
+        edit_window.lift()
         
-        ttk.Label(edit_window, text="SKU名称：").pack(pady=5, padx=10, anchor=tk.W)
+        main_frame = ctk.CTkFrame(edit_window, fg_color="transparent")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        ctk.CTkLabel(main_frame, text="SKU名称：").pack(pady=5, anchor=tk.W)
         sku_name_var = tk.StringVar(value=sku["name"])
-        ttk.Entry(edit_window, textvariable=sku_name_var, width=30).pack(pady=5, padx=10)
+        ctk.CTkEntry(main_frame, textvariable=sku_name_var, width=300).pack(pady=5)
         
-        ttk.Label(edit_window, text="选择本体：").pack(pady=5, padx=10, anchor=tk.W)
+        ctk.CTkLabel(main_frame, text="选择本体：").pack(pady=5, anchor=tk.W)
         base_var = tk.StringVar(value=sku["base_name"])
-        base_combobox = ttk.Combobox(edit_window, textvariable=base_var, width=28, state="readonly")
-        base_combobox['values'] = [base["name"] for base in self.bases]
-        base_combobox.pack(pady=5, padx=10)
+        base_combobox = ctk.CTkComboBox(main_frame, variable=base_var, width=280, state="readonly")
+        base_combobox.configure(values=[base["name"] for base in self.bases])
+        base_combobox.pack(pady=5)
         
-        ttk.Label(edit_window, text="选择附件：").pack(pady=5, padx=10, anchor=tk.W)
+        ctk.CTkLabel(main_frame, text="选择附件：").pack(pady=5, anchor=tk.W)
+        
+        attachment_frame = ctk.CTkScrollableFrame(main_frame, height=180)
+        attachment_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         attachment_vars = {}
         for attachment in self.attachments:
-            var = tk.BooleanVar(value=attachment['name'] in sku['attachments'])
-            cb = ttk.Checkbutton(edit_window, text=f"{attachment['name']} ({attachment['cost']}元)", variable=var)
-            cb.pack(anchor=tk.W, padx=20)
+            var = tk.BooleanVar(value=attachment["name"] in sku["attachments"])
+            cb = ctk.CTkCheckBox(attachment_frame, text=f"{attachment['name']} ({attachment['cost']}元)", variable=var)
+            cb.pack(anchor=tk.W, pady=2)
             attachment_vars[attachment['name']] = var
         
         def do_edit():
+            sku_name = sku_name_var.get()
+            base_name = base_var.get()
+            selected_attachments = [name for name, var in attachment_vars.items() if var.get()]
+            
+            if not sku_name:
+                show_warning(self.root, "警告", "请输入SKU名称")
+                return
+            
             self.sku_configs[index] = {
-                "name": sku_name_var.get(),
-                "base_name": base_var.get(),
-                "attachments": [name for name, var in attachment_vars.items() if var.get()]
+                "name": sku_name,
+                "base_name": base_name,
+                "attachments": selected_attachments
             }
             self._update_sku_list()
             self._update_target_sku_combobox()
             edit_window.destroy()
         
-        ttk.Button(edit_window, text="保存", command=do_edit).pack(pady=20)
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill=tk.X, pady=15)
+        create_button(btn_frame, "保存", do_edit, 'success').pack(pady=5)
     
     def _delete_sku(self):
         selection = self.sku_listbox.curselection()
@@ -505,7 +571,10 @@ class PricingToolGUI:
             return
         
         target_sku = self.target_sku_var.get()
-        max_price = self.max_price_var.get()
+        try:
+            max_price = float(self.max_price_var.get())
+        except ValueError:
+            max_price = 0
         
         if not target_sku or max_price <= 0:
             show_warning(self.root, "警告", "请选择定价基准SKU并设置最高售价")
@@ -548,11 +617,14 @@ class PricingToolGUI:
             profit = price - cost
             profit_rate = (profit / cost) * 100 if cost > 0 else 0
             
+            attachments_str = " + ".join(sku["attachments"]) if sku["attachments"] else "无附件"
+            sku_display_name = f"{sku['name']}: {sku['base_name']} + {attachments_str}"
+            
             self.result_tree.insert("", "end", values=(
-                sku["name"],
-                f"{cost:.2f}",
-                f"{price:.2f}",
-                f"{profit:.2f}",
+                sku_display_name,
+                f"{cost:.{rounding}f}",
+                f"{price:.{rounding}f}",
+                f"{profit:.{rounding}f}",
                 f"{profit_rate:.2f}"
             ))
             
@@ -560,7 +632,7 @@ class PricingToolGUI:
             total_profit += profit
         
         avg_profit_rate = (total_profit / total_cost) * 100 if total_cost > 0 else 0
-        self.total_cost_var.set(f"总生产成本：{total_cost:.2f} 元")
+        self.total_cost_var.set(f"总生产成本：{total_cost:.{rounding}f} 元")
         self.average_profit_rate_var.set(f"平均利润率：{avg_profit_rate:.2f}%")
     
     def _calculate_sku_cost(self, sku_config):
@@ -696,7 +768,7 @@ class PricingToolGUI:
 
 
 def main():
-    root = tk.Tk()
+    root = ctk.CTk()
     app = PricingToolGUI(root)
     root.mainloop()
 

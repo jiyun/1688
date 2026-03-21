@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-主应用模块
+主应用模块 - CustomTkinter 版本
 """
 
 import os
 import sys
-import tkinter as tk
+import customtkinter as ctk
 from tkinter import ttk
 import multiprocessing
 
-# 导入模块化组件
-from gui.utils import hide_console, ScrolledText
+ctk.set_appearance_mode("Light")
+ctk.set_default_color_theme("blue")
+
+from gui.utils import hide_console, ScrolledText, create_button
 from config import GUI_CONF
 from gui.logging import GUILogger
 from gui.queue import QueueManager
@@ -19,7 +21,6 @@ from gui.menu import ContextMenuManager
 from gui.commands import ContextMenuCommands
 from gui.dnd import DynamicDropOverlay, HAS_DND
 
-# 尝试导入 tkinterweb 和 markdown
 try:
     from tkinterweb import HtmlFrame
     HAS_TKINTERWEB = True
@@ -54,60 +55,60 @@ class AlibabaScraperGUI:
         self._is_gui_mode = True
         self._queue_shortcuts_bound = False
         
-        self.main_frame = tk.Frame(self.root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.main_frame = ctk.CTkFrame(self.root)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         self.notebook = ttk.Notebook(self.main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
+        self.notebook.pack(fill="both", expand=True)
         
-        self.queue_tab = tk.Frame(self.notebook)
+        self.queue_tab = ctk.CTkFrame(self.notebook)
         self.notebook.add(self.queue_tab, text="处理队列")
         
-        self.help_tab = tk.Frame(self.notebook)
+        self.help_tab = ctk.CTkFrame(self.notebook)
         self.notebook.add(self.help_tab, text="使用说明")
         
-        self.db_tab = tk.Frame(self.notebook)
+        self.db_tab = ctk.CTkFrame(self.notebook)
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.last_tab_index = -1
         
         self._init_db_tab()
         
-        self.button_frame = tk.Frame(self.queue_tab)
-        self.button_frame.pack(fill=tk.X, pady=(0, 10))
+        self.button_frame = ctk.CTkFrame(self.queue_tab, fg_color="transparent")
+        self.button_frame.pack(fill="x", pady=(0, 10))
         
-        self.add_file_btn = tk.Button(self.button_frame, text="添加文件 (A)", command=self.add_file, width=12)
-        self.add_file_btn.pack(side=tk.LEFT, padx=3)
+        self.add_file_btn = create_button(self.button_frame, "添加文件 (A)", self.add_file, 'primary')
+        self.add_file_btn.pack(side="left", padx=3)
         
-        self.add_dir_btn = tk.Button(self.button_frame, text="添加目录 (D)", command=self.add_directory, width=12)
-        self.add_dir_btn.pack(side=tk.LEFT, padx=3)
+        self.add_dir_btn = create_button(self.button_frame, "添加目录 (D)", self.add_directory, 'primary')
+        self.add_dir_btn.pack(side="left", padx=3)
         
-        self.remove_file_btn = tk.Button(self.button_frame, text="移除文件 (Del)", command=self.remove_file, width=12)
-        self.remove_file_btn.pack(side=tk.LEFT, padx=3)
+        self.remove_file_btn = create_button(self.button_frame, "移除文件 (Del)", self.remove_file, 'secondary')
+        self.remove_file_btn.pack(side="left", padx=3)
         
-        self.clear_queue_btn = tk.Button(self.button_frame, text="清空队列", command=self.clear_queue, width=12)
-        self.clear_queue_btn.pack(side=tk.LEFT, padx=3)
+        self.clear_queue_btn = create_button(self.button_frame, "清空队列", self.clear_queue, 'danger')
+        self.clear_queue_btn.pack(side="left", padx=3)
         
-        self.pricing_btn = tk.Button(self.button_frame, text="价格计算", command=self.open_pricing_tool, width=12)
-        self.pricing_btn.pack(side=tk.LEFT, padx=3)
+        self.pricing_btn = create_button(self.button_frame, "价格计算", self.open_pricing_tool, 'primary')
+        self.pricing_btn.pack(side="left", padx=3)
         
-        self.pause_btn = tk.Button(self.button_frame, text="暂停 (P)", command=self.pause, width=12, bg="#FF9800", fg="white", state=tk.DISABLED)
-        self.pause_btn.pack(side=tk.RIGHT, padx=3)
+        self.pause_btn = create_button(self.button_frame, "暂停 (P)", self.pause, 'warning', state="disabled")
+        self.pause_btn.pack(side="right", padx=3)
         
-        self.execute_btn = tk.Button(self.button_frame, text="执行 (Enter)", command=self.execute, width=12, bg="#4CAF50", fg="white")
-        self.execute_btn.pack(side=tk.RIGHT, padx=3)
+        self.execute_btn = create_button(self.button_frame, "执行 (Enter)", self.execute, 'success')
+        self.execute_btn.pack(side="right", padx=3)
         
-        self.output_frame = tk.Frame(self.queue_tab)
+        self.output_frame = ctk.CTkFrame(self.queue_tab, fg_color="transparent")
         
-        self.output_label = tk.Label(self.output_frame, text="输出路径:")
-        self.output_label.pack(side=tk.LEFT, padx=5)
+        self.output_label = ctk.CTkLabel(self.output_frame, text="输出路径:")
+        self.output_label.pack(side="left", padx=5)
         
-        self.output_path_var = tk.StringVar()
-        self.output_path_entry = tk.Entry(self.output_frame, textvariable=self.output_path_var, width=60)
-        self.output_path_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        self.output_path_var = ctk.StringVar()
+        self.output_path_entry = ctk.CTkEntry(self.output_frame, textvariable=self.output_path_var, width=400)
+        self.output_path_entry.pack(side="left", padx=5, fill="x", expand=True)
         
-        self.browse_btn = tk.Button(self.output_frame, text="浏览...", command=self.browse_output_path, width=10)
-        self.browse_btn.pack(side=tk.LEFT, padx=5)
+        self.browse_btn = create_button(self.output_frame, "浏览...", self.browse_output_path, 'secondary')
+        self.browse_btn.pack(side="left", padx=5)
         
         self.root.bind('<Alt_L>', self._on_alt_press)
         self.root.bind('<Alt_R>', self._on_alt_press)
@@ -116,15 +117,19 @@ class AlibabaScraperGUI:
         
         self._bind_queue_shortcuts()
         
-        # 创建队列和日志框架
-        self.content_frame = tk.Frame(self.queue_tab)
-        self.content_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_frame = ctk.CTkFrame(self.queue_tab, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True)
         
-        # 队列表格
-        self.queue_frame = tk.LabelFrame(self.content_frame, text="处理队列")
-        self.queue_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(0, 10))
+        self.queue_frame = ctk.CTkFrame(self.content_frame)
+        self.queue_frame.pack(fill="both", expand=True, side="top", pady=(0, 10))
         
-        self.queue_tree = ttk.Treeview(self.queue_frame, columns=("index", "status", "name", "shop_id", "date", "output_path"), show="headings")
+        queue_label = ctk.CTkLabel(self.queue_frame, text="处理队列", font=("", 12, "bold"))
+        queue_label.pack(anchor="w", padx=10, pady=5)
+        
+        tree_frame = ctk.CTkFrame(self.queue_frame, fg_color="transparent")
+        tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        self.queue_tree = ttk.Treeview(tree_frame, columns=("index", "status", "name", "shop_id", "date", "output_path"), show="headings")
         
         self.queue_tree.heading("index", text="序号")
         self.queue_tree.heading("status", text="状态", command=lambda: self.sort_treeview("status"))
@@ -133,37 +138,34 @@ class AlibabaScraperGUI:
         self.queue_tree.heading("date", text="修改日期", command=lambda: self.sort_treeview("date"))
         self.queue_tree.heading("output_path", text="输出路径", command=lambda: self.sort_treeview("output_path"))
         
-        self.queue_tree.column("index", width=30, anchor=tk.CENTER)
-        self.queue_tree.column("status", width=50, anchor=tk.CENTER)
-        self.queue_tree.column("name", width=250, anchor=tk.W)
-        self.queue_tree.column("shop_id", width=80, anchor=tk.CENTER)
-        self.queue_tree.column("date", width=120, anchor=tk.CENTER)
-        self.queue_tree.column("output_path", width=250, anchor=tk.W)
+        self.queue_tree.column("index", width=30, anchor="center")
+        self.queue_tree.column("status", width=50, anchor="center")
+        self.queue_tree.column("name", width=250, anchor="w")
+        self.queue_tree.column("shop_id", width=80, anchor="center")
+        self.queue_tree.column("date", width=120, anchor="center")
+        self.queue_tree.column("output_path", width=250, anchor="w")
         
-        # 添加滚动条
-        self.queue_scrollbar = ttk.Scrollbar(self.queue_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
+        self.queue_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.queue_tree.yview)
         self.queue_tree.configure(yscroll=self.queue_scrollbar.set)
         
-        # 布局
-        self.queue_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        self.queue_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
+        self.queue_tree.pack(side="left", fill="both", expand=True)
+        self.queue_scrollbar.pack(side="right", fill="y")
         
-        # 绑定事件
         self.queue_tree.bind('<Double-1>', self.on_treeview_double_click)
         
-        # 日志窗口
-        self.log_frame = tk.LabelFrame(self.content_frame, text="日志输出")
-        self.log_frame.pack(fill=tk.BOTH, expand=True, side=tk.BOTTOM)
+        self.log_frame = ctk.CTkFrame(self.content_frame)
+        self.log_frame.pack(fill="both", expand=True, side="bottom")
         
-        # 获取可用字体
+        log_label = ctk.CTkLabel(self.log_frame, text="日志输出", font=("", 12, "bold"))
+        log_label.pack(anchor="w", padx=10, pady=5)
+        
         available_font = self._get_available_font()
         
-        self.log_text = ScrolledText(self.log_frame, width=100, height=15, state=tk.DISABLED, 
-                                     bg="black", fg="white", 
+        self.log_text = ScrolledText(self.log_frame, width=100, height=15, state="disabled", 
+                                     bg="#1a1a2e", fg="#eaeaea", 
                                      font=(available_font, GUI_CONF.get('font_size', 10)))
-        self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.log_text.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # 初始化模块化组件
         self._init_modules()
         
         self._init_drop_zone()
@@ -189,32 +191,33 @@ class AlibabaScraperGUI:
         self.db_access_confirmed = False
         
         available_font = self._get_available_font()
-        font_size = GUI_CONF.get('font_size', 10)
+        font_size = GUI_CONF.get('font_size', 12)
         
-        self.db_welcome_frame = tk.Frame(self.db_tab)
-        self.db_welcome_frame.pack(fill=tk.BOTH, expand=True)
+        self.db_welcome_frame = ctk.CTkFrame(self.db_tab)
+        self.db_welcome_frame.pack(fill="both", expand=True)
         
-        welcome_label = tk.Label(
+        welcome_label = ctk.CTkLabel(
             self.db_welcome_frame, 
             text="数据库管理\n\n此功能允许浏览和删除商品数据记录。\n\n点击下方按钮进入数据库管理界面。",
-            justify=tk.CENTER,
+            justify="center",
             font=(available_font, font_size + 2)
         )
         welcome_label.pack(expand=True)
         
-        enter_btn = tk.Button(
+        enter_btn = create_button(
             self.db_welcome_frame, 
-            text="进入数据库管理", 
-            command=self._confirm_db_access,
-            width=20,
-            height=2
+            "进入数据库管理", 
+            self._confirm_db_access,
+            'success',
+            width=160,
+            height=40
         )
         enter_btn.pack(pady=20)
         
-        self.db_content_frame = tk.Frame(self.db_tab)
+        self.db_content_frame = ctk.CTkFrame(self.db_tab, fg_color="transparent")
         
-        self.db_tree_frame = tk.Frame(self.db_content_frame)
-        self.db_tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.db_tree_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
+        self.db_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         db_columns = ("product_id", "shop_product_id", "title", "cost_prices", "selling_prices", "resource_counts", "output_path", "status", "created_at")
         self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
@@ -229,56 +232,56 @@ class AlibabaScraperGUI:
         self.db_tree.heading("status", text="状态")
         self.db_tree.heading("created_at", text="创建时间")
         
-        self.db_tree.column("product_id", width=100, anchor=tk.CENTER)
-        self.db_tree.column("shop_product_id", width=80, anchor=tk.CENTER)
-        self.db_tree.column("title", width=120, anchor=tk.W)
-        self.db_tree.column("cost_prices", width=80, anchor=tk.CENTER)
-        self.db_tree.column("selling_prices", width=80, anchor=tk.CENTER)
-        self.db_tree.column("resource_counts", width=80, anchor=tk.CENTER)
-        self.db_tree.column("output_path", width=150, anchor=tk.W)
-        self.db_tree.column("status", width=60, anchor=tk.CENTER)
-        self.db_tree.column("created_at", width=130, anchor=tk.CENTER)
+        self.db_tree.column("product_id", width=100, anchor="center")
+        self.db_tree.column("shop_product_id", width=80, anchor="center")
+        self.db_tree.column("title", width=120, anchor="w")
+        self.db_tree.column("cost_prices", width=80, anchor="center")
+        self.db_tree.column("selling_prices", width=80, anchor="center")
+        self.db_tree.column("resource_counts", width=80, anchor="center")
+        self.db_tree.column("output_path", width=150, anchor="w")
+        self.db_tree.column("status", width=60, anchor="center")
+        self.db_tree.column("created_at", width=130, anchor="center")
         
-        db_scrollbar = ttk.Scrollbar(self.db_tree_frame, orient=tk.VERTICAL, command=self.db_tree.yview)
+        db_scrollbar = ttk.Scrollbar(self.db_tree_frame, orient="vertical", command=self.db_tree.yview)
         self.db_tree.configure(yscrollcommand=db_scrollbar.set)
         
-        self.db_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        db_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.db_tree.pack(side="left", fill="both", expand=True)
+        db_scrollbar.pack(side="right", fill="y")
         
         self.db_tree.bind('<Double-Button-1>', self._db_tree_double_click)
         
-        self.db_btn_frame = tk.Frame(self.db_content_frame)
-        self.db_btn_frame.pack(fill=tk.X, pady=5)
+        self.db_btn_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
+        self.db_btn_frame.pack(fill="x", pady=5)
         
-        self.db_search_frame = tk.Frame(self.db_btn_frame)
-        self.db_search_frame.pack(side=tk.LEFT, padx=5)
+        self.db_search_frame = ctk.CTkFrame(self.db_btn_frame, fg_color="transparent")
+        self.db_search_frame.pack(side="left", padx=5)
         
-        self.db_search_var = tk.StringVar()
+        self.db_search_var = ctk.StringVar()
         self.db_search_var.trace_add("write", self._validate_search_input)
         
-        tk.Label(self.db_search_frame, text="搜索:").pack(side=tk.LEFT)
+        ctk.CTkLabel(self.db_search_frame, text="搜索:").pack(side="left")
         
-        self.db_search_entry = tk.Entry(self.db_search_frame, textvariable=self.db_search_var, width=15)
-        self.db_search_entry.pack(side=tk.LEFT, padx=2)
+        self.db_search_entry = ctk.CTkEntry(self.db_search_frame, textvariable=self.db_search_var, width=120)
+        self.db_search_entry.pack(side="left", padx=2)
         self.db_search_entry.bind('<Return>', lambda e: self._search_db_records())
         
-        self.db_search_btn = tk.Button(self.db_search_frame, text="搜索", command=self._search_db_records, width=6)
-        self.db_search_btn.pack(side=tk.LEFT, padx=2)
+        self.db_search_btn = create_button(self.db_search_frame, "搜索", self._search_db_records, 'primary', width=60)
+        self.db_search_btn.pack(side="left", padx=2)
         
-        self.db_refresh_btn = tk.Button(self.db_btn_frame, text="刷新", command=self._refresh_db_data, width=8)
-        self.db_refresh_btn.pack(side=tk.LEFT, padx=5)
+        self.db_refresh_btn = create_button(self.db_btn_frame, "刷新", self._refresh_db_data, 'secondary', width=70)
+        self.db_refresh_btn.pack(side="left", padx=5)
         
-        self.db_price_btn = tk.Button(self.db_btn_frame, text="价格计算", command=self._open_pricing_for_selected, width=8)
-        self.db_price_btn.pack(side=tk.LEFT, padx=5)
+        self.db_price_btn = create_button(self.db_btn_frame, "价格计算", self._open_pricing_for_selected, 'primary', width=70)
+        self.db_price_btn.pack(side="left", padx=5)
         
-        self.db_delete_btn = tk.Button(self.db_btn_frame, text="删除选中", command=self._delete_db_record, width=8)
-        self.db_delete_btn.pack(side=tk.LEFT, padx=5)
+        self.db_delete_btn = create_button(self.db_btn_frame, "删除选中", self._delete_db_record, 'danger', width=70)
+        self.db_delete_btn.pack(side="left", padx=5)
         
-        self.db_close_btn = tk.Button(self.db_btn_frame, text="关闭数据库", command=self._close_db_tab, width=10)
-        self.db_close_btn.pack(side=tk.RIGHT, padx=5)
+        self.db_close_btn = create_button(self.db_btn_frame, "关闭数据库", self._close_db_tab, 'secondary', width=80)
+        self.db_close_btn.pack(side="right", padx=5)
         
-        self.db_status_label = tk.Label(self.db_btn_frame, text="")
-        self.db_status_label.pack(side=tk.RIGHT, padx=10)
+        self.db_status_label = ctk.CTkLabel(self.db_btn_frame, text="")
+        self.db_status_label.pack(side="right", padx=10)
     
     def _confirm_db_access(self):
         """确认数据库访问"""
@@ -286,13 +289,13 @@ class AlibabaScraperGUI:
         if confirm:
             self.db_access_confirmed = True
             self.db_welcome_frame.pack_forget()
-            self.db_content_frame.pack(fill=tk.BOTH, expand=True)
+            self.db_content_frame.pack(fill="both", expand=True)
             self._refresh_db_data()
     
     def _close_db_tab(self):
         """关闭数据库选项卡，返回处理队列"""
         self.db_content_frame.pack_forget()
-        self.db_welcome_frame.pack(fill=tk.BOTH, expand=True)
+        self.db_welcome_frame.pack(fill="both", expand=True)
         self.db_access_confirmed = False
         self.notebook.select(0)
     
@@ -349,10 +352,10 @@ class AlibabaScraperGUI:
                     product.get('created_at', '')
                 ))
             
-            self.db_status_label.config(text=f"共 {len(products)} 条记录")
+            self.db_status_label.configure(text=f"共 {len(products)} 条记录")
         except Exception as e:
             self.log(f"读取数据库失败: {e}", "error")
-            self.db_status_label.config(text="读取失败")
+            self.db_status_label.configure(text="读取失败")
     
     def _search_db_records(self):
         """搜索数据库记录 - 自动匹配商品ID和DSID"""
@@ -414,11 +417,11 @@ class AlibabaScraperGUI:
                     product.get('created_at', '')
                 ))
             
-            self.db_status_label.config(text=f"搜索结果: {len(products)} 条")
+            self.db_status_label.configure(text=f"搜索结果: {len(products)} 条")
             
         except Exception as e:
             self.log(f"搜索失败: {e}", "error")
-            self.db_status_label.config(text="搜索失败")
+            self.db_status_label.configure(text="搜索失败")
     
     def _validate_search_input(self, *args):
         """验证搜索输入，只允许数字"""
@@ -474,228 +477,51 @@ class AlibabaScraperGUI:
             return
         
         column = self.db_tree.identify_column(event.x)
-        selected = self.db_tree.selection()
-        if not selected:
+        item = self.db_tree.identify_row(event.y)
+        
+        if not item:
             return
         
-        item = selected[0]
         values = self.db_tree.item(item, 'values')
+        if not values:
+            return
+        
         product_id = values[0]
         
         if column == "#1":
             self._open_product_page(product_id)
-        elif column == "#5":
-            self._show_selling_prices(product_id)
-        elif column == "#6":
-            self._show_resources(product_id)
-        else:
-            self._open_pricing_for_product(product_id)
-    
-    def _show_selling_prices(self, product_id):
-        """显示价格设定结果"""
-        try:
-            from utils.database import db
-            import json
-            
-            product = db.get_product(product_id)
-            if not product:
-                self.show_info("提示", f"未找到商品：{product_id}")
-                return
-            
-            selling_prices_str = product.get('selling_prices')
-            if not selling_prices_str:
-                self.show_info("提示", f"商品 {product_id} 没有价格设定数据")
-                return
-            
-            selling_prices = json.loads(selling_prices_str)
-            
-            result_window = tk.Toplevel(self.root)
-            result_window.title(f"价格设定 - {product_id}")
-            result_window.geometry("500x400")
-            
-            tree_frame = ttk.Frame(result_window)
-            tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            columns = ("sku_name", "price")
-            tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
-            tree.heading("sku_name", text="SKU名称")
-            tree.heading("price", text="售价（元）")
-            tree.column("sku_name", width=300)
-            tree.column("price", width=100, anchor=tk.CENTER)
-            
-            scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
-            tree.configure(yscrollcommand=scrollbar.set)
-            
-            tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            for item in selling_prices:
-                if isinstance(item, dict):
-                    sku_name = item.get("sku_name", "")
-                    price = item.get("price", "")
-                else:
-                    sku_name = item[0] if len(item) > 0 else ""
-                    price = item[1] if len(item) > 1 else ""
-                tree.insert("", "end", values=(sku_name, price))
-            
-            def copy_price(event):
-                selected = tree.selection()
-                if selected:
-                    item = selected[0]
-                    values = tree.item(item, 'values')
-                    if values and len(values) > 1:
-                        price = values[1]
-                        result_window.clipboard_clear()
-                        result_window.clipboard_append(str(price))
-                        self.log(f"已复制价格: {price}")
-            
-            def show_copy_menu(event):
-                menu = tk.Menu(result_window, tearoff=0)
-                menu.add_command(label="复制价格", command=lambda: copy_price(None))
-                menu.add_command(label="复制SKU名称", command=lambda: copy_sku(None))
-                menu.post(event.x_root, event.y_root)
-            
-            def copy_sku(event):
-                selected = tree.selection()
-                if selected:
-                    item = selected[0]
-                    values = tree.item(item, 'values')
-                    if values and len(values) > 0:
-                        sku_name = values[0]
-                        result_window.clipboard_clear()
-                        result_window.clipboard_append(str(sku_name))
-                        self.log(f"已复制SKU名称: {sku_name}")
-            
-            def on_ctrl_c(event):
-                """Ctrl+C快捷键复制价格"""
-                copy_price(event)
-                return "break"
-            
-            tree.bind('<Double-Button-1>', copy_price)
-            tree.bind('<Button-3>', show_copy_menu)
-            tree.bind('<Control-c>', on_ctrl_c)
-            result_window.bind('<Control-c>', on_ctrl_c)
-            
-        except Exception as e:
-            self.show_info("错误", f"读取价格设定失败: {e}")
-    
-    def _show_resources(self, product_id):
-        """显示商品资源URL列表"""
-        try:
-            from utils.database import db
-            
-            resources = db.get_resources_by_type(product_id)
-            
-            if not any(resources.values()):
-                self.show_info("提示", f"商品 {product_id} 没有资源数据")
-                return
-            
-            result_window = tk.Toplevel(self.root)
-            result_window.title(f"资源列表 - {product_id}")
-            result_window.geometry("700x500")
-            
-            notebook = ttk.Notebook(result_window)
-            notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            type_names = {
-                'main_images': '主图',
-                'color_images': '色卡图',
-                'detail_images': '详情图',
-                'videos': '视频'
-            }
-            
-            for res_type, res_list in resources.items():
-                if not res_list:
-                    continue
-                
-                tab = ttk.Frame(notebook)
-                notebook.add(tab, text=f"{type_names.get(res_type, res_type)} ({len(res_list)})")
-                
-                tree_frame = ttk.Frame(tab)
-                tree_frame.pack(fill=tk.BOTH, expand=True)
-                
-                columns = ("name", "url", "downloaded")
-                tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
-                tree.heading("name", text="名称")
-                tree.heading("url", text="URL")
-                tree.heading("downloaded", text="已下载")
-                tree.column("name", width=150)
-                tree.column("url", width=450)
-                tree.column("downloaded", width=60, anchor=tk.CENTER)
-                
-                scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
-                tree.configure(yscrollcommand=scrollbar.set)
-                
-                tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                
-                for res in res_list:
-                    name = res.get('resource_name', '')
-                    url = res.get('resource_url', '')
-                    downloaded = "是" if res.get('downloaded') else "否"
-                    tree.insert("", "end", values=(name, url, downloaded))
-                
-                def copy_url(event, tree_widget=tree, window=result_window):
-                    selected = tree_widget.selection()
-                    if selected:
-                        item = selected[0]
-                        values = tree_widget.item(item, 'values')
-                        if values and len(values) > 1:
-                            url = values[1]
-                            window.clipboard_clear()
-                            window.clipboard_append(str(url))
-                            self.log(f"已复制URL: {url[:50]}...")
-                
-                tree.bind('<Double-Button-1>', copy_url)
-            
-        except Exception as e:
-            self.show_info("错误", f"读取资源数据失败: {e}")
-    
-    def _open_pricing_for_product(self, product_id):
-        """打开指定商品的价格计算工具"""
-        try:
-            from gui.pricing_gui import PricingToolGUI
-            
-            pricing_window = tk.Toplevel(self.root)
-            pricing_window.title(f"商品定价计算工具 - {product_id}")
-            pricing_window.geometry("1000x700")
-            
-            pricing_app = PricingToolGUI(pricing_window, product_id)
-            
-        except ImportError as e:
-            self.show_info("错误", f"无法加载价格计算工具：{e}")
-        except Exception as e:
-            self.show_info("错误", f"打开价格计算工具失败：{e}")
+        elif column == "#2":
+            self._open_shop_page(product_id)
     
     def _open_pricing_for_selected(self):
-        """打开选中商品的价格计算工具"""
-        selected = self.db_tree.selection()
-        if not selected:
-            self.show_info("提示", "请先选择要查看的商品")
+        """为选中的数据库记录打开价格计算工具"""
+        selected_items = self.db_tree.selection()
+        if not selected_items:
+            self.show_info("提示", "请先选择一条记录")
             return
         
-        item = selected[0]
+        item = selected_items[0]
         values = self.db_tree.item(item, 'values')
-        product_id = values[0]
-        self._open_pricing_for_product(product_id)
+        if values:
+            product_id = values[0]
+            self.open_pricing_tool(product_id)
     
     def _delete_db_record(self):
         """删除选中的数据库记录"""
-        selected = self.db_tree.selection()
-        if not selected:
+        selected_items = self.db_tree.selection()
+        if not selected_items:
             self.show_info("提示", "请先选择要删除的记录")
             return
         
-        item = selected[0]
+        item = selected_items[0]
         values = self.db_tree.item(item, 'values')
-        product_id = values[0]
-        
-        confirm = self.ask_yes_no("确认删除", f"确定要删除商品ID为 {product_id} 的记录吗？\n\n此操作不可撤销！")
-        if not confirm:
+        if not values:
             return
         
-        confirm2 = self.ask_yes_no("二次确认", f"再次确认：删除商品ID {product_id}？")
-        if not confirm2:
+        product_id = values[0]
+        
+        confirm = self.ask_yes_no("确认删除", f"确定要删除商品 {product_id} 的记录吗？\n\n此操作不可撤销！")
+        if not confirm:
             return
         
         try:
@@ -739,22 +565,16 @@ class AlibabaScraperGUI:
     
     def _init_modules(self):
         """初始化模块化组件"""
-        # 初始化日志模块
         self.logger = GUILogger(self.log_text)
         
-        # 初始化队列管理器
         self.queue_manager = QueueManager(self)
         
-        # 初始化上下文菜单命令
         self.context_menu_commands = ContextMenuCommands(self)
         
-        # 初始化上下文菜单管理器
         self.context_menu_manager = ContextMenuManager(self.root, self)
         
-        # 绑定右键菜单
         self.queue_tree.bind('<Button-3>', self.context_menu_manager.show_context_menu)
         
-        # 队列管理属性代理
         self.file_queue = self.queue_manager.file_queue
         self.file_status = self.queue_manager.file_status
     
@@ -769,92 +589,75 @@ class AlibabaScraperGUI:
     
     def show_info(self, title, message):
         """显示信息提示框，在 GUI 界面居中弹出"""
-        # 创建 Toplevel 窗口
-        top = tk.Toplevel(self.root)
+        top = ctk.CTkToplevel(self.root)
         top.title(title)
-        top.transient(self.root)  # 设置为主窗口的临时窗口
-        top.grab_set()  # 模态窗口，阻止与主窗口交互
+        top.transient(self.root)
+        top.grab_set()
         
-        # 设置窗口大小
         width = 300
-        height = 150
+        height = 160
         
-        # 获取主窗口的位置
         root_x = self.root.winfo_x()
         root_y = self.root.winfo_y()
         root_width = self.root.winfo_width()
         root_height = self.root.winfo_height()
         
-        # 计算提示框的位置，使其在主窗口居中
         x = root_x + (root_width - width) // 2
         y = root_y + (root_height - height) // 2
         
-        # 设置窗口位置
         top.geometry(f"{width}x{height}+{x}+{y}")
         
-        # 添加消息标签
-        label = tk.Label(top, text=message, padx=20, pady=20)
-        label.pack(fill=tk.BOTH, expand=True)
+        main_frame = ctk.CTkFrame(top, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
         
-        # 添加确定按钮
-        button = tk.Button(top, text="确定", command=top.destroy, width=10)
-        button.pack(pady=10)
+        label = ctk.CTkLabel(main_frame, text=message, wraplength=250)
+        label.pack(fill="both", expand=True)
         
-        # 设置按钮为默认焦点
+        button = create_button(main_frame, "确定", top.destroy, 'primary')
+        button.pack(pady=(10, 0))
+        
         button.focus_set()
         top.bind('<Return>', lambda event: top.destroy())
     
     def ask_yes_no(self, title, message):
         """显示确认对话框，在 GUI 界面居中弹出，返回 True 或 False"""
-        # 创建结果变量
-        result = tk.BooleanVar()
+        result = ctk.BooleanVar()
         result.set(False)
         
-        # 创建 Toplevel 窗口
-        top = tk.Toplevel(self.root)
+        top = ctk.CTkToplevel(self.root)
         top.title(title)
-        top.transient(self.root)  # 设置为主窗口的临时窗口
-        top.grab_set()  # 模态窗口，阻止与主窗口交互
+        top.transient(self.root)
+        top.grab_set()
         
-        # 设置窗口大小
         width = 350
         height = 180
         
-        # 获取主窗口的位置
         root_x = self.root.winfo_x()
         root_y = self.root.winfo_y()
         root_width = self.root.winfo_width()
         root_height = self.root.winfo_height()
         
-        # 计算提示框的位置，使其在主窗口居中
         x = root_x + (root_width - width) // 2
         y = root_y + (root_height - height) // 2
         
-        # 设置窗口位置
         top.geometry(f"{width}x{height}+{x}+{y}")
         
-        # 添加消息标签
-        label = tk.Label(top, text=message, padx=20, pady=20)
-        label.pack(fill=tk.BOTH, expand=True)
+        label = ctk.CTkLabel(top, text=message, padx=20, pady=20, wraplength=300)
+        label.pack(fill="both", expand=True)
         
-        # 创建按钮框架
-        button_frame = tk.Frame(top)
+        button_frame = ctk.CTkFrame(top, fg_color="transparent")
         button_frame.pack(pady=10)
         
-        # 添加是按钮
-        yes_button = tk.Button(button_frame, text="是", command=lambda: [result.set(True), top.destroy()], width=10)
-        yes_button.pack(side=tk.LEFT, padx=10)
+        yes_button = create_button(button_frame, "是", lambda: [result.set(True), top.destroy()], 'success')
+        yes_button.pack(side="left", padx=10)
         
-        # 添加否按钮
-        no_button = tk.Button(button_frame, text="否", command=lambda: [result.set(False), top.destroy()], width=10)
-        no_button.pack(side=tk.RIGHT, padx=10)
+        no_button = create_button(button_frame, "否", lambda: [result.set(False), top.destroy()], 'secondary')
+        no_button.pack(side="right", padx=10)
         
-        # 设置按钮为默认焦点
         no_button.focus_set()
         top.bind('<Return>', lambda event: [result.set(False), top.destroy()])
         top.bind('<Escape>', lambda event: [result.set(False), top.destroy()])
         
-        # 等待窗口关闭
         self.root.wait_window(top)
         
         return result.get()
@@ -906,7 +709,7 @@ class AlibabaScraperGUI:
         """
         if not self.easter_egg_activated:
             self.easter_egg_activated = True
-            self.output_frame.pack(fill=tk.X, pady=(0, 5), before=self.content_frame)
+            self.output_frame.pack(fill="x", pady=(0, 5), before=self.content_frame)
             if show_message:
                 self.log("恭喜你发现了彩蛋！连续按8次Alt键激活了输出路径设置！", "success")
     
@@ -923,7 +726,6 @@ class AlibabaScraperGUI:
         )
         
         if selected_path:
-            # 验证路径有效性
             if self.validate_output_path(selected_path):
                 self.output_path_var.set(selected_path)
                 self.save_output_path(selected_path)
@@ -944,11 +746,9 @@ class AlibabaScraperGUI:
             return False
         
         try:
-            # 检查路径是否存在，不存在则尝试创建
             if not os.path.exists(path):
                 os.makedirs(path, exist_ok=True)
             
-            # 检查写入权限
             test_file = os.path.join(path, '.write_test')
             with open(test_file, 'w') as f:
                 f.write('test')
@@ -1001,25 +801,21 @@ class AlibabaScraperGUI:
         """加载使用说明内容"""
         help_content = ""
         
-        # 检查是否存在 README.md 文件
         readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "README.md")
         if os.path.exists(readme_path):
             try:
                 with open(readme_path, 'r', encoding='utf-8') as f:
                     help_content = f.read()
             except Exception as e:
-                # 读取默认帮助内容
                 default_content = self.get_default_help_content()
                 help_content = f"读取 README.md 文件失败: {str(e)}\n\n" + default_content
         else:
-            # 读取默认帮助内容
             help_content = self.get_default_help_content()
         
-        # 显示使用说明内容
-        self.help_text.config(state=tk.NORMAL)
-        self.help_text.delete(1.0, tk.END)
-        self.help_text.insert(tk.END, help_content)
-        self.help_text.config(state=tk.DISABLED)
+        self.help_text.config(state="normal")
+        self.help_text.delete(1.0, "end")
+        self.help_text.insert("end", help_content)
+        self.help_text.config(state="disabled")
     
     def _load_help_frame(self):
         """加载帮助文档框架"""
@@ -1027,14 +823,14 @@ class AlibabaScraperGUI:
         
         if not HAS_TKINTERWEB or not HAS_MARKDOWN:
             self.log("使用纯文本模式显示使用说明")
-            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
-            self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap="word")
+            self.help_text.pack(fill="both", expand=True, padx=10, pady=10)
             self.load_help_content()
             return
         
         try:
             self.help_frame = HtmlFrame(self.help_tab, messages_enabled=False)
-            self.help_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.help_frame.pack(fill="both", expand=True, padx=10, pady=10)
             self.load_help_content_html()
             self.help_frame.bind('<Button-1>', self._on_link_click)
         except Exception as e:
@@ -1042,8 +838,8 @@ class AlibabaScraperGUI:
             traceback.print_exc()
             self.log(f"HTML渲染加载失败: {e}", "warning")
             self._unload_help_frame()
-            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap=tk.WORD)
-            self.help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            self.help_text = ScrolledText(self.help_tab, width=100, height=30, wrap="word")
+            self.help_text.pack(fill="both", expand=True, padx=10, pady=10)
             self.load_help_content()
     
     def _unload_help_frame(self):
@@ -1073,7 +869,6 @@ class AlibabaScraperGUI:
         """加载使用说明内容（HTML渲染）"""
         help_content = ""
         
-        # 检查是否存在 README.md 文件
         readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "README.md")
         if os.path.exists(readme_path):
             try:
@@ -1084,13 +879,11 @@ class AlibabaScraperGUI:
         else:
             help_content = self.get_default_help_content()
         
-        # 转换 Markdown 为 HTML
         html_content = markdown.markdown(
             help_content,
             extensions=['tables', 'fenced_code', 'toc', 'nl2br']
         )
         
-        # 添加 CSS 样式
         full_html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -1189,7 +982,6 @@ class AlibabaScraperGUI:
 </body>
 </html>"""
         
-        # 显示 HTML 内容
         self.help_frame.load_html(full_html)
     
     def get_default_help_content(self):
@@ -1242,7 +1034,6 @@ class AlibabaScraperGUI:
                "- 项目地址：https://github.com/jiyun/1688/\n" \
                "- 日期：2026-02-01"
     
-    # 队列管理代理方法
     def add_file(self):
         """添加多个 HTML 文件到队列"""
         self.queue_manager.add_file()
@@ -1349,11 +1140,11 @@ class AlibabaScraperGUI:
         else:
             product_id = ""
         
-        dialog = tk.Toplevel(self.root)
+        dialog = ctk.CTkToplevel(self.root)
         dialog.title("编辑DSID")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("350x150")
+        dialog.geometry("350x180")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1361,19 +1152,19 @@ class AlibabaScraperGUI:
         y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
         
-        main_frame = tk.Frame(dialog, padx=20, pady=15)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
         
-        label_frame = tk.Frame(main_frame)
-        label_frame.pack(fill=tk.X, pady=(0, 10))
+        label_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        label_frame.pack(fill="x", pady=(0, 10))
         
-        tk.Label(label_frame, text="商品ID:").pack(side=tk.LEFT)
-        tk.Label(label_frame, text=product_id, fg="gray").pack(side=tk.LEFT, padx=(5, 0))
+        ctk.CTkLabel(label_frame, text="商品ID:").pack(side="left")
+        ctk.CTkLabel(label_frame, text=product_id, text_color="gray").pack(side="left", padx=(5, 0))
         
-        entry_frame = tk.Frame(main_frame)
-        entry_frame.pack(fill=tk.X, pady=(0, 5))
+        entry_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        entry_frame.pack(fill="x", pady=(0, 10))
         
-        tk.Label(entry_frame, text="DSID:").pack(side=tk.LEFT)
+        ctk.CTkLabel(entry_frame, text="DSID:").pack(side="left")
         
         def validate_number(new_value):
             if new_value == "":
@@ -1384,38 +1175,36 @@ class AlibabaScraperGUI:
                 return True
             return False
         
-        vcmd = (dialog.register(validate_number), '%P')
-        entry = tk.Entry(entry_frame, width=25, validate='key', validatecommand=vcmd)
-        entry.pack(side=tk.LEFT, padx=(5, 0))
+        entry = ctk.CTkEntry(entry_frame, width=200)
+        entry.pack(side="left", padx=(5, 0))
         entry.insert(0, current_shop_id)
         entry.focus_set()
-        entry.select_range(0, tk.END)
         
-        error_label = tk.Label(main_frame, text="", fg="red")
-        error_label.pack(fill=tk.X)
+        error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
+        error_label.pack(fill="x", pady=(0, 5))
         
-        btn_frame = tk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=(10, 0))
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(5, 0))
         
         def save_shop_id():
             new_shop_id = entry.get().strip()
             
             if not new_shop_id:
-                error_label.config(text="DSID不能为空")
+                error_label.configure(text="DSID不能为空")
                 return
             
             if not new_shop_id.isdigit():
-                error_label.config(text="DSID必须为纯数字")
+                error_label.configure(text="DSID必须为纯数字")
                 return
             
             if new_shop_id.startswith('0') and len(new_shop_id) > 1:
-                error_label.config(text="DSID不能以0开头")
+                error_label.configure(text="DSID不能以0开头")
                 return
             
             try:
                 int(new_shop_id)
             except ValueError:
-                error_label.config(text="DSID格式无效")
+                error_label.configure(text="DSID格式无效")
                 return
             
             self.queue_tree.set(item, column="shop_id", value=new_shop_id)
@@ -1427,8 +1216,8 @@ class AlibabaScraperGUI:
                 self.log(f"保存DSID失败: {e}", "warning")
             dialog.destroy()
         
-        tk.Button(btn_frame, text="保存", command=save_shop_id, width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="取消", command=dialog.destroy, width=10).pack(side=tk.LEFT, padx=5)
+        create_button(btn_frame, "保存", save_shop_id, 'success').pack(side="left", padx=5)
+        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=5)
         
         dialog.bind('<Return>', lambda e: save_shop_id())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
@@ -1436,21 +1225,15 @@ class AlibabaScraperGUI:
     def open_file_explorer(self, path):
         """打开资源管理器到指定路径"""
         try:
-            # 确保路径存在
             if not os.path.exists(path):
-                # 如果路径不存在，尝试创建
                 os.makedirs(path, exist_ok=True)
             
-            # 使用 subprocess 打开资源管理器
             import subprocess
             if sys.platform == 'win32':
-                # Windows 系统
                 subprocess.run(['explorer', path])
             elif sys.platform == 'darwin':
-                # macOS 系统
                 subprocess.run(['open', path])
             else:
-                # Linux 系统
                 subprocess.run(['xdg-open', path])
             
             self.log(f"已打开资源管理器: {path}")
@@ -1486,7 +1269,6 @@ class AlibabaScraperGUI:
         
         return 'TkDefaultFont'
     
-    # 上下文菜单命令代理方法
     def context_stitch_images(self):
         """右键菜单：图像优化（拼接+清理）"""
         self.context_menu_commands.context_stitch_images()
@@ -1531,31 +1313,35 @@ class AlibabaScraperGUI:
         """右键菜单：编辑商品 - 复制商品链接"""
         self.context_menu_commands.context_copy_item_url()
     
-    def open_pricing_tool(self):
+    def open_pricing_tool(self, selected_product_id=None):
         """打开价格计算工具"""
         try:
             from gui.pricing_gui import PricingToolGUI
             import re
             
-            selected_product_id = None
-            selected_items = self.queue_tree.selection()
-            
-            if selected_items:
-                item = selected_items[0]
-                values = self.queue_tree.item(item, 'values')
+            if selected_product_id is None:
+                selected_items = self.queue_tree.selection()
                 
-                if values and len(values) > 2:
-                    display_name = values[2]
-                    match = re.search(r'(\d{10,12})\.html$', display_name)
-                    if match:
-                        selected_product_id = match.group(1)
+                if selected_items:
+                    item = selected_items[0]
+                    values = self.queue_tree.item(item, 'values')
+                    
+                    if values and len(values) > 2:
+                        display_name = values[2]
+                        match = re.search(r'(\d{10,12})\.html$', display_name)
+                        if match:
+                            selected_product_id = match.group(1)
             
-            pricing_window = tk.Toplevel(self.root)
+            pricing_window = ctk.CTkToplevel(self.root)
             if selected_product_id:
                 pricing_window.title(f"商品定价计算工具 - {selected_product_id}")
             else:
                 pricing_window.title("商品定价计算工具")
-            pricing_window.geometry("1000x700")
+            pricing_window.geometry("1000x780")
+            pricing_window.transient(self.root)
+            pricing_window.grab_set()
+            pricing_window.focus_force()
+            pricing_window.lift()
             
             pricing_app = PricingToolGUI(pricing_window, selected_product_id)
             
@@ -1641,32 +1427,30 @@ class AlibabaScraperGUI:
     
     def _show_download_progress(self):
         """显示下载进度窗口"""
-        self.download_window = tk.Toplevel(self.root)
+        self.download_window = ctk.CTkToplevel(self.root)
         self.download_window.title("下载更新")
-        self.download_window.geometry("400x120")
+        self.download_window.geometry("400x140")
         self.download_window.resizable(False, False)
         self.download_window.transient(self.root)
         self.download_window.grab_set()
         
-        tk.Label(self.download_window, text="正在下载更新包...", font=('Arial', 10)).pack(pady=10)
+        main_frame = ctk.CTkFrame(self.download_window, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
         
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(
-            self.download_window, 
-            variable=self.progress_var, 
-            maximum=100,
-            length=350
-        )
+        ctk.CTkLabel(main_frame, text="正在下载更新包...", font=('', 10)).pack(pady=5)
+        
+        self.progress_bar = ctk.CTkProgressBar(main_frame, width=350)
         self.progress_bar.pack(pady=5)
+        self.progress_bar.set(0)
         
-        self.progress_label = tk.Label(self.download_window, text="0%", font=('Arial', 9))
+        self.progress_label = ctk.CTkLabel(main_frame, text="0%", font=('', 10))
         self.progress_label.pack()
         
-        self.cancel_download_btn = tk.Button(
-            self.download_window, 
-            text="取消", 
-            command=self._cancel_download,
-            width=10
+        self.cancel_download_btn = create_button(
+            main_frame, 
+            "取消", 
+            self._cancel_download,
+            'danger'
         )
         self.cancel_download_btn.pack(pady=10)
         
@@ -1674,9 +1458,9 @@ class AlibabaScraperGUI:
     
     def _update_download_progress(self, percent):
         """更新下载进度"""
-        if hasattr(self, 'progress_var') and hasattr(self, 'progress_label'):
-            self.progress_var.set(percent)
-            self.progress_label.config(text=f"{percent}%")
+        if hasattr(self, 'progress_bar') and hasattr(self, 'progress_label'):
+            self.progress_bar.set(percent / 100)
+            self.progress_label.configure(text=f"{percent}%")
     
     def _on_download_complete(self, filepath, version_info):
         """下载完成"""
@@ -1697,44 +1481,33 @@ class AlibabaScraperGUI:
         
         result = self.ask_yes_no("下载失败", "下载失败，是否在浏览器中打开下载页面？")
         if result and hasattr(self, '_current_version_info'):
-            self._open_download_page(self._current_version_info)
+            import webbrowser
+            url = self._current_version_info.download_url
+            webbrowser.open(url)
     
-    def _on_download_error(self, error):
+    def _on_download_error(self, error_msg):
         """下载出错"""
         if hasattr(self, 'download_window'):
             self.download_window.destroy()
         
-        self.show_info("下载出错", f"下载出错：{error}")
+        self.show_info("下载出错", f"下载出错：{error_msg}")
     
     def _cancel_download(self):
         """取消下载"""
         if hasattr(self, 'download_window'):
             self.download_window.destroy()
-    
-    def _open_download_page(self, version_info):
-        """打开下载页面"""
-        import webbrowser
-        
-        url = version_info.download_urls.get('gitee') or version_info.download_urls.get('github')
-        if url:
-            webbrowser.open(url)
-            self.show_info("下载更新", f"已在浏览器中打开下载页面\n版本: v{version_info.version}")
 
 
 def main():
     """主函数"""
-    multiprocessing.freeze_support()
-    
     if HAS_DND:
-        from gui.dnd import create_dnd_root
-        root = create_dnd_root()
+        from tkinterdnd2 import TkinterDnD
+        root = TkinterDnD.Tk()
+        ctk.set_appearance_mode("Light")
+        ctk.set_default_color_theme("blue")
     else:
-        root = tk.Tk()
-    
+        root = ctk.CTk()
     app = AlibabaScraperGUI(root)
-    
-    hide_console()
-    
     app.run()
 
 

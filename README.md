@@ -1,6 +1,6 @@
 # 1688详情页资源采集工具
 
-![Version](https://img.shields.io/badge/version-0.3.4-blue)
+![Version](https://img.shields.io/badge/version-0.3.5-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -9,30 +9,12 @@
 
 这是一个用于采集1688详情页资源的工具，通过解析本地已渲染的页面来避开阿里的反爬虫机制，实现对商品图片、视频和属性的批量下载和管理。
 
-## 目录
-
-- [项目简介](#项目简介)
-- [版本信息](#版本信息)
-- [核心功能](#核心功能)
-- [系统要求](#系统要求)
-- [安装步骤](#安装步骤)
-- [使用方法](#使用方法)
-- [项目结构](#项目结构)
-- [性能说明](#性能说明)
-- [安全性与隐私](#安全性与隐私)
-- [常见问题](#常见问题)
-- [后续优化方向](#后续优化方向)
-- [注意事项](#注意事项)
-- [致谢](#致谢)
-- [许可证](#许可证)
-- [联系方式](#联系方式)
-
 ## 版本信息 
 
-- 当前版本：0.3.4
+- 当前版本：0.3.5
 - 作者：急云
 - 项目地址：https://github.com/jiyun/1688/
-- 发布日期：2026-03-17
+- 发布日期：2026-03-21
 - [查看完整更新日志](CHANGELOG.md)
 
 ## 核心功能

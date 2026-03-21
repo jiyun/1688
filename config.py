@@ -150,7 +150,7 @@ PRICING_CONF = {
     'default_pricing_strategy': 'multiplier',
     'default_rounding': 0,
     'default_max_price': 0.0,
-    'window_geometry': '1000x700',
+    'window_geometry': '1000x780',
     'window_resizable': True,
     'canvas_height': 150,
     'listbox_height': 10,
@@ -169,3 +169,50 @@ UPDATE_CONF = {
     'changelog_file': 'CHANGELOG.md',
     'download_dir': 'updates',
 }
+
+BUTTON_CONF = {
+    'width': 120,
+    'height': 40,
+    'corner_radius': 8,
+    'border_width': 0,
+    
+    'themes': {
+        'default': {
+            'primary': {'fg_color': '#1F6AA5', 'hover_color': '#144870', 'text_color': 'white'},
+            'success': {'fg_color': '#4CAF50', 'hover_color': '#388E3C', 'text_color': 'white'},
+            'danger': {'fg_color': '#D32F2F', 'hover_color': '#B71C1C', 'text_color': 'white'},
+            'warning': {'fg_color': '#FF9800', 'hover_color': '#F57C00', 'text_color': 'white'},
+            'secondary': {'fg_color': '#607D8B', 'hover_color': '#455A64', 'text_color': 'white'},
+        },
+        'dark': {
+            'primary': {'fg_color': '#2196F3', 'hover_color': '#1976D2', 'text_color': 'white'},
+            'success': {'fg_color': '#66BB6A', 'hover_color': '#43A047', 'text_color': 'white'},
+            'danger': {'fg_color': '#EF5350', 'hover_color': '#E53935', 'text_color': 'white'},
+            'warning': {'fg_color': '#FFA726', 'hover_color': '#FB8C00', 'text_color': 'white'},
+            'secondary': {'fg_color': '#78909C', 'hover_color': '#546E7A', 'text_color': 'white'},
+        },
+        'light': {
+            'primary': {'fg_color': '#3F51B5', 'hover_color': '#303F9F', 'text_color': 'white'},
+            'success': {'fg_color': '#43A047', 'hover_color': '#2E7D32', 'text_color': 'white'},
+            'danger': {'fg_color': '#E53935', 'hover_color': '#C62828', 'text_color': 'white'},
+            'warning': {'fg_color': '#FB8C00', 'hover_color': '#EF6C00', 'text_color': 'white'},
+            'secondary': {'fg_color': '#546E7A', 'hover_color': '#37474F', 'text_color': 'white'},
+        }
+    },
+    'current_theme': 'default',
+}
+
+def get_button_style(style_type='primary'):
+    theme_name = BUTTON_CONF.get('current_theme', 'default')
+    theme = BUTTON_CONF['themes'].get(theme_name, BUTTON_CONF['themes']['default'])
+    return theme.get(style_type, theme['primary'])
+
+def get_button_config(style_type='primary'):
+    style = get_button_style(style_type)
+    return {
+        'width': BUTTON_CONF['width'],
+        'height': BUTTON_CONF['height'],
+        'corner_radius': BUTTON_CONF['corner_radius'],
+        'border_width': BUTTON_CONF['border_width'],
+        **style
+    }

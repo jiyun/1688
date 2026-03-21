@@ -806,5 +806,3 @@ class ContextMenuCommands:
                 self.parent.root.clipboard_clear()
                 self.parent.root.clipboard_append(url)
                 self.parent.log(f"已复制商品链接: {url}")
-            else:
-                self.parent.show_info("提示", "该商品DSID为空，无法生成链接")

@@ -459,8 +459,8 @@ class QueueManager:
             return
         
         # 禁用执行按钮，启用暂停按钮
-        self.parent.execute_btn.config(state="disabled", text="执行中...")
-        self.parent.pause_btn.config(state="normal")
+        self.parent.execute_btn.configure(state="disabled", text="执行中...")
+        self.parent.pause_btn.configure(state="normal")
         
         # 设置执行状态
         self.is_executing = True
@@ -569,8 +569,8 @@ class QueueManager:
                 self.parent.log(f"执行过程中出错: {str(e)}")
             finally:
                 # 恢复按钮状态
-                self.parent.execute_btn.config(state="normal", text="执行 (Enter)")
-                self.parent.pause_btn.config(state="disabled", text="暂停 (P)")
+                self.parent.execute_btn.configure(state="normal", text="执行 (Enter)")
+                self.parent.pause_btn.configure(state="disabled", text="暂停 (P)")
                 # 重置执行状态
                 self.is_executing = False
                 self.is_paused = False
@@ -589,10 +589,10 @@ class QueueManager:
         if self.is_paused:
             # 恢复执行
             self.is_paused = False
-            self.parent.pause_btn.config(text="暂停 (P)")
+            self.parent.pause_btn.configure(text="暂停 (P)")
             self.parent.log("已恢复队列处理")
         else:
             # 暂停执行
             self.is_paused = True
-            self.parent.pause_btn.config(text="恢复")
+            self.parent.pause_btn.configure(text="恢复")
             self.parent.log("已暂停队列处理")

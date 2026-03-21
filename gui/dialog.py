@@ -1,55 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一弹窗提醒组件
+统一弹窗提醒组件 (CustomTkinter版本)
 确保所有弹窗在视觉风格、交互方式和信息展示格式上保持一致
 """
 
 import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
 from typing import Optional, Callable
+from gui.utils import create_button
 
 DIALOG_COLORS = {
     'info': {
-        'bg': '#E3F2FD',
-        'fg': '#1565C0',
+        'fg_color': '#E3F2FD',
+        'text_color': '#1565C0',
         'icon': 'ℹ️',
-        'button_bg': '#2196F3',
-        'button_fg': 'white'
+        'button_fg_color': '#2196F3',
+        'button_hover_color': '#1976D2'
     },
     'success': {
-        'bg': '#E8F5E9',
-        'fg': '#2E7D32',
+        'fg_color': '#E8F5E9',
+        'text_color': '#2E7D32',
         'icon': '✅',
-        'button_bg': '#4CAF50',
-        'button_fg': 'white'
+        'button_fg_color': '#4CAF50',
+        'button_hover_color': '#388E3C'
     },
     'warning': {
-        'bg': '#FFF3E0',
-        'fg': '#E65100',
+        'fg_color': '#FFF3E0',
+        'text_color': '#E65100',
         'icon': '⚠️',
-        'button_bg': '#FF9800',
-        'button_fg': 'white'
+        'button_fg_color': '#FF9800',
+        'button_hover_color': '#F57C00'
     },
     'error': {
-        'bg': '#FFEBEE',
-        'fg': '#C62828',
+        'fg_color': '#FFEBEE',
+        'text_color': '#C62828',
         'icon': '❌',
-        'button_bg': '#F44336',
-        'button_fg': 'white'
+        'button_fg_color': '#F44336',
+        'button_hover_color': '#D32F2F'
     },
     'question': {
-        'bg': '#F3E5F5',
-        'fg': '#7B1FA2',
+        'fg_color': '#F3E5F5',
+        'text_color': '#7B1FA2',
         'icon': '❓',
-        'button_bg': '#9C27B0',
-        'button_fg': 'white'
+        'button_fg_color': '#9C27B0',
+        'button_hover_color': '#7B1FA2'
     }
 }
 
 
 class CustomDialog:
-    """自定义弹窗基类"""
+    """自定义弹窗基类 (CustomTkinter版本)"""
     
     def __init__(self, parent: tk.Tk, title: str, message: str, 
                  dialog_type: str = 'info', buttons: list = None):
@@ -64,69 +65,61 @@ class CustomDialog:
     
     def _create_dialog(self):
         """创建弹窗"""
-        self.dialog = tk.Toplevel(self.parent)
+        self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title(self.title)
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
         
         style = DIALOG_COLORS.get(self.dialog_type, DIALOG_COLORS['info'])
         
-        self.dialog.configure(bg=style['bg'])
-        
-        self.dialog.geometry("400x180")
+        self.dialog.geometry("400x200")
         self.dialog.resizable(False, False)
         
         self._center_dialog()
         
-        main_frame = tk.Frame(self.dialog, bg=style['bg'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_frame = ctk.CTkFrame(self.dialog, fg_color=style['fg_color'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
         
-        icon_label = tk.Label(
+        icon_label = ctk.CTkLabel(
             main_frame,
             text=style['icon'],
             font=('Segoe UI Emoji', 32),
-            bg=style['bg'],
-            fg=style['fg']
+            text_color=style['text_color']
         )
         icon_label.pack(side=tk.LEFT, padx=(0, 15))
         
-        content_frame = tk.Frame(main_frame, bg=style['bg'])
+        content_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        title_label = tk.Label(
+        title_label = ctk.CTkLabel(
             content_frame,
             text=self.title,
-            font=('Microsoft YaHei', 12, 'bold'),
-            bg=style['bg'],
-            fg=style['fg']
+            font=('Microsoft YaHei', 14, 'bold'),
+            text_color=style['text_color']
         )
         title_label.pack(anchor='w')
         
-        message_label = tk.Label(
+        message_label = ctk.CTkLabel(
             content_frame,
             text=self.message,
-            font=('Microsoft YaHei', 10),
-            bg=style['bg'],
-            fg=style['fg'],
+            font=('Microsoft YaHei', 12),
+            text_color=style['text_color'],
             wraplength=280,
             justify=tk.LEFT
         )
         message_label.pack(anchor='w', pady=(5, 0))
         
-        button_frame = tk.Frame(self.dialog, bg=style['bg'])
-        button_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
+        button_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
+        button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
         
         for text, command in self.buttons:
-            btn = tk.Button(
+            btn = create_button(
                 button_frame,
-                text=text,
-                font=('Microsoft YaHei', 10),
-                bg=style['button_bg'],
-                fg=style['button_fg'],
-                width=10,
-                relief=tk.FLAT,
-                cursor='hand2',
-                command=lambda cmd=command: self._on_button_click(cmd)
+                text,
+                lambda cmd=command: self._on_button_click(cmd),
+                'primary',
+                fg_color=style['button_fg_color'],
+                hover_color=style['button_hover_color']
             )
             btn.pack(side=tk.RIGHT, padx=5)
         

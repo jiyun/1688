@@ -196,12 +196,14 @@ class ContextMenuManager:
                     file_path = self.parent_widget.queue_manager.file_queue[file_index]
                     status = self.parent_widget.file_status.get(file_path, "none")
                     
-                    # 根据状态启用/禁用菜单项
                     state = tk.NORMAL if status in ["success", "error", "exists", "duplicate"] else tk.DISABLED
                     
                     self.context_menu.entryconfig("图像优化", state=state)
                     self.context_menu.entryconfig("资源打包", state=state)
                     self.context_menu.entryconfig("重新采集", state=state)
                     
-                    # 显示菜单
+                    dsid = values[3] if len(values) > 3 else ""
+                    edit_product_state = tk.NORMAL if dsid and str(dsid).strip() else tk.DISABLED
+                    self.context_menu.entryconfig("编辑商品 ©", state=edit_product_state)
+                    
                     self.context_menu.post(event.x_root, event.y_root)

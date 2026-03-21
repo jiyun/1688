@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-拖放功能模块
+拖放功能模块 (CustomTkinter版本)
 支持将HTML文件拖放到应用程序窗口
 实现动态显示的覆盖层效果
 """
 
 import os
 import tkinter as tk
+import customtkinter as ctk
 
 try:
     from tkinterdnd2 import DND_FILES
@@ -17,7 +18,7 @@ except ImportError:
 
 
 class DynamicDropOverlay:
-    """动态拖放覆盖层管理器
+    """动态拖放覆盖层管理器 (CustomTkinter版本)
     
     实现拖放区域的动态显示和隐藏：
     - 默认隐藏，不占用界面空间
@@ -45,41 +46,36 @@ class DynamicDropOverlay:
     
     def _create_overlay(self):
         """创建覆盖层（初始隐藏）"""
-        self.overlay_frame = tk.Frame(
+        self.overlay_frame = ctk.CTkFrame(
             self.target_frame,
-            bg='#E3F2FD',
-            relief=tk.SOLID,
-            bd=3
+            fg_color='#E3F2FD',
+            corner_radius=10
         )
         
-        inner_frame = tk.Frame(self.overlay_frame, bg='#E3F2FD')
+        inner_frame = ctk.CTkFrame(self.overlay_frame, fg_color="transparent")
         inner_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         
-        self.overlay_icon = tk.Label(
+        self.overlay_icon = ctk.CTkLabel(
             inner_frame,
             text='📁',
             font=('Segoe UI Emoji', 48),
-            bg='#E3F2FD',
-            fg='#1976D2'
+            text_color='#1976D2'
         )
         self.overlay_icon.pack(pady=(0, 10))
         
-        self.overlay_label = tk.Label(
+        self.overlay_label = ctk.CTkLabel(
             inner_frame,
             text='将 HTML 文件拖放到此处\n添加到处理队列',
-            font=('Microsoft YaHei', 14, 'bold'),
-            bg='#E3F2FD',
-            fg='#1976D2',
-            justify=tk.CENTER
+            font=('Microsoft YaHei', 16, 'bold'),
+            text_color='#1976D2'
         )
         self.overlay_label.pack()
         
-        self.hint_label = tk.Label(
+        self.hint_label = ctk.CTkLabel(
             inner_frame,
             text='仅支持 .html 文件',
-            font=('Microsoft YaHei', 10),
-            bg='#E3F2FD',
-            fg='#64B5F6'
+            font=('Microsoft YaHei', 12),
+            text_color='#64B5F6'
         )
         self.hint_label.pack(pady=(10, 0))
     
@@ -155,35 +151,31 @@ class DynamicDropOverlay:
         """
         styles = {
             'active': {
-                'bg': '#E3F2FD',
-                'fg': '#1976D2',
-                'hint_fg': '#64B5F6',
+                'fg_color': '#E3F2FD',
+                'text_color': '#1976D2',
+                'hint_color': '#64B5F6',
                 'icon': '📁'
             },
             'valid': {
-                'bg': '#E8F5E9',
-                'fg': '#2E7D32',
-                'hint_fg': '#81C784',
+                'fg_color': '#E8F5E9',
+                'text_color': '#2E7D32',
+                'hint_color': '#81C784',
                 'icon': '✅'
             },
             'invalid': {
-                'bg': '#FFEBEE',
-                'fg': '#C62828',
-                'hint_fg': '#EF9A9A',
+                'fg_color': '#FFEBEE',
+                'text_color': '#C62828',
+                'hint_color': '#EF9A9A',
                 'icon': '⚠️'
             }
         }
         
         style = styles.get(state, styles['active'])
         
-        self.overlay_frame.configure(bg=style['bg'])
-        self.overlay_icon.configure(bg=style['bg'], fg=style['fg'], text=style['icon'])
-        self.overlay_label.configure(bg=style['bg'], fg=style['fg'])
-        self.hint_label.configure(bg=style['bg'], fg=style['hint_fg'])
-        
-        for child in self.overlay_frame.winfo_children():
-            if isinstance(child, tk.Frame):
-                child.configure(bg=style['bg'])
+        self.overlay_frame.configure(fg_color=style['fg_color'])
+        self.overlay_icon.configure(text_color=style['text_color'], text=style['icon'])
+        self.overlay_label.configure(text_color=style['text_color'])
+        self.hint_label.configure(text_color=style['hint_color'])
     
     def _parse_dropped_files(self, data):
         """解析拖放的文件路径"""
