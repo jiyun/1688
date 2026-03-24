@@ -1,572 +1,489 @@
-import sqlite3
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+数据库模块 - DuckDB版本
+使用DuckDB作为嵌入式分析数据库，支持高效的数据存储和查询
+"""
+
 import os
 import json
 from typing import Dict, List, Optional, Any
-from contextlib import contextmanager
+from datetime import datetime
+
+try:
+    import duckdb
+    HAS_DUCKDB = True
+except ImportError:
+    HAS_DUCKDB = False
+    print("警告: DuckDB未安装，请运行: pip install duckdb")
 
 
 class Database:
+    """DuckDB数据库管理类"""
+    
     def __init__(self, db_path: str = None):
+        if not HAS_DUCKDB:
+            raise ImportError("DuckDB未安装，请运行: pip install duckdb")
+        
         if db_path is None:
             db_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(db_dir, "..", "products.db")
+            db_path = os.path.join(db_dir, "..", "products.duckdb")
         
         self.db_path = os.path.abspath(db_path)
+        self.conn = None
+        self._connect()
         self._init_database()
     
-    @contextmanager
-    def get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+    def _connect(self):
+        """连接数据库"""
+        self.conn = duckdb.connect(self.db_path)
     
     def _init_database(self):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS products (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id TEXT UNIQUE NOT NULL,
-                    shop_product_id TEXT,
-                    output_path TEXT,
-                    title TEXT,
-                    status TEXT DEFAULT 'pending',
-                    resource_counts TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sku_prices (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id TEXT NOT NULL,
-                    sku_name TEXT,
-                    price REAL,
-                    original_price REAL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (product_id) REFERENCES products(product_id)
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS pricing (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id TEXT NOT NULL,
-                    cost_price REAL,
-                    selling_price REAL,
-                    profit_margin REAL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (product_id) REFERENCES products(product_id)
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS resources (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id TEXT NOT NULL,
-                    resource_type TEXT NOT NULL,
-                    resource_url TEXT NOT NULL,
-                    resource_name TEXT,
-                    downloaded INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (product_id) REFERENCES products(product_id)
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)
-            ''')
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)
-            ''')
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)
-            ''')
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)
-            ''')
-            
-            try:
-                cursor.execute('ALTER TABLE products ADD COLUMN output_path TEXT')
-            except:
-                pass
-            
-            try:
-                cursor.execute('ALTER TABLE products ADD COLUMN resource_counts TEXT')
-            except:
-                pass
-            
-            try:
-                cursor.execute('ALTER TABLE products ADD COLUMN cost_prices TEXT')
-            except:
-                pass
-            
-            try:
-                cursor.execute('ALTER TABLE products ADD COLUMN selling_prices TEXT')
-            except:
-                pass
-            
-            try:
-                cursor.execute('ALTER TABLE products ADD COLUMN platform TEXT')
-            except:
-                pass
+        """初始化数据库表结构"""
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR UNIQUE NOT NULL,
+                shop_product_id VARCHAR,
+                output_path VARCHAR,
+                title VARCHAR,
+                status VARCHAR DEFAULT 'pending',
+                resource_counts VARCHAR,
+                cost_prices VARCHAR,
+                selling_prices VARCHAR,
+                platform VARCHAR DEFAULT 'alibaba',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS resources (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL,
+                resource_type VARCHAR NOT NULL,
+                resource_url VARCHAR NOT NULL,
+                resource_name VARCHAR,
+                output_filename VARCHAR,
+                downloaded BOOLEAN DEFAULT FALSE,
+                download_time TIMESTAMP,
+                file_size BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS sku_prices (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL,
+                sku_name VARCHAR,
+                price DOUBLE,
+                original_price DOUBLE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS pricing (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL,
+                cost_price DOUBLE,
+                selling_price DOUBLE,
+                profit_margin DOUBLE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE SEQUENCE IF NOT EXISTS products_id_seq
+        ''')
+        self.conn.execute('''
+            CREATE SEQUENCE IF NOT EXISTS resources_id_seq
+        ''')
+        self.conn.execute('''
+            CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq
+        ''')
+        self.conn.execute('''
+            CREATE SEQUENCE IF NOT EXISTS pricing_id_seq
+        ''')
+        
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)
+        ''')
     
-    def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict[str, Any]]:
-        """搜索商品记录
+    def close(self):
+        """关闭数据库连接"""
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+    
+    def execute(self, sql: str, params: List = None) -> Any:
+        """执行SQL语句"""
+        if params:
+            return self.conn.execute(sql, params)
+        return self.conn.execute(sql)
+    
+    def query(self, sql: str, params: List = None) -> List[Dict]:
+        """查询并返回字典列表"""
+        if params:
+            result = self.conn.execute(sql, params)
+        else:
+            result = self.conn.execute(sql)
         
-        Args:
-            search_term: 搜索关键词（仅数字）
-            search_field: 搜索字段 ('product_id' 或 'shop_product_id')
-        
-        Returns:
-            匹配的商品列表
-        """
+        columns = [desc[0] for desc in result.description]
+        rows = result.fetchall()
+        return [dict(zip(columns, row)) for row in rows]
+    
+    def query_one(self, sql: str, params: List = None) -> Optional[Dict]:
+        """查询单条记录"""
+        results = self.query(sql, params)
+        return results[0] if results else None
+    
+    def insert(self, table: str, data: Dict) -> int:
+        """插入数据并返回ID"""
+        columns = ', '.join(data.keys())
+        placeholders = ', '.join(['?' for _ in data])
+        sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
+        result = self.conn.execute(sql, list(data.values()))
+        return result.fetchone()[0]
+    
+    def update(self, table: str, data: Dict, where: str, where_params: List = None):
+        """更新数据"""
+        set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
+        sql = f"UPDATE {table} SET {set_clause} WHERE {where}"
+        params = list(data.values()) + (where_params or [])
+        self.conn.execute(sql, params)
+    
+    def delete(self, table: str, where: str, where_params: List = None):
+        """删除数据"""
+        sql = f"DELETE FROM {table} WHERE {where}"
+        if where_params:
+            self.conn.execute(sql, where_params)
+        else:
+            self.conn.execute(sql)
+    
+    def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict]:
+        """搜索商品记录"""
         if not search_term:
             return []
         
         if search_field not in ('product_id', 'shop_product_id'):
             search_field = 'product_id'
         
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f'''
-                SELECT * FROM products WHERE {search_field} = ?
-            ''', (search_term,))
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+        return self.query(f'''
+            SELECT * FROM products WHERE {search_field} = ?
+        ''', [search_term])
     
-    def search_products_by_id(self, search_term: str) -> List[Dict[str, Any]]:
-        """自动匹配商品ID和DSID搜索
-        
-        Args:
-            search_term: 搜索关键词（仅数字）
-        
-        Returns:
-            匹配的商品列表
-        """
+    def search_products_by_id(self, search_term: str) -> List[Dict]:
+        """自动匹配商品ID和DSID搜索"""
         if not search_term:
             return []
         
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM products WHERE product_id = ? OR shop_product_id = ?
-            ''', (search_term, search_term))
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+        return self.query('''
+            SELECT * FROM products WHERE product_id = ? OR shop_product_id = ?
+        ''', [search_term, search_term])
     
-    def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM products WHERE product_id = ?
-            ''', (product_id,))
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
-            return None
+    def get_product(self, product_id: str) -> Optional[Dict]:
+        """获取单个商品"""
+        return self.query_one('''
+            SELECT * FROM products WHERE product_id = ?
+        ''', [product_id])
     
-    def get_all_products(self) -> List[Dict[str, Any]]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM products ORDER BY created_at DESC
-            ''')
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+    def get_all_products(self) -> List[Dict]:
+        """获取所有商品"""
+        return self.query('''
+            SELECT * FROM products ORDER BY created_at DESC
+        ''')
     
     def update_shop_product_id(self, product_id: str, shop_product_id: str, output_path: str = None) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET shop_product_id = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (shop_product_id, product_id))
-            
-            if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO products (product_id, shop_product_id, output_path, status)
-                    VALUES (?, ?, ?, 'pending')
-                ''', (product_id, shop_product_id, output_path))
-            elif output_path:
-                cursor.execute('''
-                    UPDATE products 
-                    SET output_path = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE product_id = ?
-                ''', (output_path, product_id))
-            
-            return True
+        """更新或插入商品"""
+        existing = self.get_product(product_id)
+        
+        if existing:
+            update_data = {
+                'shop_product_id': shop_product_id,
+                'updated_at': datetime.now()
+            }
+            if output_path:
+                update_data['output_path'] = output_path
+            self.update('products', update_data, 'product_id = ?', [product_id])
+        else:
+            self.insert('products', {
+                'product_id': product_id,
+                'shop_product_id': shop_product_id,
+                'output_path': output_path,
+                'status': 'pending'
+            })
+        
+        return True
     
     def update_output_path(self, product_id: str, output_path: str) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET output_path = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (output_path, product_id))
-            
-            if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO products (product_id, output_path, status)
-                    VALUES (?, ?, 'pending')
-                ''', (product_id, output_path))
-            
-            return True
+        """更新输出路径"""
+        existing = self.get_product(product_id)
+        
+        if existing:
+            self.update('products', {
+                'output_path': output_path,
+                'updated_at': datetime.now()
+            }, 'product_id = ?', [product_id])
+        else:
+            self.insert('products', {
+                'product_id': product_id,
+                'output_path': output_path,
+                'status': 'pending'
+            })
+        
+        return True
     
-    def update_resource_counts(self, product_id: str, main_images: int, color_images: int, detail_images: int, videos: int, output_path: str = None, platform: str = 'alibaba') -> bool:
+    def update_resource_counts(self, product_id: str, main_images: int, color_images: int, 
+                               detail_images: int, videos: int, output_path: str = None, 
+                               platform: str = 'alibaba') -> bool:
+        """更新资源计数"""
         resource_counts = json.dumps([main_images, color_images, detail_images, videos])
         
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET resource_counts = ?, output_path = ?, platform = ?, status = 'completed', updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (resource_counts, output_path, platform, product_id))
-            
-            if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO products (product_id, resource_counts, output_path, platform, status)
-                    VALUES (?, ?, ?, ?, 'completed')
-                ''', (product_id, resource_counts, output_path, platform))
-            
-            return True
+        existing = self.get_product(product_id)
+        
+        if existing:
+            update_data = {
+                'resource_counts': resource_counts,
+                'output_path': output_path,
+                'platform': platform,
+                'status': 'completed',
+                'updated_at': datetime.now()
+            }
+            self.update('products', update_data, 'product_id = ?', [product_id])
+        else:
+            self.insert('products', {
+                'product_id': product_id,
+                'resource_counts': resource_counts,
+                'output_path': output_path,
+                'platform': platform,
+                'status': 'completed'
+            })
+        
+        return True
     
     def get_resource_counts(self, product_id: str) -> Optional[List[int]]:
+        """获取资源计数"""
         product = self.get_product(product_id)
         if product and product.get('resource_counts'):
             try:
                 return json.loads(product['resource_counts'])
             except:
-                return None
+                pass
         return None
     
-    def delete_product(self, product_id: str) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                DELETE FROM sku_prices WHERE product_id = ?
-            ''', (product_id,))
-            cursor.execute('''
-                DELETE FROM pricing WHERE product_id = ?
-            ''', (product_id,))
-            cursor.execute('''
-                DELETE FROM products WHERE product_id = ?
-            ''', (product_id,))
-            return cursor.rowcount > 0
-    
-    def insert_product(self, product_id: str, title: str = None, shop_product_id: str = None, output_path: str = None) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO products (product_id, title, shop_product_id, output_path, status)
-                VALUES (?, ?, ?, ?, 'pending')
-            ''', (product_id, title, shop_product_id, output_path))
-            return True
-    
-    def update_product_status(self, product_id: str, status: str) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET status = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (status, product_id))
-            return cursor.rowcount > 0
-    
-    def insert_sku_price(self, product_id: str, sku_name: str, price: float, original_price: float = None) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO sku_prices (product_id, sku_name, price, original_price)
-                VALUES (?, ?, ?, ?)
-            ''', (product_id, sku_name, price, original_price))
-            return True
-    
-    def get_sku_prices(self, product_id: str) -> List[Dict[str, Any]]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM sku_prices WHERE product_id = ?
-            ''', (product_id,))
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-    
-    def save_sku_prices(self, product_id: str, sku_prices: List[Dict]) -> bool:
-        cost_prices_array = []
-        
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                DELETE FROM sku_prices WHERE product_id = ?
-            ''', (product_id,))
+    def save_resources(self, product_id: str, main_images: List, color_images: List, 
+                       detail_images: List, videos: List) -> bool:
+        """保存资源URL到数据库"""
+        try:
+            for idx, (url, name) in enumerate(main_images):
+                self.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'main_image',
+                    'resource_url': url,
+                    'resource_name': name,
+                    'output_filename': f'main_{name}.jpg'
+                })
             
-            for sku in sku_prices:
-                color = sku.get('color', '')
-                size = sku.get('size', '')
-                price = sku.get('price')
-                
-                if color and size:
-                    sku_name = f"{color}-{size}"
-                elif color:
-                    sku_name = color
-                elif size:
-                    sku_name = size
-                else:
-                    sku_name = "默认"
-                
-                if price is not None:
-                    cursor.execute('''
-                        INSERT INTO sku_prices (product_id, sku_name, price)
-                        VALUES (?, ?, ?)
-                    ''', (product_id, sku_name, price))
-                    
-                    cost_prices_array.append([color, size, str(price)])
+            for idx, (url, name) in enumerate(color_images):
+                self.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'color_image',
+                    'resource_url': url,
+                    'resource_name': name,
+                    'output_filename': f'color_{name}.jpg'
+                })
             
-            if cost_prices_array:
-                cursor.execute('''
-                    UPDATE products 
-                    SET cost_prices = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE product_id = ?
-                ''', (json.dumps(cost_prices_array, ensure_ascii=False), product_id))
-            
-            return True
-    
-    def save_main_price(self, product_id: str, price: float, min_amount: int = 1) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET title = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (f"¥{price} ({min_amount}件起批)", product_id))
-            return True
-    
-    def save_consign_prices(self, product_id: str, consign_prices: List[Dict]) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            for cp in consign_prices:
-                min_amount = cp.get('min_amount', 1)
-                price = cp.get('price')
-                if price is not None:
-                    cursor.execute('''
-                        INSERT INTO sku_prices (product_id, sku_name, price)
-                        VALUES (?, ?, ?)
-                    ''', (product_id, f"代发{min_amount}件", price))
-            return True
-    
-    def save_selling_prices(self, product_id: str, selling_prices: List[List]) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE products 
-                SET selling_prices = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = ?
-            ''', (json.dumps(selling_prices, ensure_ascii=False), product_id))
-            return True
-    
-    def get_selling_prices(self, product_id: str) -> Optional[List]:
-        product = self.get_product(product_id)
-        if product and product.get('selling_prices'):
-            try:
-                return json.loads(product['selling_prices'])
-            except:
-                return None
-        return None
-    
-    def save_resources(self, product_id: str, resources: Dict[str, List]) -> bool:
-        """保存资源URL到数据库
-        
-        Args:
-            product_id: 商品ID
-            resources: 资源字典，包含 main_images, color_card_images, detail_images, videos
-        
-        Returns:
-            是否保存成功
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # 先删除该商品的旧资源记录
-            cursor.execute('DELETE FROM resources WHERE product_id = ?', (product_id,))
-            
-            # 保存主图
-            main_images = resources.get('main_images', [])
-            for idx, item in enumerate(main_images):
-                if isinstance(item, tuple):
-                    url, name = item
-                else:
-                    url, name = item, str(idx + 1)
-                
-                cursor.execute('''
-                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
-                    VALUES (?, ?, ?, ?)
-                ''', (product_id, 'main_image', name, url))
-            
-            # 保存色卡图
-            color_cards = resources.get('color_card_images', [])
-            for item in color_cards:
-                if isinstance(item, tuple):
-                    url, name = item
-                else:
-                    url, name = item, ''
-                
-                if url:
-                    cursor.execute('''
-                        INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
-                        VALUES (?, ?, ?, ?)
-                    ''', (product_id, 'color_image', name, url))
-            
-            # 保存详情图
-            detail_images = resources.get('detail_images', [])
             for idx, url in enumerate(detail_images):
-                cursor.execute('''
-                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
-                    VALUES (?, ?, ?, ?)
-                ''', (product_id, 'detail_image', str(idx + 1), url))
+                self.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'detail_image',
+                    'resource_url': url,
+                    'resource_name': f'detail_{idx+1}',
+                    'output_filename': f'detail_{idx+1}.jpg'
+                })
             
-            # 保存视频
-            videos = resources.get('videos', [])
             for idx, url in enumerate(videos):
-                cursor.execute('''
-                    INSERT INTO resources (product_id, resource_type, resource_name, resource_url)
-                    VALUES (?, ?, ?, ?)
-                ''', (product_id, 'video', str(idx + 1), url))
+                self.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'video',
+                    'resource_url': url,
+                    'resource_name': f'video_{idx+1}',
+                    'output_filename': f'video_{idx+1}.mp4'
+                })
             
             return True
+        except Exception as e:
+            print(f"保存资源失败: {e}")
+            return False
     
-    def get_resources(self, product_id: str, resource_type: str = None) -> List[Dict[str, Any]]:
-        """获取商品资源
+    def get_pending_resources(self, product_id: str = None, resource_type: str = None, 
+                               limit: int = None) -> List[Dict]:
+        """获取待下载资源"""
+        sql = "SELECT * FROM resources WHERE downloaded = FALSE"
+        params = []
         
-        Args:
-            product_id: 商品ID
-            resource_type: 资源类型，None表示获取所有
+        if product_id:
+            sql += " AND product_id = ?"
+            params.append(product_id)
         
-        Returns:
-            资源列表
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            if resource_type:
-                cursor.execute('''
-                    SELECT * FROM resources 
-                    WHERE product_id = ? AND resource_type = ?
-                    ORDER BY id
-                ''', (product_id, resource_type))
-            else:
-                cursor.execute('''
-                    SELECT * FROM resources 
-                    WHERE product_id = ?
-                    ORDER BY 
-                        CASE resource_type
-                            WHEN 'main_image' THEN 1
-                            WHEN 'color_image' THEN 2
-                            WHEN 'video' THEN 3
-                            WHEN 'detail_image' THEN 4
-                        END,
-                        id
-                ''', (product_id,))
-            
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+        if resource_type:
+            sql += " AND resource_type = ?"
+            params.append(resource_type)
+        
+        sql += " ORDER BY created_at ASC"
+        
+        if limit:
+            sql += f" LIMIT {limit}"
+        
+        return self.query(sql, params if params else None)
     
-    def get_resources_by_type(self, product_id: str) -> Dict[str, List[Dict]]:
-        """按类型获取商品资源
+    def mark_resource_downloaded(self, resource_id: int, file_size: int = None):
+        """标记资源已下载"""
+        update_data = {
+            'downloaded': True,
+            'download_time': datetime.now()
+        }
+        if file_size:
+            update_data['file_size'] = file_size
         
-        Args:
-            product_id: 商品ID
+        self.update('resources', update_data, 'id = ?', [resource_id])
+    
+    def get_download_stats(self, product_id: str = None) -> Dict:
+        """获取下载统计"""
+        where_clause = ""
+        params = []
         
-        Returns:
-            按类型分组的资源字典
-        """
-        resources = self.get_resources(product_id)
+        if product_id:
+            where_clause = "WHERE product_id = ?"
+            params = [product_id]
+        
+        stats = self.query_one(f'''
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN downloaded THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN NOT downloaded THEN 1 ELSE 0 END) as pending
+            FROM resources
+            {where_clause}
+        ''', params if params else None)
+        
+        return stats or {'total': 0, 'completed': 0, 'pending': 0}
+    
+    def get_resources_by_type(self, product_id: str = None) -> Dict[str, List[Dict]]:
+        """按类型获取资源"""
+        where_clause = ""
+        params = []
+        
+        if product_id:
+            where_clause = "WHERE product_id = ?"
+            params = [product_id]
+        
+        resources = self.query(f'''
+            SELECT * FROM resources 
+            {where_clause}
+            ORDER BY resource_type, id
+        ''', params if params else None)
         
         result = {
-            'main_images': [],
-            'color_images': [],
-            'detail_images': [],
-            'videos': []
+            'main_image': [],
+            'color_image': [],
+            'detail_image': [],
+            'video': []
         }
         
-        for res in resources:
-            res_type = res.get('resource_type', '')
-            if res_type == 'main_image':
-                result['main_images'].append(res)
-            elif res_type == 'color_image':
-                result['color_images'].append(res)
-            elif res_type == 'detail_image':
-                result['detail_images'].append(res)
-            elif res_type == 'video':
-                result['videos'].append(res)
+        for r in resources:
+            rtype = r.get('resource_type')
+            if rtype in result:
+                result[rtype].append(r)
         
         return result
     
-    def mark_resource_downloaded(self, resource_id: int) -> bool:
-        """标记资源已下载"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE resources SET downloaded = 1 WHERE id = ?
-            ''', (resource_id,))
-            return cursor.rowcount > 0
-    
-    def clear_resources(self, product_id: str) -> bool:
-        """清除商品的所有资源记录"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM resources WHERE product_id = ?', (product_id,))
+    def delete_product(self, product_id: str) -> bool:
+        """删除商品及其资源"""
+        try:
+            self.delete('resources', 'product_id = ?', [product_id])
+            self.delete('products', 'product_id = ?', [product_id])
             return True
+        except Exception as e:
+            print(f"删除商品失败: {e}")
+            return False
     
-    def count_resources(self, product_id: str) -> Dict[str, int]:
-        """从resources表实时计算资源计数
-        
-        Args:
-            product_id: 商品ID
-        
-        Returns:
-            各类型资源数量字典
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT resource_type, COUNT(*) as count
-                FROM resources
-                WHERE product_id = ?
-                GROUP BY resource_type
-            ''', (product_id,))
+    def save_cost_prices(self, product_id: str, cost_prices: List) -> bool:
+        """保存成本价格"""
+        try:
+            cost_prices_json = json.dumps(cost_prices)
+            existing = self.get_product(product_id)
             
-            result = {
-                'main_images': 0,
-                'color_images': 0,
-                'detail_images': 0,
-                'videos': 0
-            }
+            if existing:
+                self.update('products', {
+                    'cost_prices': cost_prices_json,
+                    'updated_at': datetime.now()
+                }, 'product_id = ?', [product_id])
+            else:
+                self.insert('products', {
+                    'product_id': product_id,
+                    'cost_prices': cost_prices_json,
+                    'status': 'pending'
+                })
             
-            for row in cursor.fetchall():
-                res_type = row['resource_type']
-                count = row['count']
-                if res_type == 'main_image':
-                    result['main_images'] = count
-                elif res_type == 'color_image':
-                    result['color_images'] = count
-                elif res_type == 'detail_image':
-                    result['detail_images'] = count
-                elif res_type == 'video':
-                    result['videos'] = count
+            return True
+        except Exception as e:
+            print(f"保存成本价格失败: {e}")
+            return False
+    
+    def save_selling_prices(self, product_id: str, prices: List[Dict]) -> bool:
+        """保存销售价格"""
+        try:
+            selling_prices_json = json.dumps(prices)
+            existing = self.get_product(product_id)
             
-            return result
+            if existing:
+                self.update('products', {
+                    'selling_prices': selling_prices_json,
+                    'updated_at': datetime.now()
+                }, 'product_id = ?', [product_id])
+            else:
+                self.insert('products', {
+                    'product_id': product_id,
+                    'selling_prices': selling_prices_json,
+                    'status': 'pending'
+                })
+            
+            return True
+        except Exception as e:
+            print(f"保存销售价格失败: {e}")
+            return False
+    
+    def get_products_with_stats(self) -> List[Dict]:
+        """获取商品列表及其资源统计"""
+        return self.query('''
+            SELECT 
+                p.*,
+                COUNT(r.id) as resource_count,
+                SUM(CASE WHEN r.downloaded THEN 1 ELSE 0 END) as downloaded_count
+            FROM products p
+            LEFT JOIN resources r ON p.product_id = r.product_id
+            GROUP BY p.id
+            ORDER BY p.created_at DESC
+        ''')
+    
+    def export_to_dataframe(self, table: str = 'products') -> Any:
+        """导出表数据为Pandas DataFrame"""
+        return self.conn.execute(f"SELECT * FROM {table}").df()
 
 
-db = Database()
+db = Database() if HAS_DUCKDB else None

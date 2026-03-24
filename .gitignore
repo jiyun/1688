@@ -93,3 +93,6 @@ updates/
 
 # 开发工具目录（不作为项目文件）
 tools/
+rules/bat.md
+CHANGELOG_recovered.md
+ersjiyunAppDataLocalProgramsTrae CNresourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1 } catch{} ; Write-Output \[Trae CN] Safe Rm alias is not enabled, try to fix it now.

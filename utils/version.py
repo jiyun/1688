@@ -4,9 +4,9 @@
 版本信息模块
 """
 
-__version__ = "0.3.4"
+__version__ = "0.3.6"
 __author__ = "急云"
-__release_date__ = "2026-03-17"
+__release_date__ = "2026-03-24"
 
 VERSION_INFO = {
     "version": __version__,

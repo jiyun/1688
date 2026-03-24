@@ -48,6 +48,7 @@ class AlibabaScraperGUI:
         self.root.geometry(GUI_CONF['window_geometry'])
         self.root.resizable(GUI_CONF['window_resizable'], GUI_CONF['window_resizable'])
         
+        self._version = __version__ if HAS_UPDATER else "未知"
         self.easter_egg_counter = 0
         self.alt_press_counter = 0
         self.easter_egg_activated = False
@@ -69,10 +70,14 @@ class AlibabaScraperGUI:
         
         self.db_tab = ctk.CTkFrame(self.notebook)
         
+        self.about_tab = ctk.CTkFrame(self.notebook)
+        self.notebook.add(self.about_tab, text="关于")
+        
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.last_tab_index = -1
         
         self._init_db_tab()
+        self._init_about_tab()
         
         self.button_frame = ctk.CTkFrame(self.queue_tab, fg_color="transparent")
         self.button_frame.pack(fill="x", pady=(0, 10))
@@ -282,6 +287,277 @@ class AlibabaScraperGUI:
         
         self.db_status_label = ctk.CTkLabel(self.db_btn_frame, text="")
         self.db_status_label.pack(side="right", padx=10)
+    
+    def _init_about_tab(self):
+        """初始化关于选项卡"""
+        about_frame = ctk.CTkFrame(self.about_tab, fg_color="transparent")
+        about_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        title_label = ctk.CTkLabel(
+            about_frame,
+            text="1688详情页资源采集工具",
+            font=("", 20, "bold")
+        )
+        title_label.pack(pady=(20, 10))
+        
+        version_label = ctk.CTkLabel(
+            about_frame,
+            text=f"版本: {self._version}",
+            font=("", 14)
+        )
+        version_label.pack(pady=5)
+        
+        author_label = ctk.CTkLabel(
+            about_frame,
+            text="作者: 急云",
+            font=("", 14)
+        )
+        author_label.pack(pady=5)
+        
+        github_url = "https://github.com/jiyun/1688/"
+        github_label = ctk.CTkLabel(
+            about_frame,
+            text=f"GitHub: {github_url}",
+            font=("", 14),
+            text_color="#1f6feb",
+            cursor="hand2"
+        )
+        github_label.pack(pady=5)
+        github_label.bind("<Button-1>", lambda e: self._open_url(github_url))
+        github_label.bind("<Enter>", lambda e: github_label.configure(text_color="#1a5fb7"))
+        github_label.bind("<Leave>", lambda e: github_label.configure(text_color="#1f6feb"))
+        
+        gitee_url = "https://gitee.com/jiyunui/1688/"
+        gitee_label = ctk.CTkLabel(
+            about_frame,
+            text=f"Gitee: {gitee_url}",
+            font=("", 14),
+            text_color="#1f6feb",
+            cursor="hand2"
+        )
+        gitee_label.pack(pady=5)
+        gitee_label.bind("<Button-1>", lambda e: self._open_url(gitee_url))
+        gitee_label.bind("<Enter>", lambda e: gitee_label.configure(text_color="#1a5fb7"))
+        gitee_label.bind("<Leave>", lambda e: gitee_label.configure(text_color="#1f6feb"))
+        
+        desc_label = ctk.CTkLabel(
+            about_frame,
+            text="用于采集1688商品详情页资源的工具。",
+            font=("", 12),
+            wraplength=400
+        )
+        desc_label.pack(pady=(20, 10))
+        
+        btn_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
+        btn_frame.pack(pady=10)
+        
+        self.check_update_btn = create_button(
+            btn_frame,
+            "检查更新",
+            self._check_update,
+            'primary',
+            width=120,
+            height=35
+        )
+        self.check_update_btn.pack(side="left", padx=10)
+        
+        self.reinstall_btn = create_button(
+            btn_frame,
+            "重新安装",
+            self._reinstall_current_version,
+            'secondary',
+            width=120,
+            height=35
+        )
+        self.reinstall_btn.pack(side="left", padx=10)
+        
+        self.update_status_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
+        
+        self.update_status_label = ctk.CTkLabel(
+            self.update_status_frame,
+            text="",
+            font=("", 12)
+        )
+        self.update_status_label.pack(pady=5)
+        
+        self.update_progress_bar = ctk.CTkProgressBar(
+            self.update_status_frame,
+            width=300,
+            height=15
+        )
+        self.update_progress_bar.set(0)
+        
+        self.update_progress_label = ctk.CTkLabel(
+            self.update_status_frame,
+            text="",
+            font=("", 11)
+        )
+        
+        self.update_action_frame = ctk.CTkFrame(self.update_status_frame, fg_color="transparent")
+        
+        self.install_update_btn = ctk.CTkButton(
+            self.update_action_frame,
+            text="安装更新",
+            command=self._install_downloaded_update,
+            width=100,
+            fg_color="#28a745"
+        )
+        
+        self.cancel_update_btn = ctk.CTkButton(
+            self.update_action_frame,
+            text="取消",
+            command=self._cancel_update,
+            width=80,
+            fg_color="gray"
+        )
+        
+        self._update_download_filepath = None
+        self._update_version_info = None
+    
+    def _open_url(self, url):
+        """打开URL"""
+        import webbrowser
+        webbrowser.open(url)
+    
+    def _check_update(self):
+        """检查更新"""
+        if HAS_UPDATER:
+            self.log("正在检查更新...")
+            self._show_update_status("正在检查更新...", False)
+            try:
+                version_info = check_for_updates(silent=False, force=True)
+                if version_info:
+                    self.log(f"发现新版本: {version_info.version}", "success")
+                    self._update_version_info = version_info
+                    self._show_update_status(f"发现新版本: {version_info.version}", False)
+                    self._start_download_update(version_info)
+                else:
+                    self.log("当前已是最新版本", "success")
+                    self._show_update_status("当前已是最新版本", False)
+            except Exception as e:
+                self.log(f"检查更新失败: {str(e)}", "error")
+                self._show_update_status(f"检查更新失败: {str(e)}", False)
+        else:
+            self.log("更新功能不可用", "warning")
+    
+    def _show_update_status(self, message: str, show_progress: bool):
+        """显示更新状态"""
+        self.update_status_label.configure(text=message)
+        if show_progress:
+            self.update_status_frame.pack(pady=10, fill="x")
+            self.update_progress_bar.pack(pady=5)
+            self.update_progress_label.pack()
+        else:
+            self.update_progress_bar.pack_forget()
+            self.update_progress_label.pack_forget()
+            self.update_action_frame.pack_forget()
+    
+    def _start_download_update(self, version_info):
+        """开始下载更新"""
+        import threading
+        
+        self._show_update_status("正在下载更新包...", True)
+        self.update_progress_label.configure(text="0%")
+        
+        def download_thread():
+            try:
+                import os
+                self.log("下载线程启动...")
+                from utils.updater import UpdateDownloader, HAS_ARIA2C
+                
+                self.log(f"HAS_ARIA2C: {HAS_ARIA2C}")
+                
+                def progress_callback(downloaded, total):
+                    percent = int(downloaded / total * 100) if total > 0 else 0
+                    self.root.after(0, lambda p=percent: self._update_download_progress(p))
+                
+                downloader = UpdateDownloader()
+                self.log(f"开始下载: {version_info.download_urls}")
+                filepath = downloader.download_update(version_info, progress_callback)
+                
+                self.log(f"下载结果: {filepath}")
+                
+                if filepath and os.path.exists(filepath):
+                    self._update_download_filepath = filepath
+                    fp = filepath
+                    vi = version_info
+                    self.root.after(0, lambda: self._on_download_complete(fp, vi))
+                else:
+                    self.root.after(0, lambda: self._on_download_failed())
+            except Exception as e:
+                import traceback
+                self.log(f"下载异常: {e}")
+                traceback.print_exc()
+                err = str(e)
+                self.root.after(0, lambda: self._on_download_error(err))
+        
+        thread = threading.Thread(target=download_thread, daemon=True)
+        thread.start()
+    
+    def _update_download_progress(self, percent: int):
+        """更新下载进度"""
+        self.update_progress_bar.set(percent / 100)
+        self.update_progress_label.configure(text=f"{percent}%")
+    
+    def _on_download_complete(self, filepath, version_info):
+        """下载完成"""
+        self._show_update_status(f"下载完成: v{version_info.version}", False)
+        self.update_status_label.configure(text=f"下载完成: v{version_info.version}")
+        
+        self.update_action_frame.pack(pady=10)
+        self.install_update_btn.pack(side="left", padx=10)
+        self.cancel_update_btn.pack(side="left", padx=10)
+        
+        self.log(f"更新包已下载: {filepath}", "success")
+    
+    def _on_download_failed(self):
+        """下载失败"""
+        self._show_update_status("下载失败", False)
+        self.log("下载更新包失败", "error")
+    
+    def _on_download_error(self, error: str):
+        """下载错误"""
+        self._show_update_status(f"下载错误: {error}", False)
+        self.log(f"下载更新包错误: {error}", "error")
+    
+    def _install_downloaded_update(self):
+        """安装已下载的更新"""
+        if self._update_download_filepath:
+            try:
+                from utils.updater import UpdateDownloader
+                downloader = UpdateDownloader()
+                if downloader.apply_update(self._update_download_filepath, restart=True):
+                    self.log("正在安装更新...", "success")
+                    import sys
+                    sys.exit(0)
+                else:
+                    self.log("启动更新失败", "error")
+            except Exception as e:
+                self.log(f"安装更新失败: {e}", "error")
+    
+    def _cancel_update(self):
+        """取消更新"""
+        self._update_download_filepath = None
+        self._update_version_info = None
+        self.update_status_frame.pack_forget()
+        self.log("已取消更新")
+    
+    def _reinstall_current_version(self):
+        """重新安装当前版本"""
+        from utils.version import __version__
+        from utils.updater import VersionInfo
+        
+        version_info = VersionInfo(
+            version=__version__,
+            release_date="",
+            download_urls={
+                'github': f'https://github.com/jiyun/1688/archive/refs/tags/v{__version__}.zip'
+            }
+        )
+        
+        self._update_version_info = version_info
+        self.log(f"正在下载 v{__version__} 安装包...")
+        self._start_download_update(version_info)
     
     def _confirm_db_access(self):
         """确认数据库访问"""
@@ -1390,112 +1666,11 @@ class AlibabaScraperGUI:
         
         if version_info.mandatory:
             self.show_info("发现新版本", message)
+            self._start_download_update(version_info)
         else:
             result = self.ask_yes_no("发现新版本", message)
             if result:
-                self._download_update(version_info)
-    
-    def _download_update(self, version_info):
-        """下载更新包"""
-        from utils.updater import UpdateDownloader
-        
-        self._current_version_info = version_info
-        
-        def download_in_thread():
-            try:
-                downloader = UpdateDownloader(use_mirror=True)
-                
-                def progress_callback(downloaded, total):
-                    if total > 0:
-                        percent = int(downloaded / total * 100)
-                        self.root.after(0, lambda: self._update_download_progress(percent))
-                
-                filepath = downloader.download_update(version_info, progress_callback)
-                
-                if filepath:
-                    self.root.after(0, lambda: self._on_download_complete(filepath, version_info))
-                else:
-                    self.root.after(0, lambda: self._on_download_failed())
-            except Exception as e:
-                self.root.after(0, lambda: self._on_download_error(str(e)))
-        
-        self._show_download_progress()
-        
-        import threading
-        thread = threading.Thread(target=download_in_thread, daemon=True)
-        thread.start()
-    
-    def _show_download_progress(self):
-        """显示下载进度窗口"""
-        self.download_window = ctk.CTkToplevel(self.root)
-        self.download_window.title("下载更新")
-        self.download_window.geometry("400x140")
-        self.download_window.resizable(False, False)
-        self.download_window.transient(self.root)
-        self.download_window.grab_set()
-        
-        main_frame = ctk.CTkFrame(self.download_window, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
-        
-        ctk.CTkLabel(main_frame, text="正在下载更新包...", font=('', 10)).pack(pady=5)
-        
-        self.progress_bar = ctk.CTkProgressBar(main_frame, width=350)
-        self.progress_bar.pack(pady=5)
-        self.progress_bar.set(0)
-        
-        self.progress_label = ctk.CTkLabel(main_frame, text="0%", font=('', 10))
-        self.progress_label.pack()
-        
-        self.cancel_download_btn = create_button(
-            main_frame, 
-            "取消", 
-            self._cancel_download,
-            'danger'
-        )
-        self.cancel_download_btn.pack(pady=10)
-        
-        self.download_window.protocol("WM_DELETE_WINDOW", self._cancel_download)
-    
-    def _update_download_progress(self, percent):
-        """更新下载进度"""
-        if hasattr(self, 'progress_bar') and hasattr(self, 'progress_label'):
-            self.progress_bar.set(percent / 100)
-            self.progress_label.configure(text=f"{percent}%")
-    
-    def _on_download_complete(self, filepath, version_info):
-        """下载完成"""
-        if hasattr(self, 'download_window'):
-            self.download_window.destroy()
-        
-        message = f"更新包下载完成！\n\n"
-        message += f"版本: v{version_info.version}\n"
-        message += f"文件: {filepath}\n\n"
-        message += "请手动解压并替换文件。"
-        
-        self.show_info("下载完成", message)
-    
-    def _on_download_failed(self):
-        """下载失败"""
-        if hasattr(self, 'download_window'):
-            self.download_window.destroy()
-        
-        result = self.ask_yes_no("下载失败", "下载失败，是否在浏览器中打开下载页面？")
-        if result and hasattr(self, '_current_version_info'):
-            import webbrowser
-            url = self._current_version_info.download_url
-            webbrowser.open(url)
-    
-    def _on_download_error(self, error_msg):
-        """下载出错"""
-        if hasattr(self, 'download_window'):
-            self.download_window.destroy()
-        
-        self.show_info("下载出错", f"下载出错：{error_msg}")
-    
-    def _cancel_download(self):
-        """取消下载"""
-        if hasattr(self, 'download_window'):
-            self.download_window.destroy()
+                self._start_download_update(version_info)
 
 
 def main():

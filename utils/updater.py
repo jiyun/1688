@@ -186,7 +186,9 @@ class UpdateDownloader:
     def __init__(self, use_mirror: bool = False):
         self.use_mirror = use_mirror
         self.timeout = UPDATE_CONF.get('timeout', 10)
-        self.download_dir = UPDATE_CONF.get('download_dir', 'updates')
+        download_dir = UPDATE_CONF.get('download_dir', 'updates')
+        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.download_dir = os.path.join(project_dir, download_dir)
     
     def _get_download_url(self, version_info: VersionInfo) -> Optional[str]:
         """获取下载URL"""
@@ -236,46 +238,45 @@ class UpdateDownloader:
             cmd = [
                 aria2c_path,
                 '--console-log-level=warn',
+                '-x', '16',
+                '-s', '16',
+                '-k', '1M',
+                '--max-tries=3',
+                '--retry-wait=2',
+                '--timeout=60',
+                '--continue=true',
                 '-d', os.path.dirname(filepath),
                 '-o', os.path.basename(filepath),
                 url
             ]
             
-            process = subprocess.Popen(
+            startupinfo = None
+            creationflags = 0
+            if sys.platform == 'win32':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+                creationflags = subprocess.CREATE_NO_WINDOW
+            
+            result = subprocess.run(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                capture_output=True,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                timeout=300,
+                startupinfo=startupinfo,
+                creationflags=creationflags
             )
             
-            total_size = 0
-            downloaded = 0
-            
-            while process.poll() is None:
-                line = process.stdout.readline()
-                if not line:
-                    continue
-                
-                if 'LENGTH:' in line:
-                    try:
-                        parts = line.split('LENGTH:')
-                        if len(parts) > 1:
-                            size_str = parts[1].split()[0]
-                            total_size = int(size_str)
-                    except:
-                        pass
-                
-                if progress_callback and total_size > 0:
-                    if os.path.exists(filepath):
-                        downloaded = os.path.getsize(filepath)
-                        progress_callback(downloaded, total_size)
-            
-            if process.returncode == 0 and os.path.exists(filepath):
-                if progress_callback and total_size > 0:
-                    progress_callback(total_size, total_size)
+            if result.returncode == 0 and os.path.exists(filepath):
+                if progress_callback:
+                    progress_callback(1, 1)
                 return filepath
             
+            print(f"aria2c返回码: {result.returncode}")
+            print(f"aria2c stderr: {result.stderr}")
+            return None
+        except subprocess.TimeoutExpired:
+            print("aria2c下载超时")
             return None
         except Exception as e:
             print(f"aria2c下载失败: {e}")
@@ -337,18 +338,19 @@ class UpdateDownloader:
             return False
 
 
-def check_for_updates(silent: bool = True) -> Optional[VersionInfo]:
+def check_for_updates(silent: bool = True, force: bool = False) -> Optional[VersionInfo]:
     """检查更新的便捷函数
     
     Args:
         silent: 是否静默模式（不打印信息）
+        force: 是否强制检查（忽略缓存）
         
     Returns:
         VersionInfo: 如果有新版本返回版本信息
     """
     checker = UpdateChecker()
     
-    version_info = checker.check_update()
+    version_info = checker.check_update(force=force)
     if not version_info:
         if not silent:
             checker.use_mirror = True

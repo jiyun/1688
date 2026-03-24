@@ -24,7 +24,7 @@ except ImportError:
         'default_pricing_strategy': 'multiplier',
         'default_rounding': 0,
         'default_max_price': 0.0,
-        'window_geometry': '1000x700',
+        'window_geometry': '1000x850',
         'window_resizable': True,
         'canvas_height': 150,
         'listbox_height': 10,
@@ -37,20 +37,21 @@ class PricingToolGUI:
         self.root = root
         title_text = f"商品定价计算工具 - {product_id}" if product_id else "商品定价计算工具"
         self.root.title(title_text)
-        self.root.geometry(PRICING_CONF['window_geometry'])
-        self.root.resizable(PRICING_CONF['window_resizable'], PRICING_CONF['window_resizable'])
+        self.root.geometry(PRICING_CONF.get('window_geometry', '1000x850'))
+        self.root.resizable(PRICING_CONF.get('window_resizable', True), PRICING_CONF.get('window_resizable', True))
         
         self.product_id = product_id
         self.cost_prices_data = []
         
-        self.bases = [{"name": PRICING_CONF['default_base_name'], "cost": PRICING_CONF['default_base_cost']}]
+        self.bases = [{"name": PRICING_CONF.get('default_base_name', '本体1'), "cost": PRICING_CONF.get('default_base_cost', 0.0)}]
         self.attachments = []
         self.sku_configs = []
+        self.shipping_cost = 0.0
         
-        self.pricing_strategy = PRICING_CONF['default_pricing_strategy']
+        self.pricing_strategy = PRICING_CONF.get('default_pricing_strategy', 'multiplier')
         self.target_sku = None
-        self.max_price = PRICING_CONF['default_max_price']
-        self.rounding = PRICING_CONF['default_rounding']
+        self.max_price = PRICING_CONF.get('default_max_price', 0.0)
+        self.rounding = PRICING_CONF.get('default_rounding', 0)
         
         self.bases_canvas = None
         self.attachments_canvas = None
@@ -145,6 +146,24 @@ class PricingToolGUI:
         attachment_btn_frame.pack(fill=tk.X, pady=5)
         add_attachment_btn = create_button(attachment_btn_frame, "添加附件", self._add_attachment, 'primary')
         add_attachment_btn.pack(side=tk.LEFT, padx=5)
+        
+        shipping_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        shipping_frame.pack(fill=tk.X, pady=10)
+        
+        shipping_label = ctk.CTkLabel(shipping_frame, text="运费：", font=("Arial", 12, "bold"))
+        shipping_label.pack(side=tk.LEFT, padx=5)
+        
+        self.shipping_cost_var = tk.DoubleVar(value=self.shipping_cost)
+        shipping_entry = ctk.CTkEntry(shipping_frame, textvariable=self.shipping_cost_var, width=100)
+        shipping_entry.pack(side=tk.LEFT, padx=5)
+        
+        shipping_unit_label = ctk.CTkLabel(shipping_frame, text="元", width=20)
+        shipping_unit_label.pack(side=tk.LEFT, padx=5)
+        
+        shipping_desc = ctk.CTkLabel(shipping_frame, text="(固定成本，计入总成本，不参与SKU生成)", font=("Arial", 10), text_color="gray")
+        shipping_desc.pack(side=tk.LEFT, padx=10)
+        
+        shipping_entry.bind("<FocusOut>", lambda e: self._update_shipping_cost())
     
     def _update_bases_list(self):
         for widget in self.bases_frame.winfo_children():
@@ -245,6 +264,12 @@ class PricingToolGUI:
         if 0 <= index < len(self.attachments):
             del self.attachments[index]
             self._update_attachments_list()
+    
+    def _update_shipping_cost(self):
+        try:
+            self.shipping_cost = self.shipping_cost_var.get()
+        except:
+            self.shipping_cost = 0.0
     
     def _create_sku_config_tab(self, parent):
         ctk.CTkLabel(parent, text="SKU组合配置", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
@@ -648,6 +673,8 @@ class PricingToolGUI:
                 if attachment["name"] == attachment_name:
                     cost += attachment["cost"]
                     break
+        
+        cost += self.shipping_cost
         
         return cost
     

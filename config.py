@@ -150,7 +150,7 @@ PRICING_CONF = {
     'default_pricing_strategy': 'multiplier',
     'default_rounding': 0,
     'default_max_price': 0.0,
-    'window_geometry': '1000x780',
+    'window_geometry': '1000x850',
     'window_resizable': True,
     'canvas_height': 150,
     'listbox_height': 10,
