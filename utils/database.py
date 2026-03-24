@@ -31,16 +31,25 @@ class Database:
         
         self.db_path = os.path.abspath(db_path)
         self.conn = None
-        self._connect()
         self._init_database()
     
-    def _connect(self):
-        """连接数据库"""
-        self.conn = duckdb.connect(self.db_path)
+    def _get_conn(self):
+        """获取数据库连接（延迟连接）"""
+        if self.conn is None:
+            self.conn = duckdb.connect(self.db_path)
+        return self.conn
+    
+    def _release_conn(self):
+        """释放数据库连接"""
+        if self.conn:
+            self.conn.close()
+            self.conn = None
     
     def _init_database(self):
         """初始化数据库表结构"""
-        self.conn.execute('''
+        conn = self._get_conn()
+        
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY,
                 product_id VARCHAR UNIQUE NOT NULL,
@@ -132,16 +141,18 @@ class Database:
     
     def execute(self, sql: str, params: List = None) -> Any:
         """执行SQL语句"""
+        conn = self._get_conn()
         if params:
-            return self.conn.execute(sql, params)
-        return self.conn.execute(sql)
+            return conn.execute(sql, params)
+        return conn.execute(sql)
     
     def query(self, sql: str, params: List = None) -> List[Dict]:
         """查询并返回字典列表"""
+        conn = self._get_conn()
         if params:
-            result = self.conn.execute(sql, params)
+            result = conn.execute(sql, params)
         else:
-            result = self.conn.execute(sql)
+            result = conn.execute(sql)
         
         columns = [desc[0] for desc in result.description]
         rows = result.fetchall()
@@ -154,35 +165,38 @@ class Database:
     
     def insert(self, table: str, data: Dict) -> int:
         """插入数据并返回ID"""
+        conn = self._get_conn()
         if 'id' not in data:
             seq_name = f'{table}_id_seq'
             try:
-                result = self.conn.execute(f"SELECT nextval('{seq_name}')")
+                result = conn.execute(f"SELECT nextval('{seq_name}')")
                 data['id'] = result.fetchone()[0]
             except:
-                result = self.conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table}")
+                result = conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table}")
                 data['id'] = result.fetchone()[0]
         
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['?' for _ in data])
         sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
-        result = self.conn.execute(sql, list(data.values()))
+        result = conn.execute(sql, list(data.values()))
         return result.fetchone()[0]
     
     def update(self, table: str, data: Dict, where: str, where_params: List = None):
         """更新数据"""
+        conn = self._get_conn()
         set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
         sql = f"UPDATE {table} SET {set_clause} WHERE {where}"
         params = list(data.values()) + (where_params or [])
-        self.conn.execute(sql, params)
+        conn.execute(sql, params)
     
     def delete(self, table: str, where: str, where_params: List = None):
         """删除数据"""
+        conn = self._get_conn()
         sql = f"DELETE FROM {table} WHERE {where}"
         if where_params:
-            self.conn.execute(sql, where_params)
+            conn.execute(sql, where_params)
         else:
-            self.conn.execute(sql)
+            conn.execute(sql)
     
     def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict]:
         """搜索商品记录"""
@@ -527,7 +541,32 @@ class Database:
     
     def export_to_dataframe(self, table: str = 'products') -> Any:
         """导出表数据为Pandas DataFrame"""
-        return self.conn.execute(f"SELECT * FROM {table}").df()
+        conn = self._get_conn()
+        return conn.execute(f"SELECT * FROM {table}").df()
+
+
+class DatabaseManager:
+    """数据库管理器 - 支持多进程访问"""
+    
+    _instance = None
+    _db_path = None
+    
+    @classmethod
+    def get_instance(cls, db_path: str = None):
+        """获取数据库实例（每次创建新连接）"""
+        if db_path is None:
+            db_dir = os.path.dirname(os.path.abspath(__file__))
+            db_path = os.path.join(db_dir, "..", "products.duckdb")
+        
+        cls._db_path = os.path.abspath(db_path)
+        return Database(cls._db_path)
+
+
+def get_db():
+    """获取数据库连接（每次创建新连接）"""
+    if not HAS_DUCKDB:
+        return None
+    return DatabaseManager.get_instance()
 
 
 db = Database() if HAS_DUCKDB else None
