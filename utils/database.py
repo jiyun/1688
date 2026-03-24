@@ -550,6 +550,7 @@ class DatabaseManager:
     
     _instance = None
     _db_path = None
+    _lock = None
     
     @classmethod
     def get_instance(cls, db_path: str = None):
@@ -560,6 +561,23 @@ class DatabaseManager:
         
         cls._db_path = os.path.abspath(db_path)
         return Database(cls._db_path)
+    
+    @classmethod
+    def get_shared_instance(cls):
+        """获取共享数据库实例（单例模式，用于GUI）"""
+        if cls._instance is None:
+            if cls._db_path is None:
+                db_dir = os.path.dirname(os.path.abspath(__file__))
+                cls._db_path = os.path.join(db_dir, "..", "products.duckdb")
+            cls._instance = Database(cls._db_path)
+        return cls._instance
+    
+    @classmethod
+    def release_shared_instance(cls):
+        """释放共享数据库实例"""
+        if cls._instance:
+            cls._instance.close()
+            cls._instance = None
 
 
 def get_db():
@@ -569,4 +587,17 @@ def get_db():
     return DatabaseManager.get_instance()
 
 
-db = Database() if HAS_DUCKDB else None
+def get_shared_db():
+    """获取共享数据库连接（用于GUI）"""
+    if not HAS_DUCKDB:
+        return None
+    return DatabaseManager.get_shared_instance()
+
+
+def release_db():
+    """释放共享数据库连接"""
+    DatabaseManager.release_shared_instance()
+
+
+# 不再创建全局 db 实例，避免模块导入时锁定数据库文件
+# db = Database() if HAS_DUCKDB else None

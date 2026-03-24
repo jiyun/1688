@@ -161,7 +161,8 @@ class ContextMenuCommands:
                 if output_path and os.path.exists(output_path):
                     return output_path
                 
-                from utils.database import db
+                from utils.database import get_shared_db
+                db = get_shared_db()
                 product_info = db.get_product(product_id)
                 if product_info and product_info.get('output_path'):
                     db_output_path = product_info['output_path']

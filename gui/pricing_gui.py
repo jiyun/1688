@@ -697,7 +697,8 @@ class PricingToolGUI:
             return
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
             db.save_selling_prices(self.product_id, results)
             show_info(self.root, "成功", f"已保存 {len(results)} 条价格数据到数据库")
         except Exception as e:
@@ -730,7 +731,8 @@ class PricingToolGUI:
     
     def _load_from_database(self, product_id):
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
             product = db.get_product(product_id)
             
             if not product:

@@ -45,7 +45,8 @@ class QueueManager:
             return 'none'
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
             resource_counts = db.count_resources(product_id)
             
             main_count = resource_counts['main_images']
@@ -287,7 +288,8 @@ class QueueManager:
             self.parent.queue_tree.tag_configure(status, foreground=color)
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
         except:
             db = None
         

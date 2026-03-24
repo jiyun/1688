@@ -581,7 +581,7 @@ class AlibabaScraperGUI:
             self.db_tree.delete(item)
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
             import json
             products = db.get_all_products()
             
@@ -645,7 +645,8 @@ class AlibabaScraperGUI:
             self.db_tree.delete(item)
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
             import json
             
             products = db.search_products_by_id(search_term)
@@ -708,8 +709,9 @@ class AlibabaScraperGUI:
     def _open_product_page(self, product_id):
         """用浏览器打开商品页面"""
         import webbrowser
-        from utils.database import db
+        from utils.database import get_shared_db
         
+        db = get_shared_db()
         product = db.get_product(product_id)
         platform = product.get('platform', 'alibaba') if product else 'alibaba'
         
@@ -724,8 +726,9 @@ class AlibabaScraperGUI:
     def _open_shop_page(self, product_id):
         """用浏览器打开店铺页面"""
         import webbrowser
-        from utils.database import db
+        from utils.database import get_shared_db
         
+        db = get_shared_db()
         product = db.get_product(product_id)
         platform = product.get('platform', 'alibaba') if product else 'alibaba'
         shop_product_id = product.get('shop_product_id', '') if product else ''
@@ -801,7 +804,8 @@ class AlibabaScraperGUI:
             return
         
         try:
-            from utils.database import db
+            from utils.database import get_shared_db
+            db = get_shared_db()
             if db.delete_product(product_id):
                 self.db_tree.delete(item)
                 self.log(f"已删除商品记录: {product_id}")
@@ -1485,7 +1489,8 @@ class AlibabaScraperGUI:
             
             self.queue_tree.set(item, column="shop_id", value=new_shop_id)
             try:
-                from utils.database import db
+                from utils.database import get_shared_db
+                db = get_shared_db()
                 db.update_shop_product_id(product_id, new_shop_id)
                 self.log(f"已保存DSID: {product_id} -> {new_shop_id}")
             except Exception as e:
