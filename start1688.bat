@@ -3,13 +3,13 @@ chcp 936 >nul
 set PYTHONDONTWRITEBYTECODE=1
 if "%1" == "" (
 	cls
-	echo 警告: 不要在没有参数的情况下运行此批处理文件！
-	echo 目标HTML文件需要使用singlefile浏览器扩展预处理。
-	echo 此程序使用Aria2c、Python和相关库：requests、subprocess、splitext、BeautifulSoup、pandas
+	echo 提示: 需要用户参数，请将处理过的HTML文件拖放到本批处理文件上。
+	echo 目标HTML文件需要使用singlefile插件扩展预览保存。
+	echo 本工具使用Aria2c和Python相关库：requests、subprocess、splitext、BeautifulSoup、pandas
 	echo ----------
-	echo 使用方法：将HTML文件拖放到此批处理文件上开始处理。
-	echo 如需批量处理，请执行另一个批处理文件。
-	echo 不要忘记安装上述提到的必要程序和扩展。
+	echo 使用方法：将HTML文件拖放到本批处理文件上开始处理。
+	echo 可以同时拖放多个文件执行批量处理文件。
+	echo 需要提前安装上面提到的必要依赖扩展。
 	pause >nul
 ) else (
 	@echo y|Cacls %* /c /t /p Everyone:f 2>nul
@@ -32,7 +32,7 @@ if "%1" == "" (
 	@echo URL=https://detail.1688.com/offer/%~n1.html>>#URL.url
 	@echo IconIndex=41>>#URL.url
 	@echo IconFile=C:\WINDOWS\system32\shell32.dll>>#URL.url
-	set var=处理完成，倒计时 
+	set var=处理完成，即将退出 
 	for /l %%i in (2,-1,1) do (  
 	@echo %var%%%i ...
 	ping -n 2 127.1>nul

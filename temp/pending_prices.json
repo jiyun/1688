@@ -1,0 +1,57 @@
+[
+  {
+    "product_id": "724609852628",
+    "prices": {
+      "main_price": {
+        "price": 18.5,
+        "min_amount": 1
+      },
+      "sku_prices": [
+        {
+          "color": "香芋紫",
+          "size": "均码M80-125",
+          "price": 18.5
+        },
+        {
+          "color": "黑色",
+          "size": "均码M80-125",
+          "price": 18.5
+        },
+        {
+          "color": "酒红色",
+          "size": "均码M80-125",
+          "price": 18.5
+        },
+        {
+          "color": "白色",
+          "size": "均码M80-125",
+          "price": 18.5
+        },
+        {
+          "color": "浅蓝色",
+          "size": "均码M80-125",
+          "price": 18.5
+        },
+        {
+          "color": "嫩粉色",
+          "size": "均码M80-125",
+          "price": 18.5
+        }
+      ],
+      "consign_prices": [
+        {
+          "type": "single",
+          "min_amount": 1,
+          "price": 21.3
+        },
+        {
+          "type": "multi",
+          "min_amount": 2,
+          "price": 18.5
+        }
+      ],
+      "ladder_prices": []
+    },
+    "created_at": "2026-03-24 23:49:50"
+  }
+]
