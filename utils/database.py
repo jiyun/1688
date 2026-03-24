@@ -1,137 +1,113 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-数据库模块 - DuckDB版本
-使用DuckDB作为嵌入式分析数据库，支持高效的数据存储和查询
+数据库模块 - SQLite版本
+使用SQLite作为嵌入式数据库，支持多进程访问
 """
 
 import os
 import json
+import sqlite3
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-try:
-    import duckdb
-    HAS_DUCKDB = True
-except ImportError:
-    HAS_DUCKDB = False
-    print("警告: DuckDB未安装，请运行: pip install duckdb")
+HAS_SQLITE = True
 
 
 class Database:
-    """DuckDB数据库管理类"""
+    """SQLite数据库管理类"""
     
     def __init__(self, db_path: str = None):
-        if not HAS_DUCKDB:
-            raise ImportError("DuckDB未安装，请运行: pip install duckdb")
-        
         if db_path is None:
             db_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(db_dir, "..", "products.duckdb")
+            db_path = os.path.join(db_dir, "..", "products.db")
         
         self.db_path = os.path.abspath(db_path)
         self.conn = None
+        self._connect()
         self._init_database()
     
-    def _get_conn(self):
-        """获取数据库连接（延迟连接）"""
-        if self.conn is None:
-            self.conn = duckdb.connect(self.db_path)
-        return self.conn
-    
-    def _release_conn(self):
-        """释放数据库连接"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+    def _connect(self):
+        """连接数据库"""
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
     
     def _init_database(self):
         """初始化数据库表结构"""
-        conn = self._get_conn()
+        cursor = self.conn.cursor()
         
-        conn.execute('''
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY,
-                product_id VARCHAR UNIQUE NOT NULL,
-                shop_product_id VARCHAR,
-                output_path VARCHAR,
-                title VARCHAR,
-                status VARCHAR DEFAULT 'pending',
-                resource_counts VARCHAR,
-                cost_prices VARCHAR,
-                selling_prices VARCHAR,
-                platform VARCHAR DEFAULT 'alibaba',
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT UNIQUE NOT NULL,
+                shop_product_id TEXT,
+                output_path TEXT,
+                title TEXT,
+                status TEXT DEFAULT 'pending',
+                resource_counts TEXT,
+                cost_prices TEXT,
+                selling_prices TEXT,
+                platform TEXT DEFAULT 'alibaba',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
-        self.conn.execute('''
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS resources (
-                id INTEGER PRIMARY KEY,
-                product_id VARCHAR NOT NULL,
-                resource_type VARCHAR NOT NULL,
-                resource_url VARCHAR NOT NULL,
-                resource_name VARCHAR,
-                output_filename VARCHAR,
-                downloaded BOOLEAN DEFAULT FALSE,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_url TEXT NOT NULL,
+                resource_name TEXT,
+                output_filename TEXT,
+                downloaded INTEGER DEFAULT 0,
                 download_time TIMESTAMP,
-                file_size BIGINT,
+                file_size INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
-        self.conn.execute('''
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS sku_prices (
-                id INTEGER PRIMARY KEY,
-                product_id VARCHAR NOT NULL,
-                sku_name VARCHAR,
-                price DOUBLE,
-                original_price DOUBLE,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                sku_name TEXT,
+                price REAL,
+                original_price REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
-        self.conn.execute('''
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS pricing (
-                id INTEGER PRIMARY KEY,
-                product_id VARCHAR NOT NULL,
-                cost_price DOUBLE,
-                selling_price DOUBLE,
-                profit_margin DOUBLE,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                cost_price REAL,
+                selling_price REAL,
+                profit_margin REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
-        self.conn.execute('''
-            CREATE SEQUENCE IF NOT EXISTS products_id_seq
-        ''')
-        self.conn.execute('''
-            CREATE SEQUENCE IF NOT EXISTS resources_id_seq
-        ''')
-        self.conn.execute('''
-            CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq
-        ''')
-        self.conn.execute('''
-            CREATE SEQUENCE IF NOT EXISTS pricing_id_seq
-        ''')
-        
-        self.conn.execute('''
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)
         ''')
-        self.conn.execute('''
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)
         ''')
-        self.conn.execute('''
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)
         ''')
-        self.conn.execute('''
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)
         ''')
-        self.conn.execute('''
+        cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)
         ''')
+        
+        self.conn.commit()
     
     def close(self):
         """关闭数据库连接"""
@@ -139,64 +115,61 @@ class Database:
             self.conn.close()
             self.conn = None
     
-    def execute(self, sql: str, params: List = None) -> Any:
+    def execute(self, sql: str, params: tuple = None) -> Any:
         """执行SQL语句"""
-        conn = self._get_conn()
+        cursor = self.conn.cursor()
         if params:
-            return conn.execute(sql, params)
-        return conn.execute(sql)
-    
-    def query(self, sql: str, params: List = None) -> List[Dict]:
-        """查询并返回字典列表"""
-        conn = self._get_conn()
-        if params:
-            result = conn.execute(sql, params)
+            cursor.execute(sql, params)
         else:
-            result = conn.execute(sql)
+            cursor.execute(sql)
+        self.conn.commit()
+        return cursor
+    
+    def query(self, sql: str, params: tuple = None) -> List[Dict]:
+        """查询并返回字典列表"""
+        cursor = self.conn.cursor()
+        if params:
+            cursor.execute(sql, params)
+        else:
+            cursor.execute(sql)
         
-        columns = [desc[0] for desc in result.description]
-        rows = result.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
         return [dict(zip(columns, row)) for row in rows]
     
-    def query_one(self, sql: str, params: List = None) -> Optional[Dict]:
+    def query_one(self, sql: str, params: tuple = None) -> Optional[Dict]:
         """查询单条记录"""
         results = self.query(sql, params)
         return results[0] if results else None
     
     def insert(self, table: str, data: Dict) -> int:
         """插入数据并返回ID"""
-        conn = self._get_conn()
-        if 'id' not in data:
-            seq_name = f'{table}_id_seq'
-            try:
-                result = conn.execute(f"SELECT nextval('{seq_name}')")
-                data['id'] = result.fetchone()[0]
-            except:
-                result = conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table}")
-                data['id'] = result.fetchone()[0]
-        
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['?' for _ in data])
-        sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
-        result = conn.execute(sql, list(data.values()))
-        return result.fetchone()[0]
+        sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+        cursor = self.conn.cursor()
+        cursor.execute(sql, list(data.values()))
+        self.conn.commit()
+        return cursor.lastrowid
     
-    def update(self, table: str, data: Dict, where: str, where_params: List = None):
+    def update(self, table: str, data: Dict, where: str, where_params: tuple = None):
         """更新数据"""
-        conn = self._get_conn()
         set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
         sql = f"UPDATE {table} SET {set_clause} WHERE {where}"
-        params = list(data.values()) + (where_params or [])
-        conn.execute(sql, params)
+        params = list(data.values()) + (list(where_params) if where_params else [])
+        cursor = self.conn.cursor()
+        cursor.execute(sql, params)
+        self.conn.commit()
     
-    def delete(self, table: str, where: str, where_params: List = None):
+    def delete(self, table: str, where: str, where_params: tuple = None):
         """删除数据"""
-        conn = self._get_conn()
         sql = f"DELETE FROM {table} WHERE {where}"
+        cursor = self.conn.cursor()
         if where_params:
-            conn.execute(sql, where_params)
+            cursor.execute(sql, where_params)
         else:
-            conn.execute(sql)
+            cursor.execute(sql)
+        self.conn.commit()
     
     def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict]:
         """搜索商品记录"""
@@ -208,7 +181,7 @@ class Database:
         
         return self.query(f'''
             SELECT * FROM products WHERE {search_field} = ?
-        ''', [search_term])
+        ''', (search_term,))
     
     def search_products_by_id(self, search_term: str) -> List[Dict]:
         """自动匹配商品ID和DSID搜索"""
@@ -217,13 +190,13 @@ class Database:
         
         return self.query('''
             SELECT * FROM products WHERE product_id = ? OR shop_product_id = ?
-        ''', [search_term, search_term])
+        ''', (search_term, search_term))
     
     def get_product(self, product_id: str) -> Optional[Dict]:
         """获取单个商品"""
         return self.query_one('''
             SELECT * FROM products WHERE product_id = ?
-        ''', [product_id])
+        ''', (product_id,))
     
     def get_all_products(self) -> List[Dict]:
         """获取所有商品"""
@@ -238,11 +211,11 @@ class Database:
         if existing:
             update_data = {
                 'shop_product_id': shop_product_id,
-                'updated_at': datetime.now()
+                'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             if output_path:
                 update_data['output_path'] = output_path
-            self.update('products', update_data, 'product_id = ?', [product_id])
+            self.update('products', update_data, 'product_id = ?', (product_id,))
         else:
             self.insert('products', {
                 'product_id': product_id,
@@ -260,8 +233,8 @@ class Database:
         if existing:
             self.update('products', {
                 'output_path': output_path,
-                'updated_at': datetime.now()
-            }, 'product_id = ?', [product_id])
+                'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }, 'product_id = ?', (product_id,))
         else:
             self.insert('products', {
                 'product_id': product_id,
@@ -282,12 +255,13 @@ class Database:
         if existing:
             update_data = {
                 'resource_counts': resource_counts,
-                'output_path': output_path,
                 'platform': platform,
                 'status': 'completed',
-                'updated_at': datetime.now()
+                'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
-            self.update('products', update_data, 'product_id = ?', [product_id])
+            if output_path:
+                update_data['output_path'] = output_path
+            self.update('products', update_data, 'product_id = ?', (product_id,))
         else:
             self.insert('products', {
                 'product_id': product_id,
@@ -357,7 +331,7 @@ class Database:
     def get_pending_resources(self, product_id: str = None, resource_type: str = None, 
                                limit: int = None) -> List[Dict]:
         """获取待下载资源"""
-        sql = "SELECT * FROM resources WHERE downloaded = FALSE"
+        sql = "SELECT * FROM resources WHERE downloaded = 0"
         params = []
         
         if product_id:
@@ -373,18 +347,18 @@ class Database:
         if limit:
             sql += f" LIMIT {limit}"
         
-        return self.query(sql, params if params else None)
+        return self.query(sql, tuple(params) if params else None)
     
     def mark_resource_downloaded(self, resource_id: int, file_size: int = None):
         """标记资源已下载"""
         update_data = {
-            'downloaded': True,
-            'download_time': datetime.now()
+            'downloaded': 1,
+            'download_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         if file_size:
             update_data['file_size'] = file_size
         
-        self.update('resources', update_data, 'id = ?', [resource_id])
+        self.update('resources', update_data, 'id = ?', (resource_id,))
     
     def get_download_stats(self, product_id: str = None) -> Dict:
         """获取下载统计"""
@@ -398,11 +372,11 @@ class Database:
         stats = self.query_one(f'''
             SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN downloaded THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN NOT downloaded THEN 1 ELSE 0 END) as pending
+                SUM(downloaded) as completed,
+                COUNT(*) - SUM(downloaded) as pending
             FROM resources
             {where_clause}
-        ''', params if params else None)
+        ''', tuple(params) if params else None)
         
         return stats or {'total': 0, 'completed': 0, 'pending': 0}
     
@@ -419,7 +393,7 @@ class Database:
             SELECT * FROM resources 
             {where_clause}
             ORDER BY resource_type, id
-        ''', params if params else None)
+        ''', tuple(params) if params else None)
         
         result = {
             'main_image': [],
@@ -438,8 +412,8 @@ class Database:
     def delete_product(self, product_id: str) -> bool:
         """删除商品及其资源"""
         try:
-            self.delete('resources', 'product_id = ?', [product_id])
-            self.delete('products', 'product_id = ?', [product_id])
+            self.delete('resources', 'product_id = ?', (product_id,))
+            self.delete('products', 'product_id = ?', (product_id,))
             return True
         except Exception as e:
             print(f"删除商品失败: {e}")
@@ -454,8 +428,8 @@ class Database:
             if existing:
                 self.update('products', {
                     'cost_prices': cost_prices_json,
-                    'updated_at': datetime.now()
-                }, 'product_id = ?', [product_id])
+                    'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }, 'product_id = ?', (product_id,))
             else:
                 self.insert('products', {
                     'product_id': product_id,
@@ -477,8 +451,8 @@ class Database:
             if existing:
                 self.update('products', {
                     'selling_prices': selling_prices_json,
-                    'updated_at': datetime.now()
-                }, 'product_id = ?', [product_id])
+                    'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }, 'product_id = ?', (product_id,))
             else:
                 self.insert('products', {
                     'product_id': product_id,
@@ -491,19 +465,6 @@ class Database:
             print(f"保存销售价格失败: {e}")
             return False
     
-    def get_products_with_stats(self) -> List[Dict]:
-        """获取商品列表及其资源统计"""
-        return self.query('''
-            SELECT 
-                p.*,
-                COUNT(r.id) as resource_count,
-                SUM(CASE WHEN r.downloaded THEN 1 ELSE 0 END) as downloaded_count
-            FROM products p
-            LEFT JOIN resources r ON p.product_id = r.product_id
-            GROUP BY p.id
-            ORDER BY p.created_at DESC
-        ''')
-    
     def save_main_price(self, product_id: str, price: float, min_amount: int = 1):
         """保存主价格"""
         existing = self.get_product(product_id)
@@ -511,8 +472,8 @@ class Database:
         if existing:
             self.update('products', {
                 'title': f'商品_{product_id}',
-                'updated_at': datetime.now()
-            }, 'product_id = ?', [product_id])
+                'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }, 'product_id = ?', (product_id,))
         else:
             self.insert('products', {
                 'product_id': product_id,
@@ -539,65 +500,42 @@ class Database:
                 'original_price': cp.get('original_price')
             })
     
-    def export_to_dataframe(self, table: str = 'products') -> Any:
-        """导出表数据为Pandas DataFrame"""
-        conn = self._get_conn()
-        return conn.execute(f"SELECT * FROM {table}").df()
-
-
-class DatabaseManager:
-    """数据库管理器 - 支持多进程访问"""
+    def get_products_with_stats(self) -> List[Dict]:
+        """获取商品列表及其资源统计"""
+        return self.query('''
+            SELECT 
+                p.*,
+                COUNT(r.id) as resource_count,
+                SUM(r.downloaded) as downloaded_count
+            FROM products p
+            LEFT JOIN resources r ON p.product_id = r.product_id
+            GROUP BY p.id
+            ORDER BY p.created_at DESC
+        ''')
     
-    _instance = None
-    _db_path = None
-    _lock = None
-    
-    @classmethod
-    def get_instance(cls, db_path: str = None):
-        """获取数据库实例（每次创建新连接）"""
-        if db_path is None:
-            db_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(db_dir, "..", "products.duckdb")
-        
-        cls._db_path = os.path.abspath(db_path)
-        return Database(cls._db_path)
-    
-    @classmethod
-    def get_shared_instance(cls):
-        """获取共享数据库实例（单例模式，用于GUI）"""
-        if cls._instance is None:
-            if cls._db_path is None:
-                db_dir = os.path.dirname(os.path.abspath(__file__))
-                cls._db_path = os.path.join(db_dir, "..", "products.duckdb")
-            cls._instance = Database(cls._db_path)
-        return cls._instance
-    
-    @classmethod
-    def release_shared_instance(cls):
-        """释放共享数据库实例"""
-        if cls._instance:
-            cls._instance.close()
-            cls._instance = None
+    def count_resources(self, product_id: str) -> Optional[List[int]]:
+        """统计商品资源数量"""
+        return self.query_one('''
+            SELECT 
+                SUM(CASE WHEN resource_type = 'main_image' THEN 1 ELSE 0 END) as main_images,
+                SUM(CASE WHEN resource_type = 'color_image' THEN 1 ELSE 0 END) as color_images,
+                SUM(CASE WHEN resource_type = 'detail_image' THEN 1 ELSE 0 END) as detail_images,
+                SUM(CASE WHEN resource_type = 'video' THEN 1 ELSE 0 END) as videos
+            FROM resources
+            WHERE product_id = ?
+        ''', (product_id,))
 
 
 def get_db():
-    """获取数据库连接（每次创建新连接）"""
-    if not HAS_DUCKDB:
+    """获取数据库连接"""
+    if not HAS_SQLITE:
         return None
-    return DatabaseManager.get_instance()
+    return Database()
 
 
 def get_shared_db():
-    """获取共享数据库连接（用于GUI）"""
-    if not HAS_DUCKDB:
-        return None
-    return DatabaseManager.get_shared_instance()
+    """获取数据库连接（SQLite支持多进程）"""
+    return get_db()
 
 
-def release_db():
-    """释放共享数据库连接"""
-    DatabaseManager.release_shared_instance()
-
-
-# 不再创建全局 db 实例，避免模块导入时锁定数据库文件
-# db = Database() if HAS_DUCKDB else None
+db = Database() if HAS_SQLITE else None

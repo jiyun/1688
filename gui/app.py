@@ -583,6 +583,7 @@ class AlibabaScraperGUI:
         try:
             from utils.database import get_shared_db
             import json
+            db = get_shared_db()
             products = db.get_all_products()
             
             for product in products:
