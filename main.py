@@ -116,7 +116,13 @@ class AlibabaScraper:
             log_info("资源提取完成: 未发现有效资源", "Main")
         
         from utils.temp_storage import save_resources_temp
-        save_resources_temp(self.product_id, self.resources)
+        save_resources_temp(
+            self.product_id,
+            self.resources.get('main_images', []),
+            self.resources.get('color_card_images', []),
+            self.resources.get('detail_images', []),
+            self.resources.get('videos', [])
+        )
         
         return True
     
