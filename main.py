@@ -148,44 +148,103 @@ class AlibabaScraper:
         return True
     
     def download_resources(self):
-        """下载资源 - 从数据库读取资源URL"""
-        # 先导入资源数据到数据库
-        from utils.duckdb_database import get_duckdb
-        try:
-            db = get_duckdb()
-            if db:
-                db.save_resources(
-                    self.product_id,
-                    self.resources.get('main_images', []),
-                    self.resources.get('color_card_images', []),
-                    self.resources.get('detail_images', []),
-                    self.resources.get('videos', [])
-                )
-                db.close()
-        except Exception as e:
-            log_error(f"导入资源到数据库失败: {e}", "Main")
+        """下载资源 - 直接从内存中的资源列表下载"""
+        if not hasattr(self, 'resources'):
+            log_warning("请先提取资源", "Main")
+            return False
         
-        # 从数据库获取待下载资源
-        from utils.resource_downloader import ResourceDownloader
+        # 构建下载列表
+        download_list = []
+        
+        for idx, (url, name) in enumerate(self.resources.get('main_images', [])):
+            download_list.append((url, f'main_{name}.jpg'))
+        
+        for idx, (url, name) in enumerate(self.resources.get('color_card_images', [])):
+            download_list.append((url, f'color_{name}.jpg'))
+        
+        for idx, url in enumerate(self.resources.get('detail_images', [])):
+            download_list.append((url, f'detail_{idx+1}.jpg'))
+        
+        for idx, url in enumerate(self.resources.get('videos', [])):
+            download_list.append((url, f'video_{idx+1}.mp4'))
+        
+        if not download_list:
+            log_warning("没有可下载的资源", "Main")
+            return False
+        
+        # 直接调用 aria2c 下载
+        from utils.downloader import get_aria2c_path
+        import subprocess
+        
+        aria2c_path = get_aria2c_path()
+        if not aria2c_path:
+            log_error("aria2c未找到", "Main")
+            return False
+        
+        output_dir = os.getcwd()
+        
+        # 构建 aria2c 命令
+        cmd = [
+            aria2c_path,
+            '--console-log-level=warn',
+            '-d', output_dir,
+            '-x', '16',
+            '-s', '16',
+            '-k', '1M',
+            '--max-tries=3',
+            '--retry-wait=2',
+            '--timeout=60',
+            '--continue=true',
+            '--auto-file-renaming=false'
+        ]
+        
+        for url, filename in download_list:
+            cmd.extend(['-o', filename, url])
+        
+        startupinfo = None
+        creationflags = 0
+        if sys.platform == 'win32':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            creationflags = subprocess.CREATE_NO_WINDOW
+        
         try:
-            downloader = ResourceDownloader()
-            resources = downloader.get_pending_resources(self.product_id)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,
+                startupinfo=startupinfo,
+                creationflags=creationflags
+            )
             
-            if not resources:
-                log_warning("没有可下载的资源", "Main")
+            if result.returncode == 0:
+                log_info(f"下载完成: {len(download_list)} 个文件", "Main")
+                self._clean_small_files()
+                return True
+            else:
+                log_error(f"aria2c返回码: {result.returncode}", "Main")
                 return False
-            
-            # 直接下载
-            output_dir = os.getcwd()
-            success = downloader.download_with_aria2c(resources, output_dir)
-            
-            if success:
-                downloader.clean_small_files()
-            
-            return success
+                
+        except subprocess.TimeoutExpired:
+            log_error("aria2c下载超时", "Main")
+            return False
         except Exception as e:
             log_error(f"下载失败: {e}", "Main")
             return False
+    
+    def _clean_small_files(self, min_size: int = 1024):
+        """清理小文件"""
+        cleaned = 0
+        for f in os.listdir(os.getcwd()):
+            filepath = os.path.join(os.getcwd(), f)
+            if os.path.isfile(filepath) and os.path.getsize(filepath) < min_size:
+                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webp')):
+                    os.remove(filepath)
+                    cleaned += 1
+        if cleaned > 0:
+            log_info(f"清理了 {cleaned} 个小文件", "Main")
     
     def save_attributes(self):
         """保存属性"""

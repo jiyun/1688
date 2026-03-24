@@ -482,4 +482,4 @@ def get_shared_db():
     return get_db()
 
 
-db = Database() if HAS_DUCKDB else None
+# 不再创建全局 db 实例，避免模块导入时锁定数据库文件
