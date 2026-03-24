@@ -148,28 +148,44 @@ class AlibabaScraper:
         return True
     
     def download_resources(self):
-        """下载资源"""
-        if not hasattr(self, 'resources'):
-            log_warning("请先提取资源", "Main")
+        """下载资源 - 从数据库读取资源URL"""
+        # 先导入资源数据到数据库
+        from utils.duckdb_database import get_duckdb
+        try:
+            db = get_duckdb()
+            if db:
+                db.save_resources(
+                    self.product_id,
+                    self.resources.get('main_images', []),
+                    self.resources.get('color_card_images', []),
+                    self.resources.get('detail_images', []),
+                    self.resources.get('videos', [])
+                )
+                db.close()
+        except Exception as e:
+            log_error(f"导入资源到数据库失败: {e}", "Main")
+        
+        # 从数据库获取待下载资源
+        from utils.resource_downloader import ResourceDownloader
+        try:
+            downloader = ResourceDownloader()
+            resources = downloader.get_pending_resources(self.product_id)
+            
+            if not resources:
+                log_warning("没有可下载的资源", "Main")
+                return False
+            
+            # 直接下载
+            output_dir = os.getcwd()
+            success = downloader.download_with_aria2c(resources, output_dir)
+            
+            if success:
+                downloader.clean_small_files()
+            
+            return success
+        except Exception as e:
+            log_error(f"下载失败: {e}", "Main")
             return False
-        
-        download_list = self.downloader.generate_download_list(self.resources)
-        
-        if not download_list:
-            log_warning("没有可下载的资源", "Main")
-            return False
-        
-        # 保存下载列表
-        self.downloader.save_download_list(download_list)
-        
-        # 开始下载
-        success = self.downloader.download()
-        
-        if success:
-            # 清理小文件
-            self.downloader.clean_small_files()
-        
-        return success
     
     def save_attributes(self):
         """保存属性"""

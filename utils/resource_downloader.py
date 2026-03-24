@@ -49,23 +49,9 @@ class ResourceDownloader:
         """获取下载统计"""
         return self.db.get_download_stats(product_id)
     
-    def generate_download_list(self, resources: List[Dict], output_dir: str) -> str:
-        """生成aria2c下载列表文件"""
-        list_path = os.path.join(output_dir, 'download_list.txt')
-        
-        with open(list_path, 'w', encoding='utf-8') as f:
-            for r in resources:
-                url = r['resource_url']
-                filename = r.get('output_filename') or r.get('resource_name', 'file')
-                f.write(f"{url}\n")
-                f.write(f" out={filename}\n")
-                f.write(f" dir={output_dir}\n")
-        
-        return list_path
-    
     def download_with_aria2c(self, resources: List[Dict], output_dir: str,
                               progress_callback: Callable = None) -> bool:
-        """使用aria2c下载资源"""
+        """使用aria2c下载资源 - 直接传递URL，不生成down.txt"""
         if not self.aria2c_path:
             print("aria2c未找到")
             return False
@@ -75,11 +61,11 @@ class ResourceDownloader:
         
         os.makedirs(output_dir, exist_ok=True)
         
-        list_path = self.generate_download_list(resources, output_dir)
-        
+        # 直接构建 aria2c 命令参数
         cmd = [
             self.aria2c_path,
             '--console-log-level=warn',
+            '-d', output_dir,
             '-x', '16',
             '-s', '16',
             '-k', '1M',
@@ -87,8 +73,14 @@ class ResourceDownloader:
             '--retry-wait=2',
             '--timeout=60',
             '--continue=true',
-            '-i', list_path
+            '--auto-file-renaming=false'
         ]
+        
+        # 直接添加 URL 和输出文件名
+        for r in resources:
+            url = r['resource_url']
+            filename = r.get('output_filename') or r.get('resource_name', 'file')
+            cmd.extend(['-o', filename, url])
         
         startupinfo = None
         creationflags = 0
@@ -115,9 +107,6 @@ class ResourceDownloader:
                     if os.path.exists(filepath):
                         file_size = os.path.getsize(filepath)
                         self.db.mark_resource_downloaded(r['id'], file_size)
-                
-                if os.path.exists(list_path):
-                    os.remove(list_path)
                 
                 return True
             else:
@@ -202,6 +191,17 @@ class ResourceDownloader:
             'stats': stats,
             'resources': resources
         }
+    
+    def clean_small_files(self, min_size: int = 1024):
+        """清理小文件"""
+        cleaned = 0
+        for f in os.listdir(self.output_base_dir):
+            filepath = os.path.join(self.output_base_dir, f)
+            if os.path.isfile(filepath) and os.path.getsize(filepath) < min_size:
+                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webp')):
+                    os.remove(filepath)
+                    cleaned += 1
+        return cleaned
 
 
 if __name__ == "__main__":
