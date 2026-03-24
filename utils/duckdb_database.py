@@ -255,41 +255,77 @@ def import_pending_data():
     resources_data = get_pending_resources()
     for item in resources_data:
         product_id = item['product_id']
+        output_path = None
+        
+        # 从 counts 数据获取 output_path
+        counts_data = get_pending_counts()
+        for c in counts_data:
+            if c['product_id'] == product_id:
+                output_path = c.get('output_path')
+                break
         
         for idx, (url, name) in enumerate(item.get('main_images', [])):
+            filename = f"{FILE_NAMING['main_image_prefix']}{name}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'main_image',
                 'resource_url': url,
                 'resource_name': name,
-                'output_filename': f"{FILE_NAMING['main_image_prefix']}{name}.jpg"
+                'output_filename': filename,
+                'downloaded': downloaded,
+                'file_size': file_size if file_size > 0 else None
             })
         
         for idx, (url, name) in enumerate(item.get('color_images', [])):
+            filename = f"{FILE_NAMING['color_option_prefix']}{name}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'color_image',
                 'resource_url': url,
                 'resource_name': name,
-                'output_filename': f"{FILE_NAMING['color_option_prefix']}{name}.jpg"
+                'output_filename': filename,
+                'downloaded': downloaded,
+                'file_size': file_size if file_size > 0 else None
             })
         
         for idx, url in enumerate(item.get('detail_images', [])):
+            filename = f"{FILE_NAMING['detail_image_prefix']}{idx+1}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'detail_image',
                 'resource_url': url,
                 'resource_name': f'detail_{idx+1}',
-                'output_filename': f"{FILE_NAMING['detail_image_prefix']}{idx+1}.jpg"
+                'output_filename': filename,
+                'downloaded': downloaded,
+                'file_size': file_size if file_size > 0 else None
             })
         
         for idx, url in enumerate(item.get('videos', [])):
+            filename = f"{FILE_NAMING['video_prefix']}{idx+1}.mp4"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'video',
                 'resource_url': url,
                 'resource_name': f'video_{idx+1}',
-                'output_filename': f"{FILE_NAMING['video_prefix']}{idx+1}.mp4"
+                'output_filename': filename,
+                'downloaded': downloaded,
+                'file_size': file_size if file_size > 0 else None
             })
         
         total_imported += 1
