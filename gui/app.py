@@ -772,6 +772,90 @@ class AlibabaScraperGUI:
             self._open_product_page(product_id)
         elif column == "#2":
             self._open_shop_page(product_id)
+        elif column == "#6":
+            self._show_resources_dialog(product_id)
+    
+    def _show_resources_dialog(self, product_id: str):
+        """显示资源链接对话框"""
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            resources = db.get_resources_by_type(product_id)
+            
+            dialog = ctk.CTkToplevel(self.root)
+            dialog.title(f"资源链接 - {product_id}")
+            dialog.geometry("900x600")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            main_frame = ctk.CTkFrame(dialog)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            notebook = ctk.CTkTabview(main_frame)
+            notebook.pack(fill="both", expand=True)
+            
+            for res_type, res_list in resources.items():
+                if not res_list:
+                    continue
+                
+                tab = notebook.add(res_type.replace('_', ' ').title())
+                
+                columns = ("文件名", "URL", "状态", "大小", "下载时间")
+                tree = ttk.Treeview(tab, columns=columns, show="headings", height=15)
+                
+                tree.heading("文件名", text="文件名")
+                tree.heading("URL", text="URL")
+                tree.heading("状态", text="状态")
+                tree.heading("大小", text="大小")
+                tree.heading("下载时间", text="下载时间")
+                
+                tree.column("文件名", width=150)
+                tree.column("URL", width=400)
+                tree.column("状态", width=80)
+                tree.column("大小", width=100)
+                tree.column("下载时间", width=150)
+                
+                for res in res_list:
+                    status = "已下载" if res.get('downloaded') else "待下载"
+                    file_size = res.get('file_size', 0) or 0
+                    size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "-"
+                    download_time = str(res.get('download_time', ''))[:19] if res.get('download_time') else "-"
+                    
+                    tree.insert("", "end", values=(
+                        res.get('output_filename', ''),
+                        res.get('resource_url', '')[:80] + '...' if len(res.get('resource_url', '')) > 80 else res.get('resource_url', ''),
+                        status,
+                        size_str,
+                        download_time
+                    ))
+                
+                scrollbar = ttk.Scrollbar(tab, orient="vertical", command=tree.yview)
+                tree.configure(yscrollcommand=scrollbar.set)
+                tree.pack(side="left", fill="both", expand=True)
+                scrollbar.pack(side="right", fill="y")
+                
+                def copy_url(event, tree=tree):
+                    selected = tree.selection()
+                    if selected:
+                        item = tree.item(selected[0])
+                        url = item['values'][1]
+                        if url.endswith('...'):
+                            self.show_info("提示", "URL过长，请从数据库中查看完整URL")
+                        else:
+                            dialog.clipboard_clear()
+                            dialog.clipboard_append(url)
+                            self.log(f"已复制URL: {url[:50]}...")
+                
+                tree.bind("<Double-1>", copy_url)
+            
+            btn_frame = ctk.CTkFrame(main_frame)
+            btn_frame.pack(fill="x", pady=10)
+            
+            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy).pack(side="right", padx=5)
+            
+        except Exception as e:
+            self.log(f"获取资源链接失败: {e}", "error")
+            self.show_info("错误", f"获取资源链接失败: {e}")
     
     def _open_pricing_for_selected(self):
         """为选中的数据库记录打开价格计算工具"""

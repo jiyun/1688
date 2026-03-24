@@ -68,6 +68,7 @@ class Database:
                 downloaded BOOLEAN DEFAULT FALSE,
                 download_time TIMESTAMP,
                 file_size BIGINT,
+                download_log VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
