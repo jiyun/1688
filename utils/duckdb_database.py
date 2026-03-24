@@ -249,7 +249,7 @@ def import_pending_data():
     
     total_imported = 0
     
-    from utils.config import FILE_NAMING
+    from config import FILE_NAMING
     
     # 导入资源数据
     resources_data = get_pending_resources()

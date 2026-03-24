@@ -153,7 +153,7 @@ class AlibabaScraper:
             log_warning("请先提取资源", "Main")
             return False
         
-        from utils.config import FILE_NAMING
+        from config import FILE_NAMING
         import subprocess
         
         # 构建下载列表
