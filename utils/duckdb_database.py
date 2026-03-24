@@ -338,11 +338,23 @@ def import_pending_data():
         
         if prices.get('sku_prices'):
             for sku in prices['sku_prices']:
+                color = sku.get('color', '')
+                size = sku.get('size', '')
+                sku_name = f"{color} {size}".strip() if color or size else sku.get('name', '')
                 db.insert_sku_price({
                     'product_id': product_id,
-                    'sku_name': sku.get('name', ''),
+                    'sku_name': sku_name,
                     'price': sku.get('price', 0),
                     'original_price': sku.get('original_price')
+                })
+        
+        if prices.get('consign_prices'):
+            for cp in prices['consign_prices']:
+                db.insert_sku_price({
+                    'product_id': product_id,
+                    'sku_name': f"代发-{cp.get('type', 'single')}",
+                    'price': cp.get('price', 0),
+                    'original_price': None
                 })
         
         total_imported += 1
