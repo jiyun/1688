@@ -249,45 +249,47 @@ def import_pending_data():
     
     total_imported = 0
     
+    from utils.config import FILE_NAMING
+    
     # 导入资源数据
     resources_data = get_pending_resources()
     for item in resources_data:
         product_id = item['product_id']
         
-        for url, name in item.get('main_images', []):
+        for idx, (url, name) in enumerate(item.get('main_images', [])):
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'main_image',
                 'resource_url': url,
                 'resource_name': name,
-                'output_filename': f'main_{name}.jpg'
+                'output_filename': f"{FILE_NAMING['main_image_prefix']}{name}.jpg"
             })
         
-        for url, name in item.get('color_images', []):
+        for idx, (url, name) in enumerate(item.get('color_images', [])):
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'color_image',
                 'resource_url': url,
                 'resource_name': name,
-                'output_filename': f'color_{name}.jpg'
+                'output_filename': f"{FILE_NAMING['color_option_prefix']}{name}.jpg"
             })
         
-        for url in item.get('detail_images', []):
+        for idx, url in enumerate(item.get('detail_images', [])):
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'detail_image',
                 'resource_url': url,
-                'resource_name': f'detail',
-                'output_filename': f'detail.jpg'
+                'resource_name': f'detail_{idx+1}',
+                'output_filename': f"{FILE_NAMING['detail_image_prefix']}{idx+1}.jpg"
             })
         
-        for url in item.get('videos', []):
+        for idx, url in enumerate(item.get('videos', [])):
             db.insert_resource({
                 'product_id': product_id,
                 'resource_type': 'video',
                 'resource_url': url,
-                'resource_name': f'video',
-                'output_filename': f'video.mp4'
+                'resource_name': f'video_{idx+1}',
+                'output_filename': f"{FILE_NAMING['video_prefix']}{idx+1}.mp4"
             })
         
         total_imported += 1

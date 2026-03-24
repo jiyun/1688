@@ -153,28 +153,33 @@ class AlibabaScraper:
             log_warning("请先提取资源", "Main")
             return False
         
+        from utils.config import FILE_NAMING
+        import subprocess
+        
         # 构建下载列表
         download_list = []
         
         for idx, (url, name) in enumerate(self.resources.get('main_images', [])):
-            download_list.append((url, f'main_{name}.jpg'))
+            filename = f"{FILE_NAMING['main_image_prefix']}{name}.jpg"
+            download_list.append((url, filename))
         
         for idx, (url, name) in enumerate(self.resources.get('color_card_images', [])):
-            download_list.append((url, f'color_{name}.jpg'))
+            filename = f"{FILE_NAMING['color_option_prefix']}{name}.jpg"
+            download_list.append((url, filename))
         
         for idx, url in enumerate(self.resources.get('detail_images', [])):
-            download_list.append((url, f'detail_{idx+1}.jpg'))
+            filename = f"{FILE_NAMING['detail_image_prefix']}{idx+1}.jpg"
+            download_list.append((url, filename))
         
         for idx, url in enumerate(self.resources.get('videos', [])):
-            download_list.append((url, f'video_{idx+1}.mp4'))
+            filename = f"{FILE_NAMING['video_prefix']}{idx+1}.mp4"
+            download_list.append((url, filename))
         
         if not download_list:
             log_warning("没有可下载的资源", "Main")
             return False
         
-        # 直接调用 aria2c 下载
         from utils.downloader import get_aria2c_path
-        import subprocess
         
         aria2c_path = get_aria2c_path()
         if not aria2c_path:
@@ -183,7 +188,13 @@ class AlibabaScraper:
         
         output_dir = os.getcwd()
         
-        # 构建 aria2c 命令
+        # 写入临时下载列表文件
+        list_file = os.path.join(output_dir, '.download_list.txt')
+        with open(list_file, 'w', encoding='utf-8') as f:
+            for url, filename in download_list:
+                f.write(f"{url}\n")
+                f.write(f"  out={filename}\n")
+        
         cmd = [
             aria2c_path,
             '--console-log-level=warn',
@@ -195,11 +206,9 @@ class AlibabaScraper:
             '--retry-wait=2',
             '--timeout=60',
             '--continue=true',
-            '--auto-file-renaming=false'
+            '--auto-file-renaming=false',
+            '-i', list_file
         ]
-        
-        for url, filename in download_list:
-            cmd.extend(['-o', filename, url])
         
         startupinfo = None
         creationflags = 0
@@ -219,12 +228,17 @@ class AlibabaScraper:
                 creationflags=creationflags
             )
             
+            # 删除临时下载列表文件
+            if os.path.exists(list_file):
+                os.remove(list_file)
+            
             if result.returncode == 0:
                 log_info(f"下载完成: {len(download_list)} 个文件", "Main")
                 self._clean_small_files()
                 return True
             else:
                 log_error(f"aria2c返回码: {result.returncode}", "Main")
+                log_error(f"aria2c stderr: {result.stderr}", "Main")
                 return False
                 
         except subprocess.TimeoutExpired:
