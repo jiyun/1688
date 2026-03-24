@@ -154,6 +154,15 @@ class Database:
     
     def insert(self, table: str, data: Dict) -> int:
         """插入数据并返回ID"""
+        if 'id' not in data:
+            seq_name = f'{table}_id_seq'
+            try:
+                result = self.conn.execute(f"SELECT nextval('{seq_name}')")
+                data['id'] = result.fetchone()[0]
+            except:
+                result = self.conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table}")
+                data['id'] = result.fetchone()[0]
+        
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['?' for _ in data])
         sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
@@ -480,6 +489,41 @@ class Database:
             GROUP BY p.id
             ORDER BY p.created_at DESC
         ''')
+    
+    def save_main_price(self, product_id: str, price: float, min_amount: int = 1):
+        """保存主价格"""
+        existing = self.get_product(product_id)
+        
+        if existing:
+            self.update('products', {
+                'title': f'商品_{product_id}',
+                'updated_at': datetime.now()
+            }, 'product_id = ?', [product_id])
+        else:
+            self.insert('products', {
+                'product_id': product_id,
+                'status': 'pending'
+            })
+    
+    def save_sku_prices(self, product_id: str, sku_prices: List[Dict]):
+        """保存SKU价格"""
+        for sku in sku_prices:
+            self.insert('sku_prices', {
+                'product_id': product_id,
+                'sku_name': sku.get('name', ''),
+                'price': sku.get('price', 0),
+                'original_price': sku.get('original_price')
+            })
+    
+    def save_consign_prices(self, product_id: str, consign_prices: List[Dict]):
+        """保存代发价格（存储到sku_prices表）"""
+        for cp in consign_prices:
+            self.insert('sku_prices', {
+                'product_id': product_id,
+                'sku_name': cp.get('name', '代发'),
+                'price': cp.get('price', 0),
+                'original_price': cp.get('original_price')
+            })
     
     def export_to_dataframe(self, table: str = 'products') -> Any:
         """导出表数据为Pandas DataFrame"""

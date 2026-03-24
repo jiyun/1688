@@ -96,3 +96,4 @@ tools/
 rules/bat.md
 CHANGELOG_recovered.md
 ersjiyunAppDataLocalProgramsTrae CNresourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1 } catch{} ; Write-Output \[Trae CN] Safe Rm alias is not enabled, try to fix it now.
+products.duckdb
