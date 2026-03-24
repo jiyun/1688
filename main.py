@@ -115,14 +115,8 @@ class AlibabaScraper:
         else:
             log_info("资源提取完成: 未发现有效资源", "Main")
         
-        try:
-            from utils.database import get_db
-            db = get_db()
-            if db:
-                db.save_resources(self.product_id, self.resources)
-                db.close()
-        except Exception as e:
-            log_error(f"保存资源信息失败: {e}", "Main")
+        from utils.temp_storage import save_resources_temp
+        save_resources_temp(self.product_id, self.resources)
         
         return True
     
@@ -142,26 +136,8 @@ class AlibabaScraper:
         
         self.prices = prices
         
-        try:
-            from utils.database import get_db
-            db = get_db()
-            if db:
-                if prices.get('main_price'):
-                    mp = prices['main_price']
-                    db.save_main_price(self.product_id, mp.get('price'), mp.get('min_amount', 1))
-                
-                if prices.get('sku_prices'):
-                    db.save_sku_prices(self.product_id, prices['sku_prices'])
-                    log_info(f"已保存SKU价格: {len(prices['sku_prices'])}条", "Main")
-                
-                if prices.get('consign_prices'):
-                    db.save_consign_prices(self.product_id, prices['consign_prices'])
-                    log_info(f"已保存代发价格: {len(prices['consign_prices'])}条", "Main")
-                
-                db.close()
-                
-        except Exception as e:
-            log_error(f"保存价格信息失败: {e}", "Main")
+        from utils.temp_storage import save_prices_temp
+        save_prices_temp(self.product_id, prices)
         
         return True
     
@@ -286,21 +262,14 @@ class AlibabaScraper:
             self.create_rebuild_script()
             self.create_recutpic_script()
         
-        # 8. 保存资源计数到数据库
-        try:
-            from utils.database import get_db
-            db = get_db()
-            if db:
-                main_count = len(self.resources.get('main_images', []))
-                color_count = len(self.resources.get('color_card_images', []))
-                detail_count = len(self.resources.get('detail_images', []))
-                video_count = len(self.resources.get('videos', []))
-                platform = self.parser.get_platform() if self.parser else 'alibaba'
-                db.update_resource_counts(self.product_id, main_count, color_count, detail_count, video_count, output_dir, platform)
-                db.close()
-                log_info(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})", "Main")
-        except Exception as e:
-            log_error(f"保存资源计数失败: {e}", "Main")
+        from utils.temp_storage import save_resource_counts_temp
+        main_count = len(self.resources.get('main_images', []))
+        color_count = len(self.resources.get('color_card_images', []))
+        detail_count = len(self.resources.get('detail_images', []))
+        video_count = len(self.resources.get('videos', []))
+        platform = self.parser.get_platform() if self.parser else 'alibaba'
+        save_resource_counts_temp(self.product_id, main_count, color_count, detail_count, video_count, output_dir, platform)
+        log_info(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})", "Main")
         
         log_success("=== 处理完成 ====", "Main")
         return True

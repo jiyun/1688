@@ -567,6 +567,15 @@ class QueueManager:
                 
                 if self.is_executing:
                     self.parent.log("\n所有文件处理完成！")
+                    
+                    # 批量导入临时数据到DuckDB
+                    try:
+                        from utils.duckdb_database import import_pending_data
+                        imported = import_pending_data()
+                        if imported > 0:
+                            self.parent.log(f"已批量导入 {imported} 条数据到数据库", "success")
+                    except Exception as e:
+                        self.parent.log(f"批量导入数据失败: {e}", "warning")
             except Exception as e:
                 self.parent.log(f"执行过程中出错: {str(e)}")
             finally:
