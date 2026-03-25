@@ -70,11 +70,6 @@ class PricingToolGUI:
         notebook = ttk.Notebook(main_frame)
         notebook.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # 价格模型转换选项卡
-        model_frame = ctk.CTkFrame(notebook, fg_color="transparent")
-        notebook.add(model_frame, text="价格模型转换")
-        self._create_model_transform_tab(model_frame)
-        
         cost_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(cost_frame, text="成本配置")
         self._create_cost_config_tab(cost_frame)
@@ -98,11 +93,6 @@ class PricingToolGUI:
         
         export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary')
         export_btn.pack(side=tk.RIGHT, padx=5)
-    
-    def _create_model_transform_tab(self, parent):
-        """创建价格模型转换选项卡"""
-        from gui.price_model_transformer import PriceModelTransformer
-        self.model_transformer = PriceModelTransformer(parent, self.product_id)
     
     
     def _create_cost_config_tab(self, parent):
@@ -298,6 +288,7 @@ class PricingToolGUI:
         
         create_button(sku_btn_frame, "添加SKU", self._add_sku, 'primary').pack(side=tk.LEFT, padx=5)
         create_button(sku_btn_frame, "自动生成SKU", self._auto_generate_sku, 'success').pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "从数据库加载SKU价格", self._load_sku_prices_from_db, 'info').pack(side=tk.LEFT, padx=5)
         create_button(sku_btn_frame, "编辑SKU", self._edit_sku, 'secondary').pack(side=tk.LEFT, padx=5)
         create_button(sku_btn_frame, "删除SKU", self._delete_sku, 'danger').pack(side=tk.LEFT, padx=5)
     
@@ -524,6 +515,99 @@ class PricingToolGUI:
         self._update_sku_list()
         self._update_target_sku_combobox()
         show_info(self.root, "成功", f"已自动生成 {len(self.sku_configs)} 个SKU配置")
+    
+    def _load_sku_prices_from_db(self):
+        """从数据库加载SKU价格数据并自动生成配置"""
+        if not self.product_id:
+            show_warning(self.root, "警告", "请先选择商品")
+            return
+        
+        try:
+            from utils.database import Database
+            db = Database()
+            sku_prices = db.get_sku_prices(self.product_id)
+            db.close()
+            
+            if not sku_prices:
+                show_warning(self.root, "警告", "该商品没有SKU价格数据")
+                return
+            
+            # 解析SKU名称，提取颜色和规格
+            colors = []
+            sizes = []
+            price_matrix = {}
+            
+            for sku in sku_prices:
+                sku_name = sku['sku_name']
+                price = sku['price']
+                
+                # 尝试解析 "颜色 规格" 格式
+                parts = sku_name.split()
+                if len(parts) >= 2:
+                    color = parts[0]
+                    size = parts[1]
+                    
+                    if color not in colors:
+                        colors.append(color)
+                    if size not in sizes:
+                        sizes.append(size)
+                    
+                    if color not in price_matrix:
+                        price_matrix[color] = {}
+                    price_matrix[color][size] = price
+            
+            if not colors or not sizes:
+                show_warning(self.root, "警告", "无法解析SKU名称格式，请手动配置")
+                return
+            
+            # 找到最低价格作为基准
+            min_price = float('inf')
+            for color in colors:
+                for size in sizes:
+                    price = price_matrix.get(color, {}).get(size, 0)
+                    if price > 0 and price < min_price:
+                        min_price = price
+            
+            # 生成本体配置（每个颜色）
+            self.bases = []
+            for color in colors:
+                base_cost = price_matrix.get(color, {}).get(sizes[0], min_price)
+                self.bases.append({"name": color, "cost": base_cost})
+            
+            # 生成附件配置（每个规格相对于基准价格的差价）
+            self.attachments = []
+            for i, size in enumerate(sizes):
+                if i == 0:
+                    # 第一个规格是基准，附件成本为0
+                    self.attachments.append({"name": size, "cost": 0.0, "stackable": False})
+                else:
+                    # 其他规格的差价
+                    base_color = colors[0] if colors else None
+                    base_price = price_matrix.get(base_color, {}).get(sizes[0], min_price)
+                    size_price = price_matrix.get(base_color, {}).get(size, base_price)
+                    diff = size_price - base_price
+                    self.attachments.append({"name": size, "cost": diff, "stackable": False})
+            
+            # 生成SKU配置
+            self.sku_configs = []
+            for color in colors:
+                for size in sizes:
+                    self.sku_configs.append({
+                        "name": f"{color} {size}",
+                        "base_name": color,
+                        "attachments": [size]
+                    })
+            
+            # 更新界面
+            self._update_bases_list()
+            self._update_attachments_list()
+            self._update_sku_list()
+            self._update_target_sku_combobox()
+            
+            show_info(self.root, "成功", f"已加载 {len(sku_prices)} 条SKU价格数据\n生成 {len(self.bases)} 个本体，{len(self.attachments)} 个附件，{len(self.sku_configs)} 个SKU配置")
+            
+        except Exception as e:
+            show_error(self.root, "错误", f"加载SKU价格失败: {e}")
     
     def _edit_sku(self):
         selection = self.sku_listbox.curselection()
