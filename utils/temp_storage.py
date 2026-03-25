@@ -52,7 +52,7 @@ def save_resources_temp(product_id: str, main_images: List, color_images: List,
         
         return True
     except Exception as e:
-        log_error(f"临时保存资源失败: {e}")
+        print(f"临时保存资源失败: {e}")
         return False
 
 
