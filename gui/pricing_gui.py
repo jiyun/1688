@@ -320,6 +320,17 @@ class PricingToolGUI:
         self.max_price_entry.bind('<KeyRelease>', self._on_price_change)
         ctk.CTkLabel(row2, text="元", width=20).pack(side=tk.LEFT, padx=2)
         
+        # 默认比例输入框
+        ctk.CTkLabel(row2, text="默认比例：", width=70).pack(side=tk.LEFT, padx=5)
+        self.default_ratio_var = tk.StringVar(value="130")
+        self.default_ratio_entry = ctk.CTkEntry(row2, textvariable=self.default_ratio_var, width=50)
+        self.default_ratio_entry.pack(side=tk.LEFT, padx=2)
+        ctk.CTkLabel(row2, text="%", width=15).pack(side=tk.LEFT, padx=2)
+        
+        # 计算默认售价按钮
+        calc_default_btn = create_button(row2, "计算", self._calculate_default_price, 'secondary', width=50)
+        calc_default_btn.pack(side=tk.LEFT, padx=5)
+        
         ctk.CTkLabel(row2, text="小数位：", width=60).pack(side=tk.LEFT, padx=5)
         self.rounding_var = tk.StringVar(value=str(self.rounding))
         self.rounding_combo = ctk.CTkComboBox(row2, variable=self.rounding_var, width=60, state="readonly")
@@ -751,9 +762,56 @@ class PricingToolGUI:
             total_cost += cost
             total_profit += profit
         
-        avg_profit_rate = (total_profit / total_cost) * 100 if total_cost > 0 else 0
-        self.total_cost_var.set(f"总生产成本：{total_cost:.{rounding}f} 元")
-        self.average_profit_rate_var.set(f"平均利润率：{avg_profit_rate:.2f}%")
+        self.stats_label.configure(text=f"总成本: {total_cost:.2f}元 | 总利润: {total_profit:.2f}元 | 平均利润率: {(total_profit/total_cost)*100 if total_cost > 0 else 0:.2f}%")
+    
+    def _calculate_default_price(self):
+        """计算默认售价：成本 + 成本*比例% + 运费"""
+        if not self.sku_configs:
+            show_warning(self.root, "警告", "请先配置SKU")
+            return
+        
+        # 获取默认比例，不允许负值
+        try:
+            ratio = float(self.default_ratio_var.get())
+            if ratio < 0:
+                show_warning(self.root, "警告", "默认比例不能为负值")
+                return
+        except ValueError:
+            show_warning(self.root, "警告", "请输入有效的默认比例")
+            return
+        
+        # 获取基准 SKU
+        target_sku = self.target_sku_var.get()
+        if not target_sku:
+            # 如果没有选择基准 SKU，使用第一个 SKU
+            if self.sku_configs:
+                target_sku = self.sku_configs[0]["name"]
+                self.target_sku_var.set(target_sku)
+            else:
+                show_warning(self.root, "警告", "请先配置SKU")
+                return
+        
+        # 计算基准 SKU 的成本
+        target_sku_config = None
+        for sku in self.sku_configs:
+            if sku["name"] == target_sku:
+                target_sku_config = sku
+                break
+        
+        if not target_sku_config:
+            show_warning(self.root, "警告", "找不到目标SKU配置")
+            return
+        
+        target_cost = self._calculate_sku_cost(target_sku_config)
+        if target_cost <= 0:
+            show_warning(self.root, "警告", "目标SKU成本无效")
+            return
+        
+        # 计算默认售价：成本 + 成本*比例% + 运费
+        default_price = target_cost + target_cost * (ratio / 100) + self.shipping_cost
+        
+        # 设置到目标售价输入框
+        self.max_price_var.set(f"{default_price:.2f}")
     
     def _calculate_sku_cost(self, sku_config):
         cost = 0.0
