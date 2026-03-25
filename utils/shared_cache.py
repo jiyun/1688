@@ -227,6 +227,10 @@ _cache: Optional[SharedCache] = None
 def get_shared_cache() -> Optional[SharedCache]:
     """获取共享内存缓存实例"""
     global _cache
+    if _cache is not None and _cache.shm is not None:
+        # 已经有连接好的缓存实例，直接返回
+        return _cache
+    
     if _cache is None and HAS_SHARED_MEMORY:
         _cache = SharedCache()
         # 只尝试连接已存在的共享内存，不创建新的
