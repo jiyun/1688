@@ -225,14 +225,13 @@ def get_shared_cache() -> Optional[SharedCache]:
     global _cache
     if _cache is None and HAS_SHARED_MEMORY:
         _cache = SharedCache()
-        # 尝试连接已存在的共享内存
+        # 只尝试连接已存在的共享内存，不创建新的
         if not _cache.connect():
-            # 如果连接失败，尝试创建新的共享内存
-            _cache.create()
+            _cache = None
     elif _cache is not None and _cache.shm is None:
         # 缓存实例存在但未连接，尝试连接
         if not _cache.connect():
-            _cache.create()
+            _cache = None
     return _cache
 
 
