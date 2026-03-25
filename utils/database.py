@@ -483,4 +483,231 @@ def get_shared_db():
     return get_db()
 
 
+def import_pending_data():
+    """批量导入临时数据到DuckDB"""
+    # 连接共享内存（GUI进程调用）
+    try:
+        from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
+        if HAS_SHARED_MEMORY:
+            connect_shared_cache()
+    except Exception as e:
+        print(f"连接共享内存失败: {e}")
+    
+    from utils.temp_storage import (
+        get_pending_resources, get_pending_prices, get_pending_counts,
+        clear_pending_data, has_pending_data
+    )
+    
+    if not has_pending_data():
+        print("没有待导入的数据")
+        return 0
+    
+    db = get_db()
+    if not db:
+        print("DuckDB未安装")
+        return 0
+    
+    total_imported = 0
+    
+    from config import FILE_NAMING
+    
+    # 导入资源数据
+    resources_data = get_pending_resources()
+    for item in resources_data:
+        product_id = item['product_id']
+        output_path = None
+        
+        # 从 counts 数据获取 output_path
+        counts_data = get_pending_counts()
+        for c in counts_data:
+            if c['product_id'] == product_id:
+                output_path = c.get('output_path')
+                break
+        
+        for idx, (url, name) in enumerate(item.get('main_images', [])):
+            filename = f"{FILE_NAMING['main_image_prefix']}{name}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
+            # 检查是否已存在相同URL
+            existing = db.query_one(
+                'SELECT id FROM resources WHERE resource_url = ?',
+                [url]
+            )
+            
+            if existing:
+                # 更新已存在记录
+                db.update('resources', {
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                }, 'id = ?', [existing['id']])
+            else:
+                # 插入新记录
+                db.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'main_image',
+                    'resource_url': url,
+                    'resource_name': name,
+                    'output_filename': filename,
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                })
+        
+        for idx, (url, name) in enumerate(item.get('color_images', [])):
+            filename = f"{FILE_NAMING['color_option_prefix']}{name}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
+            existing = db.query_one(
+                'SELECT id FROM resources WHERE resource_url = ?',
+                [url]
+            )
+            
+            if existing:
+                db.update('resources', {
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                }, 'id = ?', [existing['id']])
+            else:
+                db.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'color_image',
+                    'resource_url': url,
+                    'resource_name': name,
+                    'output_filename': filename,
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                })
+        
+        for idx, url in enumerate(item.get('detail_images', [])):
+            filename = f"{FILE_NAMING['detail_image_prefix']}{idx+1}.jpg"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
+            existing = db.query_one(
+                'SELECT id FROM resources WHERE resource_url = ?',
+                [url]
+            )
+            
+            if existing:
+                db.update('resources', {
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                }, 'id = ?', [existing['id']])
+            else:
+                db.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'detail_image',
+                    'resource_url': url,
+                    'resource_name': f'detail_{idx+1}',
+                    'output_filename': filename,
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                })
+        
+        for idx, url in enumerate(item.get('videos', [])):
+            filename = f"{FILE_NAMING['video_prefix']}{idx+1}.mp4"
+            filepath = os.path.join(output_path, filename) if output_path else None
+            downloaded = filepath and os.path.exists(filepath)
+            file_size = os.path.getsize(filepath) if downloaded else 0
+            
+            existing = db.query_one(
+                'SELECT id FROM resources WHERE resource_url = ?',
+                [url]
+            )
+            
+            if existing:
+                db.update('resources', {
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                }, 'id = ?', [existing['id']])
+            else:
+                db.insert('resources', {
+                    'product_id': product_id,
+                    'resource_type': 'video',
+                    'resource_url': url,
+                    'resource_name': f'video_{idx+1}',
+                    'output_filename': filename,
+                    'downloaded': downloaded,
+                    'download_time': datetime.now() if downloaded else None,
+                    'file_size': file_size if file_size > 0 else None
+                })
+        
+        total_imported += 1
+    
+    # 导入价格数据
+    prices_data = get_pending_prices()
+    for item in prices_data:
+        product_id = item['product_id']
+        prices = item.get('prices', {})
+        
+        if prices.get('sku_prices'):
+            for sku in prices['sku_prices']:
+                color = sku.get('color', '')
+                size = sku.get('size', '')
+                sku_name = f"{color} {size}".strip() if color or size else sku.get('name', '')
+                db.insert('sku_prices', {
+                    'product_id': product_id,
+                    'sku_name': sku_name,
+                    'price': sku.get('price', 0),
+                    'original_price': sku.get('original_price')
+                })
+        
+        if prices.get('consign_prices'):
+            for cp in prices['consign_prices']:
+                db.insert('sku_prices', {
+                    'product_id': product_id,
+                    'sku_name': f"代发-{cp.get('type', 'single')}",
+                    'price': cp.get('price', 0),
+                    'original_price': None
+                })
+        
+        total_imported += 1
+    
+    # 导入资源计数数据
+    counts_data = get_pending_counts()
+    for item in counts_data:
+        product_id = item['product_id']
+        counts = item.get('resource_counts', [0, 0, 0, 0])
+        output_path = item.get('output_path')
+        platform = item.get('platform', 'alibaba')
+        
+        existing = db.get_product(product_id)
+        if existing:
+            db.update('products', {
+                'resource_counts': json.dumps(counts),
+                'output_path': output_path,
+                'platform': platform,
+                'status': 'completed'
+            }, 'product_id = ?', [product_id])
+        else:
+            db.insert('products', {
+                'product_id': product_id,
+                'resource_counts': json.dumps(counts),
+                'output_path': output_path,
+                'platform': platform,
+                'status': 'completed'
+            })
+        
+        total_imported += 1
+    
+    # 清空临时数据
+    clear_pending_data()
+    
+    db.close()
+    
+    print(f"批量导入完成: {total_imported} 条记录")
+    return total_imported
+
+
 # 不再创建全局 db 实例，避免模块导入时锁定数据库文件

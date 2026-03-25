@@ -803,7 +803,7 @@ class ContextMenuCommands:
         if values and len(values) > 3:
             dsid = values[3]
             if dsid and str(dsid).strip():
-                url = f"https://item.upload.taobao.com/sell/v2/publish.htm?itemId={dsid}&fromAIPublish=true"                
+                url = f"https://item.upload.taobao.com/sell/v2/publish.htm?itemId={dsid}&fromAIPublish=true&newRouter=1&fromAICategory=true"                
                 self.parent.root.clipboard_clear()
                 self.parent.root.clipboard_append(url)
                 self.parent.log(f"已复制商品链接: {url}")

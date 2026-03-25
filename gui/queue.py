@@ -570,7 +570,7 @@ class QueueManager:
                     
                     # 批量导入临时数据到DuckDB
                     try:
-                        from utils.duckdb_database import import_pending_data
+                        from utils.database import import_pending_data
                         imported = import_pending_data()
                         if imported > 0:
                             self.parent.log(f"已批量导入 {imported} 条数据到数据库", "success")
