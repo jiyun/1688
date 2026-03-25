@@ -38,7 +38,6 @@
   - [SingleFile](https://github.com/gildas-lormeau/SingleFile/releases)（用于保存完整HTML页面）
 - **Python依赖库**：
   - BeautifulSoup4 (`pip install beautifulsoup4`)
-  - pandas (`pip install pandas`)
   - requests (`pip install requests`)
   - Pillow (`pip install Pillow`)  # 用于图片处理
 
@@ -51,7 +50,7 @@
 1. **安装Python**：从[Python官网](https://www.python.org/)下载并安装Python 3.11+
 2. **安装依赖库**：打开命令提示符，运行以下命令：
    ```bash
-   pip install beautifulsoup4 pandas requests Pillow
+   pip install beautifulsoup4 requests Pillow
    ```
 3. **下载aria2c**：从[aria2c官网](https://github.com/aria2/aria2/releases)下载最新版本，解压后将`aria2c.exe`文件复制到项目根目录
 4. **安装SingleFile扩展**：在浏览器中安装SingleFile扩展
