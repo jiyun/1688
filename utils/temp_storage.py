@@ -66,11 +66,16 @@ def save_prices_temp(product_id: str, prices: Dict) -> bool:
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
+        print(f"[DEBUG] save_prices_temp: product_id={product_id}, prices keys={list(prices.keys()) if prices else 'None'}")
+        
         cache = _get_cache()
         if cache:
             key = f'prices_{product_id}'
-            return cache.write(key, data)
+            result = cache.write(key, data)
+            print(f"[DEBUG] save_prices_temp: write result={result}")
+            return result
         
+        print("[DEBUG] save_prices_temp: cache is None")
         return True
     except Exception as e:
         print(f"临时保存价格失败: {e}")
