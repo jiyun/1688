@@ -11,6 +11,16 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 try:
+    from utils.logger import log_info, log_error, log_warning, log_success
+    HAS_LOGGER = True
+except ImportError:
+    HAS_LOGGER = False
+    def log_info(msg): print(f"[INFO] {msg}")
+    def log_error(msg): print(f"[ERROR] {msg}")
+    def log_warning(msg): print(f"[WARNING] {msg}")
+    def log_success(msg): print(f"[SUCCESS] {msg}")
+
+try:
     import duckdb
     HAS_DUCKDB = True
 except ImportError:
@@ -485,29 +495,29 @@ def get_shared_db():
 
 def import_pending_data():
     """批量导入临时数据到DuckDB"""
-    print("[DEBUG] import_pending_data: 开始执行")
+    log_info("[DEBUG] import_pending_data: 开始执行")
     
     # 连接共享内存（GUI进程调用）
     try:
         from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
-        print(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
+        log_info(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
         if HAS_SHARED_MEMORY:
             result = connect_shared_cache()
-            print(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
+            log_info(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
     except Exception as e:
-        print(f"连接共享内存失败: {e}")
+        log_error(f"连接共享内存失败: {e}")
     
     from utils.temp_storage import (
         get_pending_resources, get_pending_prices, get_pending_counts,
         clear_pending_data, has_pending_data
     )
     
-    print("[DEBUG] import_pending_data: 检查是否有待导入数据...")
+    log_info("[DEBUG] import_pending_data: 检查是否有待导入数据...")
     has_data = has_pending_data()
-    print(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
+    log_info(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
     
     if not has_data:
-        print("没有待导入的数据")
+        log_info("没有待导入的数据")
         return 0
     
     db = get_db()

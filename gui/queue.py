@@ -569,16 +569,16 @@ class QueueManager:
                     self.parent.log("\n所有文件处理完成！")
                     
                     # 批量导入临时数据到DuckDB
-                    print("[DEBUG] gui/queue.py: 准备调用 import_pending_data")
+                    self.parent.log("[DEBUG] 准备调用 import_pending_data", "info")
                     try:
                         from utils.database import import_pending_data
-                        print("[DEBUG] gui/queue.py: 成功导入 import_pending_data")
+                        self.parent.log("[DEBUG] 成功导入 import_pending_data", "info")
                         imported = import_pending_data()
-                        print(f"[DEBUG] gui/queue.py: import_pending_data 返回 {imported}")
+                        self.parent.log(f"[DEBUG] import_pending_data 返回 {imported}", "info")
                         if imported > 0:
                             self.parent.log(f"已批量导入 {imported} 条数据到数据库", "success")
                     except Exception as e:
-                        print(f"[DEBUG] gui/queue.py: 异常 {e}")
+                        self.parent.log(f"[DEBUG] 异常: {e}", "warning")
                         self.parent.log(f"批量导入数据失败: {e}", "warning")
             except Exception as e:
                 self.parent.log(f"执行过程中出错: {str(e)}")
