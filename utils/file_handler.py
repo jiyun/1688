@@ -163,10 +163,6 @@ echo ==============================
 echo 正在清理无用文件...
 echo ==============================
 
-echo 删除临时文件...
-del down.txt 2^>nul
-del down_log.txt 2^>nul
-
 echo 检查拼接结果...
 if exist "拼接结果.jpg" (
     echo 发现拼接结果.jpg，删除原采集的详情图和主图...
@@ -274,7 +270,7 @@ exit
                 
                 # 生成文件列表
                 file_list = []
-                excluded_files = EXCLUDE_FILES.get('pack_exclude', ['down.txt', 'down_log.txt', 'rebuild.bat'])
+                excluded_files = EXCLUDE_FILES.get('pack_exclude', ['rebuild.bat', '.download_list.txt'])
                 
                 # 首先添加HTML文件到压缩包根目录
                 file_list.append((html_file, os.path.basename(html_file)))

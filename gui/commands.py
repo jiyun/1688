@@ -92,7 +92,7 @@ def _run_optimization_process(shared_dict, folder_path, with_animated, webp_supp
             shared_dict['color_current'] = shared_dict.get('color_total', 0)
         
         # 清理无用文件
-        temp_files = ['down.txt', 'down_log.txt']
+        temp_files = ['.download_list.txt']
         for f in temp_files:
             file_path = os.path.join(folder_path, f)
             if os.path.exists(file_path):

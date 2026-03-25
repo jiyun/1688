@@ -53,7 +53,7 @@ ATTRIBUTE_SELECTORS = {
 
 # 排除文件配置
 EXCLUDE_FILES = {
-    'pack_exclude': ['down.txt', 'down_log.txt', 'rebuild.bat'],  # 打包时排除的文件
+    'pack_exclude': ['rebuild.bat', '.download_list.txt'],  # 打包时排除的文件
 }
 
 # GUI配置
