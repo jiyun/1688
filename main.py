@@ -60,7 +60,6 @@ class AlibabaScraper:
             with open(self.html_file, 'r', encoding='utf-8') as f:
                 html_content = f.read()
             self.parser = HTMLParser(html_content, keep_avif=self.keep_avif)
-            log_info(f"HTML文件加载成功: {self.html_file}", "Main")
             return True
         except Exception as e:
             log_error(f"HTML文件加载失败: {e}", "Main")
@@ -309,12 +308,9 @@ class AlibabaScraper:
             html_dir = os.path.dirname(html_abs_path)
             output_dir = os.path.abspath(os.path.join(html_dir, self.product_id))
         
-        log_info(f"输出目录: {output_dir}", "Main")
-        
         if not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir, exist_ok=True)
-                log_info(f"已创建输出目录: {output_dir}", "Main")
             except PermissionError as e:
                 log_error(f"无法创建文件夹 '{output_dir}'", "Main")
                 log_error(f"请检查是否有写入权限", "Main")
@@ -327,7 +323,6 @@ class AlibabaScraper:
         
         try:
             os.chdir(output_dir)
-            log_info(f"工作目录: {os.getcwd()}", "Main")
         except PermissionError as e:
             log_error(f"无法进入目录 '{output_dir}'", "Main")
             log_error(f"详细错误: {e}", "Main")
@@ -366,7 +361,6 @@ class AlibabaScraper:
         video_count = len(self.resources.get('videos', []))
         platform = self.parser.get_platform() if self.parser else 'alibaba'
         save_resource_counts_temp(self.product_id, main_count, color_count, detail_count, video_count, output_dir, platform)
-        log_info(f"已保存资源计数: 主图({main_count}), 色卡图({color_count}), 详情图({detail_count}), 视频({video_count})", "Main")
         
         log_success("=== 处理完成 ====", "Main")
         return True
@@ -572,15 +566,9 @@ def main():
         success = scraper.process_images(image_path)
         return 0 if success else 1
     else:
-        log_info(f"处理文件: {html_file}", "Main")
-        
         if not os.path.exists(html_file):
             log_error(f"HTML文件不存在: {html_file}", "Main")
-            log_info(f"当前目录: {os.getcwd()}", "Main")
-            log_info(f"文件列表: {os.listdir('.')}", "Main")
             return 1
-        
-        log_info(f"HTML文件存在，大小: {os.path.getsize(html_file)} 字节", "Main")
         
         scraper = AlibabaScraper(html_file, output_path, keep_avif)
         success = scraper.run(create_rebuild_script)
