@@ -402,10 +402,8 @@ def main():
     # 连接共享内存（子进程调用）
     try:
         from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
-        print(f"[DEBUG] main.py: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
         if HAS_SHARED_MEMORY:
-            result = connect_shared_cache()
-            print(f"[DEBUG] main.py: connect_shared_cache() 返回 {result}")
+            connect_shared_cache()
     except Exception as e:
         print(f"连接共享内存失败: {e}")
     

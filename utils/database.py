@@ -658,9 +658,6 @@ def import_pending_data():
     # 导入价格数据
     prices_data = get_pending_prices()
     
-    # 使用 print 输出到控制台
-    print(f"[DEBUG] 获取到 {len(prices_data)} 条价格数据")
-    
     # 尝试使用 GUI 日志
     try:
         from utils.logger import get_gui_logger
@@ -673,7 +670,6 @@ def import_pending_data():
     for item in prices_data:
         product_id = item['product_id']
         prices = item.get('prices', {})
-        print(f"[DEBUG] 处理商品 {product_id} 的价格数据: sku_prices={len(prices.get('sku_prices', []))}, consign_prices={len(prices.get('consign_prices', []))}")
         
         try:
             from utils.logger import get_gui_logger

@@ -66,16 +66,11 @@ def save_prices_temp(product_id: str, prices: Dict) -> bool:
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        print(f"[DEBUG] save_prices_temp: product_id={product_id}, prices keys={list(prices.keys()) if prices else 'None'}")
-        
         cache = _get_cache()
         if cache:
             key = f'prices_{product_id}'
-            result = cache.write(key, data)
-            print(f"[DEBUG] save_prices_temp: write result={result}")
-            return result
+            return cache.write(key, data)
         
-        print("[DEBUG] save_prices_temp: cache is None")
         return True
     except Exception as e:
         print(f"临时保存价格失败: {e}")
@@ -125,18 +120,14 @@ def get_pending_prices() -> List[Dict]:
     """获取待导入的价格数据"""
     cache = _get_cache()
     if not cache:
-        print("[DEBUG] get_pending_prices: cache is None")
         return []
     
     result = []
     all_data = cache.read_all()
-    print(f"[DEBUG] get_pending_prices: all_data keys = {list(all_data.keys())}")
     for key, data in all_data.items():
         if key.startswith('prices_'):
-            print(f"[DEBUG] get_pending_prices: found prices data: {key}")
             result.append(data)
     
-    print(f"[DEBUG] get_pending_prices: returning {len(result)} items")
     return result
 
 
