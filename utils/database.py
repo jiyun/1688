@@ -495,16 +495,20 @@ def get_shared_db():
 
 def import_pending_data():
     """批量导入临时数据到DuckDB"""
+    print("[DEBUG] import_pending_data: 开始执行")
     log_info("[DEBUG] import_pending_data: 开始执行")
     
     # 连接共享内存（GUI进程调用）
     try:
         from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
+        print(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
         log_info(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
         if HAS_SHARED_MEMORY:
             result = connect_shared_cache()
+            print(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
             log_info(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
     except Exception as e:
+        print(f"[DEBUG] import_pending_data: 连接共享内存异常: {e}")
         log_error(f"连接共享内存失败: {e}")
     
     from utils.temp_storage import (
@@ -512,11 +516,14 @@ def import_pending_data():
         clear_pending_data, has_pending_data
     )
     
+    print("[DEBUG] import_pending_data: 检查是否有待导入数据...")
     log_info("[DEBUG] import_pending_data: 检查是否有待导入数据...")
     has_data = has_pending_data()
+    print(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
     log_info(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
     
     if not has_data:
+        print("[DEBUG] import_pending_data: 没有待导入的数据")
         log_info("没有待导入的数据")
         return 0
     
