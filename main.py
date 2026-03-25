@@ -405,6 +405,14 @@ class AlibabaScraper:
 
 def main():
     """主函数"""
+    # 连接共享内存（子进程调用）
+    try:
+        from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
+        if HAS_SHARED_MEMORY:
+            connect_shared_cache()
+    except Exception as e:
+        print(f"连接共享内存失败: {e}")
+    
     # 解析命令行参数
     create_rebuild_script = True  # 默认创建重建脚本
     html_file = None

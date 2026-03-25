@@ -48,6 +48,17 @@ class AlibabaScraperGUI:
         self.root.geometry(GUI_CONF['window_geometry'])
         self.root.resizable(GUI_CONF['window_resizable'], GUI_CONF['window_resizable'])
         
+        # 初始化共享内存
+        try:
+            from utils.shared_cache import init_shared_cache, HAS_SHARED_MEMORY
+            if HAS_SHARED_MEMORY:
+                if init_shared_cache():
+                    print("共享内存初始化成功")
+                else:
+                    print("共享内存初始化失败")
+        except Exception as e:
+            print(f"共享内存初始化异常: {e}")
+        
         self._version = __version__ if HAS_UPDATER else "未知"
         self.easter_egg_counter = 0
         self.alt_press_counter = 0

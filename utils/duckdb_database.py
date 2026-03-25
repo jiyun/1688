@@ -233,6 +233,14 @@ def get_duckdb() -> Optional[DuckDBDatabase]:
 
 def import_pending_data():
     """批量导入临时数据到DuckDB"""
+    # 连接共享内存（GUI进程调用）
+    try:
+        from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
+        if HAS_SHARED_MEMORY:
+            connect_shared_cache()
+    except Exception as e:
+        print(f"连接共享内存失败: {e}")
+    
     from utils.temp_storage import (
         get_pending_resources, get_pending_prices, get_pending_counts,
         clear_pending_data, has_pending_data
