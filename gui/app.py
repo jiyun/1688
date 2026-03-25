@@ -51,8 +51,11 @@ class AlibabaScraperGUI:
         # 初始化共享内存
         try:
             from utils.shared_cache import init_shared_cache, HAS_SHARED_MEMORY
+            print(f"[DEBUG] GUI: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
             if HAS_SHARED_MEMORY:
-                if init_shared_cache():
+                result = init_shared_cache()
+                print(f"[DEBUG] GUI: init_shared_cache() 返回 {result}")
+                if result:
                     print("共享内存初始化成功")
                 else:
                     print("共享内存初始化失败")

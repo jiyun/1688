@@ -17,8 +17,12 @@ except ImportError:
     HAS_SHARED_MEMORY = False
     print("警告: shared_memory 需要 Python 3.8+")
 
+import sys
 
-SHM_NAME = '1688_cache'
+if sys.platform == 'win32':
+    SHM_NAME = 'Local\\1688_cache'
+else:
+    SHM_NAME = '1688_cache'
 SHM_SIZE = 10 * 1024 * 1024  # 10MB
 
 
