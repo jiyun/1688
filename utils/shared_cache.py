@@ -251,8 +251,11 @@ def connect_shared_cache() -> bool:
     if not HAS_SHARED_MEMORY:
         return False
     
-    _cache = SharedCache()
-    return _cache.connect()
+    cache = SharedCache()
+    if cache.connect():
+        _cache = cache
+        return True
+    return False
 
 
 def close_shared_cache():

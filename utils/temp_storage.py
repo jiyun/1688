@@ -29,8 +29,7 @@ def _get_cache():
         if cache and cache.shm:
             return cache
     
-    # 如果连接失败，返回 None，不要创建新的共享内存
-    print("[DEBUG] _get_cache: 无法连接到共享内存，返回 None")
+    # 如果连接失败，返回 None
     return None
 
 
