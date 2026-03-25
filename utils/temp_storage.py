@@ -17,24 +17,31 @@ except ImportError:
 def _get_cache():
     """获取缓存实例，如果不存在则尝试连接或创建"""
     if not HAS_SHARED_MEMORY:
+        print("[DEBUG] _get_cache: HAS_SHARED_MEMORY=False")
         return None
     
     cache = get_shared_cache()
     if cache and cache.shm:
+        print(f"[DEBUG] _get_cache: 使用已存在的缓存实例")
         return cache
     
-    # 尝试连接已存在的共享内存
+    # 尝试连接已存在的共享内存（子进程应该走这个分支）
+    print("[DEBUG] _get_cache: 尝试连接已存在的共享内存...")
     if connect_shared_cache():
         cache = get_shared_cache()
         if cache and cache.shm:
+            print(f"[DEBUG] _get_cache: 成功连接到共享内存")
             return cache
     
-    # 尝试创建新的共享内存
+    # 尝试创建新的共享内存（主进程应该走这个分支）
+    print("[DEBUG] _get_cache: 尝试创建新的共享内存...")
     if init_shared_cache():
         cache = get_shared_cache()
         if cache and cache.shm:
+            print(f"[DEBUG] _get_cache: 成功创建共享内存")
             return cache
     
+    print("[DEBUG] _get_cache: 所有尝试都失败")
     return None
 
 
