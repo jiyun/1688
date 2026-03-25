@@ -33,7 +33,7 @@ def _get_cache():
         log_info("[DEBUG] _get_cache: 使用已存在的缓存实例")
         return cache
     
-    # 尝试连接已存在的共享内存（子进程应该走这个分支）
+    # 尝试连接已存在的共享内存
     log_info("[DEBUG] _get_cache: 尝试连接已存在的共享内存...")
     if connect_shared_cache():
         cache = get_shared_cache()
@@ -41,15 +41,8 @@ def _get_cache():
             log_info("[DEBUG] _get_cache: 成功连接到共享内存")
             return cache
     
-    # 尝试创建新的共享内存（主进程应该走这个分支）
-    log_info("[DEBUG] _get_cache: 尝试创建新的共享内存...")
-    if init_shared_cache():
-        cache = get_shared_cache()
-        if cache and cache.shm:
-            log_info("[DEBUG] _get_cache: 成功创建共享内存")
-            return cache
-    
-    log_info("[DEBUG] _get_cache: 所有尝试都失败")
+    # 不再尝试创建新的共享内存，避免跨进程通信失败
+    log_info("[DEBUG] _get_cache: 连接共享内存失败，返回 None")
     return None
 
 

@@ -498,18 +498,19 @@ def import_pending_data():
     print("[DEBUG] import_pending_data: 开始执行")
     log_info("[DEBUG] import_pending_data: 开始执行")
     
-    # 连接共享内存（GUI进程调用）
-    try:
-        from utils.shared_cache import connect_shared_cache, HAS_SHARED_MEMORY
-        print(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
-        log_info(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
-        if HAS_SHARED_MEMORY:
-            result = connect_shared_cache()
-            print(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
-            log_info(f"[DEBUG] import_pending_data: 连接共享内存结果={result}")
-    except Exception as e:
-        print(f"[DEBUG] import_pending_data: 连接共享内存异常: {e}")
-        log_error(f"连接共享内存失败: {e}")
+    # 获取共享内存（GUI进程已经创建了，不需要再连接）
+    from utils.shared_cache import get_shared_cache, HAS_SHARED_MEMORY
+    print(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
+    log_info(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
+    
+    cache = get_shared_cache()
+    if cache and cache.shm:
+        print(f"[DEBUG] import_pending_data: 获取到共享内存实例")
+        log_info("[DEBUG] import_pending_data: 获取到共享内存实例")
+    else:
+        print(f"[DEBUG] import_pending_data: 共享内存不可用")
+        log_info("[DEBUG] import_pending_data: 共享内存不可用")
+        return 0
     
     from utils.temp_storage import (
         get_pending_resources, get_pending_prices, get_pending_counts,
