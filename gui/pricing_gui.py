@@ -70,6 +70,11 @@ class PricingToolGUI:
         notebook = ttk.Notebook(main_frame)
         notebook.pack(fill=tk.BOTH, expand=True, pady=5)
         
+        # 价格模型转换选项卡
+        model_frame = ctk.CTkFrame(notebook, fg_color="transparent")
+        notebook.add(model_frame, text="价格模型转换")
+        self._create_model_transform_tab(model_frame)
+        
         cost_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(cost_frame, text="成本配置")
         self._create_cost_config_tab(cost_frame)
@@ -93,6 +98,12 @@ class PricingToolGUI:
         
         export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary')
         export_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def _create_model_transform_tab(self, parent):
+        """创建价格模型转换选项卡"""
+        from gui.price_model_transformer import PriceModelTransformer
+        self.model_transformer = PriceModelTransformer(parent, self.product_id)
+    
     
     def _create_cost_config_tab(self, parent):
         ctk.CTkLabel(parent, text="一级：商品本体（可增减）", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
