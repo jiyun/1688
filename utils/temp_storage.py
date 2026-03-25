@@ -51,11 +51,16 @@ def save_resources_temp(product_id: str, main_images: List, color_images: List,
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
+        print(f"[DEBUG] save_resources_temp: product_id={product_id}, main_images={len(main_images)}, color_images={len(color_images)}, detail_images={len(detail_images)}, videos={len(videos)}")
+        
         cache = _get_cache()
         if cache:
             key = f'resources_{product_id}'
-            return cache.write(key, data)
+            result = cache.write(key, data)
+            print(f"[DEBUG] 写入共享内存结果: {result}")
+            return result
         
+        print("[DEBUG] 共享内存不可用")
         return True
     except Exception as e:
         print(f"临时保存资源失败: {e}")

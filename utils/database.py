@@ -513,8 +513,10 @@ def import_pending_data():
     
     # 导入资源数据
     resources_data = get_pending_resources()
+    print(f"[DEBUG] 获取到 {len(resources_data)} 条资源数据")
     for item in resources_data:
         product_id = item['product_id']
+        print(f"[DEBUG] 处理商品 {product_id}, main_images={len(item.get('main_images', []))}, color_images={len(item.get('color_images', []))}, detail_images={len(item.get('detail_images', []))}, videos={len(item.get('videos', []))}")
         output_path = None
         
         # 从 counts 数据获取 output_path
