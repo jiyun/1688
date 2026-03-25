@@ -616,6 +616,9 @@ class PricingToolGUI:
             self._update_sku_list()
             self._update_target_sku_combobox()
             
+            # 自动计算默认售价
+            self._calculate_default_price()
+            
             show_info(self.root, "成功", f"已加载 {len(sku_prices)} 条SKU价格数据\n生成 {len(self.bases)} 个本体，{len(self.attachments)} 个附件，{len(self.sku_configs)} 个SKU配置")
             
         except Exception as e:
@@ -763,7 +766,9 @@ class PricingToolGUI:
             total_cost += cost
             total_profit += profit
         
-        self.stats_label.configure(text=f"总成本: {total_cost:.2f}元 | 总利润: {total_profit:.2f}元 | 平均利润率: {(total_profit/total_cost)*100 if total_cost > 0 else 0:.2f}%")
+        avg_profit_rate = (total_profit / total_cost) * 100 if total_cost > 0 else 0
+        self.total_cost_var.set(f"总生产成本：{total_cost:.{rounding}f} 元")
+        self.average_profit_rate_var.set(f"平均利润率：{avg_profit_rate:.2f}%")
     
     def _calculate_default_price(self):
         """计算默认售价：成本 + 成本*比例% + 运费"""
