@@ -65,11 +65,16 @@ def save_prices_temp(product_id: str, prices: Dict) -> bool:
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
+        print(f"[DEBUG] save_prices_temp: product_id={product_id}, sku_prices={len(prices.get('sku_prices', []))}, consign_prices={len(prices.get('consign_prices', []))}")
+        
         cache = _get_cache()
         if cache:
             key = f'prices_{product_id}'
-            return cache.write(key, data)
+            result = cache.write(key, data)
+            print(f"[DEBUG] save_prices_temp: 写入共享内存结果={result}")
+            return result
         
+        print("[DEBUG] save_prices_temp: 共享内存不可用")
         return True
     except Exception as e:
         print(f"临时保存价格失败: {e}")
@@ -119,14 +124,18 @@ def get_pending_prices() -> List[Dict]:
     """获取待导入的价格数据"""
     cache = _get_cache()
     if not cache:
+        print("[DEBUG] get_pending_prices: 共享内存不可用")
         return []
     
     result = []
     all_data = cache.read_all()
+    print(f"[DEBUG] get_pending_prices: 读取到 {len(all_data)} 条数据: {list(all_data.keys())}")
     for key, data in all_data.items():
         if key.startswith('prices_'):
+            print(f"[DEBUG] get_pending_prices: 发现价格数据 {key}")
             result.append(data)
     
+    print(f"[DEBUG] get_pending_prices: 返回 {len(result)} 条价格数据")
     return result
 
 
