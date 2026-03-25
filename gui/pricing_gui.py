@@ -325,6 +325,7 @@ class PricingToolGUI:
         self.default_ratio_var = tk.StringVar(value="130")
         self.default_ratio_entry = ctk.CTkEntry(row2, textvariable=self.default_ratio_var, width=50)
         self.default_ratio_entry.pack(side=tk.LEFT, padx=2)
+        self.default_ratio_entry.bind('<KeyRelease>', self._validate_ratio)
         ctk.CTkLabel(row2, text="%", width=15).pack(side=tk.LEFT, padx=2)
         
         # 计算默认售价按钮
@@ -812,6 +813,14 @@ class PricingToolGUI:
         
         # 设置到目标售价输入框
         self.max_price_var.set(f"{default_price:.2f}")
+    
+    def _validate_ratio(self, event):
+        """验证默认比例输入，自动过滤负号"""
+        current_value = self.default_ratio_var.get()
+        # 移除所有负号
+        if '-' in current_value:
+            new_value = current_value.replace('-', '')
+            self.default_ratio_var.set(new_value)
     
     def _calculate_sku_cost(self, sku_config):
         cost = 0.0
