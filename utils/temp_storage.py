@@ -130,6 +130,11 @@ def get_pending_prices() -> List[Dict]:
     result = []
     all_data = cache.read_all()
     print(f"[DEBUG] get_pending_prices: 读取到 {len(all_data)} 条数据: {list(all_data.keys())}")
+    
+    # 调试：检查是否有 prices_ 开头的 key
+    for key in all_data.keys():
+        print(f"[DEBUG] get_pending_prices: 检查 key: {key}, startswith('prices_')={key.startswith('prices_')}")
+    
     for key, data in all_data.items():
         if key.startswith('prices_'):
             print(f"[DEBUG] get_pending_prices: 发现价格数据 {key}")

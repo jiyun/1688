@@ -657,10 +657,12 @@ def import_pending_data():
     
     # 导入价格数据
     prices_data = get_pending_prices()
+    print(f"[DEBUG] 获取到 {len(prices_data)} 条价格数据")
     log_info(f"获取到 {len(prices_data)} 条价格数据")
     for item in prices_data:
         product_id = item['product_id']
         prices = item.get('prices', {})
+        print(f"[DEBUG] 处理商品 {product_id} 的价格数据: sku_prices={len(prices.get('sku_prices', []))}, consign_prices={len(prices.get('consign_prices', []))}")
         log_info(f"处理商品 {product_id} 的价格数据: sku_prices={len(prices.get('sku_prices', []))}, consign_prices={len(prices.get('consign_prices', []))}")
         
         if prices.get('sku_prices'):
