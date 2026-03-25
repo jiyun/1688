@@ -167,12 +167,16 @@ def has_pending_data() -> bool:
     """检查是否有待导入的数据"""
     cache = _get_cache()
     if not cache:
+        print("[DEBUG] has_pending_data: 共享内存不可用")
         return False
     
     all_data = cache.read_all()
+    print(f"[DEBUG] has_pending_data: 读取到 {len(all_data)} 条数据")
     for key in all_data.keys():
         if key.startswith(('resources_', 'prices_', 'counts_')):
+            print(f"[DEBUG] has_pending_data: 发现待导入数据 {key}")
             return True
+    print("[DEBUG] has_pending_data: 没有待导入数据")
     return False
 
 
