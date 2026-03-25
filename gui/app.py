@@ -809,7 +809,15 @@ class AlibabaScraperGUI:
                 if not res_list:
                     continue
                 
-                tab = notebook.add(res_type.replace('_', ' ').title())
+                # 资源类型中文映射
+                type_names = {
+                    'main_image': '主图',
+                    'color_image': '色卡图',
+                    'detail_image': '详情图',
+                    'video': '视频'
+                }
+                tab_name = type_names.get(res_type, res_type.replace('_', ' ').title())
+                tab = notebook.add(tab_name)
                 
                 columns = ("文件名", "URL", "状态", "大小", "下载时间")
                 tree = ttk.Treeview(tab, columns=columns, show="headings", height=15)

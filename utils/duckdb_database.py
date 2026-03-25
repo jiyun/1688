@@ -139,7 +139,24 @@ class DuckDBDatabase:
         self.conn.execute(sql, list(data.values()) + [product_id])
     
     def insert_resource(self, data: Dict) -> int:
-        """插入资源"""
+        """插入资源 - 按URL去重"""
+        # 检查是否已存在相同URL
+        existing = self.conn.execute(
+            'SELECT id FROM resources WHERE resource_url = ?',
+            [data.get('resource_url')]
+        ).fetchone()
+        
+        if existing:
+            # 已存在，更新记录
+            resource_id = existing[0]
+            update_data = {k: v for k, v in data.items() if k != 'id' and v is not None}
+            if update_data:
+                set_clause = ', '.join([f"{k} = ?" for k in update_data.keys()])
+                sql = f"UPDATE resources SET {set_clause} WHERE id = ?"
+                self.conn.execute(sql, list(update_data.values()) + [resource_id])
+            return resource_id
+        
+        # 不存在，插入新记录
         result = self.conn.execute("SELECT nextval('resources_id_seq')")
         data['id'] = result.fetchone()[0]
         
@@ -285,6 +302,7 @@ def import_pending_data():
                 'resource_name': name,
                 'output_filename': filename,
                 'downloaded': downloaded,
+                'download_time': datetime.now() if downloaded else None,
                 'file_size': file_size if file_size > 0 else None
             })
         
@@ -301,6 +319,7 @@ def import_pending_data():
                 'resource_name': name,
                 'output_filename': filename,
                 'downloaded': downloaded,
+                'download_time': datetime.now() if downloaded else None,
                 'file_size': file_size if file_size > 0 else None
             })
         
@@ -317,6 +336,7 @@ def import_pending_data():
                 'resource_name': f'detail_{idx+1}',
                 'output_filename': filename,
                 'downloaded': downloaded,
+                'download_time': datetime.now() if downloaded else None,
                 'file_size': file_size if file_size > 0 else None
             })
         
@@ -333,6 +353,7 @@ def import_pending_data():
                 'resource_name': f'video_{idx+1}',
                 'output_filename': filename,
                 'downloaded': downloaded,
+                'download_time': datetime.now() if downloaded else None,
                 'file_size': file_size if file_size > 0 else None
             })
         
