@@ -9,40 +9,26 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 try:
-    from utils.logger import log_info, log_error
-    HAS_LOGGER = True
-except ImportError:
-    HAS_LOGGER = False
-    def log_info(msg): print(f"[INFO] {msg}")
-    def log_error(msg): print(f"[ERROR] {msg}")
-
-try:
     from utils.shared_cache import get_shared_cache, connect_shared_cache, init_shared_cache, HAS_SHARED_MEMORY
 except ImportError:
     HAS_SHARED_MEMORY = False
 
 
 def _get_cache():
-    """获取缓存实例，如果不存在则尝试连接或创建"""
+    """获取缓存实例，如果不存在则尝试连接"""
     if not HAS_SHARED_MEMORY:
-        log_info("[DEBUG] _get_cache: HAS_SHARED_MEMORY=False")
         return None
     
     cache = get_shared_cache()
     if cache and cache.shm:
-        log_info("[DEBUG] _get_cache: 使用已存在的缓存实例")
         return cache
     
     # 尝试连接已存在的共享内存
-    log_info("[DEBUG] _get_cache: 尝试连接已存在的共享内存...")
     if connect_shared_cache():
         cache = get_shared_cache()
         if cache and cache.shm:
-            log_info("[DEBUG] _get_cache: 成功连接到共享内存")
             return cache
     
-    # 不再尝试创建新的共享内存，避免跨进程通信失败
-    log_info("[DEBUG] _get_cache: 连接共享内存失败，返回 None")
     return None
 
 
@@ -59,16 +45,11 @@ def save_resources_temp(product_id: str, main_images: List, color_images: List,
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        log_info(f"[DEBUG] save_resources_temp: product_id={product_id}, main_images={len(main_images)}, color_images={len(color_images)}, detail_images={len(detail_images)}, videos={len(videos)}")
-        
         cache = _get_cache()
         if cache:
             key = f'resources_{product_id}'
-            result = cache.write(key, data)
-            log_info(f"[DEBUG] 写入共享内存结果: {result}")
-            return result
+            return cache.write(key, data)
         
-        log_info("[DEBUG] 共享内存不可用")
         return True
     except Exception as e:
         log_error(f"临时保存资源失败: {e}")
@@ -173,23 +154,14 @@ def clear_pending_data():
 
 def has_pending_data() -> bool:
     """检查是否有待导入的数据"""
-    print("[DEBUG] has_pending_data: 开始检查...")
     cache = _get_cache()
     if not cache:
-        print("[DEBUG] has_pending_data: 共享内存不可用")
-        log_info("[DEBUG] has_pending_data: 共享内存不可用")
         return False
     
     all_data = cache.read_all()
-    print(f"[DEBUG] has_pending_data: 读取到 {len(all_data)} 条数据: {list(all_data.keys())}")
-    log_info(f"[DEBUG] has_pending_data: 读取到 {len(all_data)} 条数据")
     for key in all_data.keys():
         if key.startswith(('resources_', 'prices_', 'counts_')):
-            print(f"[DEBUG] has_pending_data: 发现待导入数据 {key}")
-            log_info(f"[DEBUG] has_pending_data: 发现待导入数据 {key}")
             return True
-    print("[DEBUG] has_pending_data: 没有待导入数据")
-    log_info("[DEBUG] has_pending_data: 没有待导入数据")
     return False
 
 

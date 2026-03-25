@@ -495,21 +495,12 @@ def get_shared_db():
 
 def import_pending_data():
     """批量导入临时数据到DuckDB"""
-    print("[DEBUG] import_pending_data: 开始执行")
-    log_info("[DEBUG] import_pending_data: 开始执行")
-    
     # 获取共享内存（GUI进程已经创建了，不需要再连接）
     from utils.shared_cache import get_shared_cache, HAS_SHARED_MEMORY
-    print(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
-    log_info(f"[DEBUG] import_pending_data: HAS_SHARED_MEMORY={HAS_SHARED_MEMORY}")
     
     cache = get_shared_cache()
-    if cache and cache.shm:
-        print(f"[DEBUG] import_pending_data: 获取到共享内存实例")
-        log_info("[DEBUG] import_pending_data: 获取到共享内存实例")
-    else:
-        print(f"[DEBUG] import_pending_data: 共享内存不可用")
-        log_info("[DEBUG] import_pending_data: 共享内存不可用")
+    if not cache or not cache.shm:
+        log_info("共享内存不可用")
         return 0
     
     from utils.temp_storage import (
@@ -517,14 +508,7 @@ def import_pending_data():
         clear_pending_data, has_pending_data
     )
     
-    print("[DEBUG] import_pending_data: 检查是否有待导入数据...")
-    log_info("[DEBUG] import_pending_data: 检查是否有待导入数据...")
-    has_data = has_pending_data()
-    print(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
-    log_info(f"[DEBUG] import_pending_data: has_pending_data()={has_data}")
-    
-    if not has_data:
-        print("[DEBUG] import_pending_data: 没有待导入的数据")
+    if not has_pending_data():
         log_info("没有待导入的数据")
         return 0
     
@@ -539,10 +523,8 @@ def import_pending_data():
     
     # 导入资源数据
     resources_data = get_pending_resources()
-    print(f"[DEBUG] 获取到 {len(resources_data)} 条资源数据")
     for item in resources_data:
         product_id = item['product_id']
-        print(f"[DEBUG] 处理商品 {product_id}, main_images={len(item.get('main_images', []))}, color_images={len(item.get('color_images', []))}, detail_images={len(item.get('detail_images', []))}, videos={len(item.get('videos', []))}")
         output_path = None
         
         # 从 counts 数据获取 output_path
