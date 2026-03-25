@@ -232,13 +232,13 @@ class AlibabaScraperGUI:
         self.db_tree_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
         self.db_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        db_columns = ("product_id", "shop_product_id", "title", "cost_prices", "selling_prices", "resource_counts", "output_path", "status", "created_at")
+        db_columns = ("product_id", "shop_product_id", "title", "sku_prices", "selling_prices", "resource_counts", "output_path", "status", "created_at")
         self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
         
         self.db_tree.heading("product_id", text="商品ID")
         self.db_tree.heading("shop_product_id", text="DSID")
         self.db_tree.heading("title", text="标题")
-        self.db_tree.heading("cost_prices", text="采集成本")
+        self.db_tree.heading("sku_prices", text="SKU价格")
         self.db_tree.heading("selling_prices", text="价格设定")
         self.db_tree.heading("resource_counts", text="资源计数")
         self.db_tree.heading("output_path", text="输出路径")
@@ -248,7 +248,7 @@ class AlibabaScraperGUI:
         self.db_tree.column("product_id", width=100, anchor="center")
         self.db_tree.column("shop_product_id", width=80, anchor="center")
         self.db_tree.column("title", width=120, anchor="w")
-        self.db_tree.column("cost_prices", width=80, anchor="center")
+        self.db_tree.column("sku_prices", width=80, anchor="center")
         self.db_tree.column("selling_prices", width=80, anchor="center")
         self.db_tree.column("resource_counts", width=80, anchor="center")
         self.db_tree.column("output_path", width=150, anchor="w")
@@ -603,25 +603,13 @@ class AlibabaScraperGUI:
                 if len(title) > 15:
                     title = title[:15] + '...'
                 
-                cost_prices_str = ''
-                cost_prices = product.get('cost_prices')
-                if cost_prices:
-                    try:
-                        cost_data = json.loads(cost_prices)
-                        cost_prices_str = f"{len(cost_data)}条"
-                    except:
-                        pass
-                
-                selling_prices_str = ''
-                selling_prices = product.get('selling_prices')
-                if selling_prices:
-                    try:
-                        selling_data = json.loads(selling_prices)
-                        selling_prices_str = f"{len(selling_data)}条"
-                    except:
-                        pass
-                
                 product_id = product.get('product_id', '')
+                
+                # 获取 SKU 价格数量
+                sku_prices_count = db.count_sku_prices(product_id)
+                sku_prices_str = f"{sku_prices_count}条" if sku_prices_count > 0 else ""
+                
+                # 获取资源计数
                 resource_counts = db.count_resources(product_id)
                 resource_counts_str = f"主{resource_counts['main_images']}/色{resource_counts['color_images']}/详{resource_counts['detail_images']}/视{resource_counts['videos']}"
                 
@@ -629,8 +617,8 @@ class AlibabaScraperGUI:
                     product_id,
                     product.get('shop_product_id', ''),
                     title,
-                    cost_prices_str,
-                    selling_prices_str,
+                    sku_prices_str,
+                    "",
                     resource_counts_str,
                     output_path,
                     product.get('status', ''),

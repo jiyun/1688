@@ -479,6 +479,24 @@ class Database:
             FROM resources
             WHERE product_id = ?
         ''', [product_id])
+    
+    def get_sku_prices(self, product_id: str) -> List[Dict]:
+        """获取商品的SKU价格"""
+        return self.query('''
+            SELECT id, product_id, sku_name, price, original_price, created_at
+            FROM sku_prices
+            WHERE product_id = ?
+            ORDER BY id
+        ''', [product_id])
+    
+    def count_sku_prices(self, product_id: str) -> int:
+        """统计商品SKU价格数量"""
+        result = self.query_one('''
+            SELECT COUNT(*) as count
+            FROM sku_prices
+            WHERE product_id = ?
+        ''', [product_id])
+        return result['count'] if result else 0
 
 
 def get_db():
