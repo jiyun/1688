@@ -954,6 +954,10 @@ class AlibabaScraperGUI:
         """初始化模块化组件"""
         self.logger = GUILogger(self.log_text)
         
+        # 设置全局 GUI 日志实例
+        from utils.logger import set_gui_logger
+        set_gui_logger(self.logger)
+        
         self.queue_manager = QueueManager(self)
         
         self.context_menu_commands = ContextMenuCommands(self)
