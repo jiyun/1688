@@ -9,17 +9,32 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 try:
-    from utils.shared_cache import get_shared_cache, connect_shared_cache, HAS_SHARED_MEMORY
+    from utils.shared_cache import get_shared_cache, connect_shared_cache, init_shared_cache, HAS_SHARED_MEMORY
 except ImportError:
     HAS_SHARED_MEMORY = False
 
 
 def _get_cache():
-    """获取缓存实例"""
-    if HAS_SHARED_MEMORY:
+    """获取缓存实例，如果不存在则尝试连接或创建"""
+    if not HAS_SHARED_MEMORY:
+        return None
+    
+    cache = get_shared_cache()
+    if cache and cache.shm:
+        return cache
+    
+    # 尝试连接已存在的共享内存
+    if connect_shared_cache():
         cache = get_shared_cache()
         if cache and cache.shm:
             return cache
+    
+    # 尝试创建新的共享内存
+    if init_shared_cache():
+        cache = get_shared_cache()
+        if cache and cache.shm:
+            return cache
+    
     return None
 
 
