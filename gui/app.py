@@ -62,6 +62,9 @@ class AlibabaScraperGUI:
         self.font_size_title = self.font_size + 10
         self.font_size_subtitle = self.font_size + 4
         
+        # 配置 ttk 样式
+        self._configure_ttk_styles()
+        
         self._version = __version__ if HAS_UPDATER else "未知"
         self.easter_egg_counter = 0
         self.alt_press_counter = 0
@@ -1614,6 +1617,27 @@ class AlibabaScraperGUI:
             self.log(f"已打开资源管理器: {path}")
         except Exception as e:
             self.log(f"打开资源管理器失败: {str(e)}", "error")
+    
+    def _configure_ttk_styles(self):
+        """配置 ttk 控件的统一样式"""
+        style = ttk.Style()
+        
+        # 配置 Treeview 样式
+        style.configure(
+            "Treeview",
+            font=(self.available_font, self.font_size),
+            rowheight=25
+        )
+        style.configure(
+            "Treeview.Heading",
+            font=(self.available_font, self.font_size_large, "bold")
+        )
+        
+        # 配置 Notebook 样式
+        style.configure(
+            "TNotebook.Tab",
+            font=(self.available_font, self.font_size_large)
+        )
     
     def _get_available_font(self):
         """获取可用的字体
