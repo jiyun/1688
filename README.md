@@ -1,6 +1,6 @@
 # 1688详情页资源采集工具
 
-![Version](https://img.shields.io/badge/version-0.3.5-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -11,10 +11,10 @@
 
 ## 版本信息 
 
-- 当前版本：0.3.5
+- 当前版本：0.4.1
 - 作者：急云
 - 项目地址：https://github.com/jiyun/1688/
-- 发布日期：2026-03-21
+- 发布日期：2026-03-27
 - [查看完整更新日志](CHANGELOG.md)
 
 ## 核心功能
@@ -27,6 +27,9 @@
 - **重建功能**：提供重建脚本，可重新下载和处理资源
 - **图片处理**：支持详情图拼接和切割，自动处理宽高比
 - **资源打包**：支持将资源打包为压缩文件，HTML文件放在根目录，其他文件放在子目录
+- **数据挖掘**：自动提取商品标题、店铺信息、发货地、销量等数据
+- **价格管理**：支持SKU价格提取、成本计算、阶梯价格生成
+- **数据库管理**：使用DuckDB存储商品数据，支持搜索和筛选
 
 ## 系统要求
 
@@ -39,18 +42,20 @@
 - **Python依赖库**：
   - BeautifulSoup4 (`pip install beautifulsoup4`)
   - requests (`pip install requests`)
-  - Pillow (`pip install Pillow`)  # 用于图片处理
+  - Pillow (`pip install Pillow`)
+  - duckdb (`pip install duckdb`)
 
 - **可选依赖库**（用于增强GUI体验）：
   - tkinterweb (`pip install tkinterweb`)  # 用于Markdown渲染
   - markdown (`pip install markdown`)  # 用于Markdown解析
+  - customtkinter (`pip install customtkinter`)  # 用于现代GUI界面
 
 ## 安装步骤
 
 1. **安装Python**：从[Python官网](https://www.python.org/)下载并安装Python 3.11+
 2. **安装依赖库**：打开命令提示符，运行以下命令：
    ```bash
-   pip install beautifulsoup4 requests Pillow
+   pip install beautifulsoup4 requests Pillow duckdb customtkinter
    ```
 3. **下载aria2c**：从[aria2c官网](https://github.com/aria2/aria2/releases)下载最新版本，解压后将`aria2c.exe`文件复制到项目根目录
 4. **安装SingleFile扩展**：在浏览器中安装SingleFile扩展
@@ -138,20 +143,30 @@
 │   ├── menu.py         # 菜单管理
 │   ├── queue.py        # 队列管理
 │   ├── utils.py        # GUI工具函数
+│   ├── dnd.py          # 拖放功能
 │   ├── pricing_gui.py  # 价格计算工具
 │   └── tiered_price_generator.py # 阶梯价格生成器
 ├── utils/              # 工具模块
-│   ├── parser.py       # HTML解析工具
+│   ├── parser.py       # HTML解析兼容层
+│   ├── database.py     # DuckDB数据库模块
+│   ├── shared_cache.py # 共享内存缓存
 │   ├── downloader.py   # 下载管理工具
 │   ├── file_handler.py # 文件处理工具
 │   ├── tool_downloader.py # aria2c下载工具
-│   ├── image_utils.py  # 图像处理基础工具（放大、切割、转换、并行处理）
-│   ├── image_processor.py # 图像处理流程（主图、详情图、色卡图、混合图片处理）
-│   ├── database.py     # 数据库模块
+│   ├── image_utils.py  # 图像处理基础工具
+│   ├── image_processor.py # 图像处理流程
 │   ├── price_extractor.py # 价格提取器
-│   ├── version.py      # 版本信息模块
-│   └── updater.py      # 版本检测升级模块
+│   ├── resource_downloader.py # 资源下载器
+│   ├── launcher.py     # 启动器
+│   ├── logger.py       # 日志模块
+│   ├── updater.py      # 版本检测升级模块
+│   └── parsers/        # 平台解析器
+│       ├── __init__.py
+│       ├── base_parser.py   # 解析器基类
+│       ├── alibaba_parser.py # 1688解析器
+│       └── jd_parser.py     # 京东解析器
 ├── version.json        # 版本配置文件
+├── ROADMAP.md          # 项目路线图
 ├── LICENSE             # 许可证文件
 └── README.md           # 说明文档
 ```
@@ -227,14 +242,17 @@
 
 ## 后续优化方向
 
-1. **配置向导**：首次启动引导配置aria2c路径、输出目录等
-2. **支持更多电商平台**：扩展支持淘宝、京东等电商平台HTML解析
-3. **图片水印处理**：支持批量添加/去除水印
-4. **导出报表功能**：支持Excel格式导出商品数据报表
-5. **图片批量重命名**：自定义命名规则，批量重命名资源文件
-6. **商品数据对比**：对比不同版本商品信息，追踪价格变化
-7. **快捷键自定义**：支持用户自定义快捷键绑定
-8. **数据备份恢复**：本地数据库备份与恢复功能
+1. **v0.5.0 数据看板**：Streamlit/Flask+Vue 数据可视化看板
+2. **配置向导**：首次启动引导配置aria2c路径、输出目录等
+3. **支持更多电商平台**：扩展支持淘宝、京东等电商平台HTML解析
+4. **图片水印处理**：支持批量添加/去除水印
+5. **导出报表功能**：支持Excel格式导出商品数据报表
+6. **图片批量重命名**：自定义命名规则，批量重命名资源文件
+7. **商品数据对比**：对比不同版本商品信息，追踪价格变化
+8. **快捷键自定义**：支持用户自定义快捷键绑定
+9. **数据备份恢复**：本地数据库备份与恢复功能
+
+详见 [ROADMAP.md](ROADMAP.md)
 
 ## 注意事项
 
@@ -251,6 +269,8 @@
 - [aria2](https://github.com/aria2/aria2) - 高速下载工具
 - [SingleFile](https://github.com/gildas-lormeau/SingleFile) - 页面保存扩展
 - [Pillow](https://python-pillow.org/) - 图像处理库
+- [DuckDB](https://duckdb.org/) - 嵌入式分析数据库
+- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) - 现代GUI组件
 - [pandas](https://pandas.pydata.org/) - 数据处理库
 - [requests](https://docs.python-requests.org/) - HTTP请求库
 

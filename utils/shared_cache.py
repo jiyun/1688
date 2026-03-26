@@ -63,8 +63,7 @@ class SharedCache:
         try:
             self.shm = shared_memory.SharedMemory(name=self.name)
             return True
-        except Exception as e:
-            print(f"连接共享内存失败: {e}")
+        except Exception:
             return False
     
     def _clear(self):
@@ -118,13 +117,11 @@ class SharedCache:
                 offset = next_offset
             
             if offset + 8 + len(key) + len(json_bytes) > self.size:
-                print("共享内存空间不足")
                 return False
             
             self._write_block(offset, key, json_bytes)
             return True
-        except Exception as e:
-            print(f"写入共享内存失败: {e}")
+        except Exception:
             return False
     
     def _remove_block(self, offset: int):
@@ -152,8 +149,7 @@ class SharedCache:
                     return json.loads(data.decode('utf-8'))
                 offset = next_offset
             return None
-        except Exception as e:
-            print(f"读取共享内存失败: {e}")
+        except Exception:
             return None
     
     def read_all(self) -> Dict[str, Any]:
@@ -171,8 +167,8 @@ class SharedCache:
                 if data:
                     result[key] = json.loads(data.decode('utf-8'))
                 offset = next_offset
-        except Exception as e:
-            print(f"读取所有数据失败: {e}")
+        except Exception:
+            pass
         
         return result
     
@@ -194,8 +190,7 @@ class SharedCache:
                     return True
                 offset = next_offset
             return False
-        except Exception as e:
-            print(f"删除数据失败: {e}")
+        except Exception:
             return False
     
     def clear(self):
@@ -315,8 +310,7 @@ def save_resources_temp(product_id: str, main_images: List, color_images: List,
             return cache.write(key, data)
         
         return True
-    except Exception as e:
-        print(f"临时保存资源失败: {e}")
+    except Exception:
         return False
 
 
@@ -335,8 +329,7 @@ def save_prices_temp(product_id: str, prices: Dict) -> bool:
             return cache.write(key, data)
         
         return True
-    except Exception as e:
-        print(f"临时保存价格失败: {e}")
+    except Exception:
         return False
 
 
@@ -359,8 +352,47 @@ def save_resource_counts_temp(product_id: str, main_images: int, color_images: i
             return cache.write(key, data)
         
         return True
-    except Exception as e:
-        print(f"临时保存资源计数失败: {e}")
+    except Exception:
+        return False
+
+
+def save_product_info_temp(product_id: str, info: Dict) -> bool:
+    """临时保存商品详细信息"""
+    try:
+        data = {
+            'product_id': product_id,
+            'info': info,
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        cache = _get_cache()
+        if cache:
+            key = f'info_{product_id}'
+            return cache.write(key, data)
+        
+        return True
+    except Exception:
+        return False
+
+
+def save_shop_info_temp(shop_info: Dict) -> bool:
+    """临时保存店铺信息"""
+    try:
+        if not shop_info or not shop_info.get('shop_id'):
+            return False
+        
+        data = {
+            'shop_info': shop_info,
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        cache = _get_cache()
+        if cache:
+            key = f'shop_{shop_info["shop_id"]}'
+            return cache.write(key, data)
+        
+        return True
+    except Exception:
         return False
 
 
@@ -409,6 +441,36 @@ def get_pending_counts() -> List[Dict]:
     return result
 
 
+def get_pending_product_info() -> List[Dict]:
+    """获取待导入的商品详细信息"""
+    cache = _get_cache()
+    if not cache:
+        return []
+    
+    result = []
+    all_data = cache.read_all()
+    for key, data in all_data.items():
+        if key.startswith('info_'):
+            result.append(data)
+    
+    return result
+
+
+def get_pending_shop_info() -> List[Dict]:
+    """获取待导入的店铺信息"""
+    cache = _get_cache()
+    if not cache:
+        return []
+    
+    result = []
+    all_data = cache.read_all()
+    for key, data in all_data.items():
+        if key.startswith('shop_'):
+            result.append(data)
+    
+    return result
+
+
 def clear_pending_data():
     """清空共享内存缓存"""
     cache = _get_cache()
@@ -424,7 +486,7 @@ def has_pending_data() -> bool:
     
     all_data = cache.read_all()
     for key in all_data.keys():
-        if key.startswith(('resources_', 'prices_', 'counts_')):
+        if key.startswith(('resources_', 'prices_', 'counts_', 'info_', 'shop_')):
             return True
     return False
 
@@ -433,11 +495,13 @@ def get_cache_stats() -> Dict:
     """获取缓存统计"""
     cache = _get_cache()
     if not cache:
-        return {'resources': 0, 'prices': 0, 'counts': 0}
+        return {'resources': 0, 'prices': 0, 'counts': 0, 'info': 0, 'shop': 0}
     
     all_data = cache.read_all()
     return {
         'resources': sum(1 for k in all_data if k.startswith('resources_')),
         'prices': sum(1 for k in all_data if k.startswith('prices_')),
-        'counts': sum(1 for k in all_data if k.startswith('counts_'))
+        'counts': sum(1 for k in all_data if k.startswith('counts_')),
+        'info': sum(1 for k in all_data if k.startswith('info_')),
+        'shop': sum(1 for k in all_data if k.startswith('shop_'))
     }

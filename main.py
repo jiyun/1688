@@ -125,6 +125,36 @@ class AlibabaScraper:
         
         return True
     
+    def extract_product_info(self):
+        """提取商品详细信息"""
+        if not self.parser:
+            log_warning("请先加载HTML文件", "Main")
+            return False
+        
+        from utils.shared_cache import save_product_info_temp, save_shop_info_temp
+        
+        info = {
+            'title': self.parser.get_title(),
+            'description': self.parser.get_description(),
+            'product_url': self.parser.get_product_url(),
+            'product_code': self.parser.get_product_code(),
+            'shop_info': self.parser.get_shop_info(),
+            'ship_from': self.parser.get_ship_from(),
+            'sales_count': self.parser.get_sales_count(),
+            'min_order': self.parser.get_min_order(),
+            'platform': self.parser.get_platform()
+        }
+        
+        save_product_info_temp(self.product_id, info)
+        
+        if info.get('shop_info'):
+            save_shop_info_temp(info['shop_info'])
+        
+        if info.get('title'):
+            log_info(f"商品标题: {info['title'][:50]}...", "Main")
+        
+        return True
+    
     def extract_prices(self):
         """提取价格信息"""
         if not self.parser:
@@ -330,24 +360,27 @@ class AlibabaScraper:
             log_error("加载HTML文件失败", "Main")
             return False
         
-        # 2. 提取价格信息
+        # 2. 提取商品详细信息
+        self.extract_product_info()
+        
+        # 3. 提取价格信息
         self.extract_prices()
         
-        # 3. 提取资源
+        # 4. 提取资源
         if not self.extract_resources():
             log_error("提取资源失败", "Main")
             return False
         
-        # 4. 下载资源
+        # 5. 下载资源
         self.download_resources()
         
-        # 5. 保存属性
+        # 6. 保存属性
         self.save_attributes()
         
-        # 6. 生成URL快捷方式
+        # 7. 生成URL快捷方式
         self.generate_shortcut()
         
-        # 7. 创建脚本（仅在批处理模式下）
+        # 8. 创建脚本（仅在批处理模式下）
         if create_rebuild_script:
             self.create_rebuild_script()
             self.create_recutpic_script()

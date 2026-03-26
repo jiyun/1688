@@ -84,3 +84,57 @@ class HTMLParser:
         if self._parser:
             return self._parser.get_price()
         return None
+    
+    def get_title(self) -> Optional[str]:
+        """获取商品标题"""
+        if self._parser:
+            return self._parser.get_title()
+        return None
+    
+    def get_description(self) -> Optional[str]:
+        """获取商品描述"""
+        if self._parser:
+            return self._parser.get_description()
+        return None
+    
+    def get_product_url(self) -> Optional[str]:
+        """获取商品链接"""
+        if self._parser:
+            return self._parser.get_product_url()
+        return None
+    
+    def get_product_code(self) -> Optional[str]:
+        """获取商品编码"""
+        if self._parser:
+            return self._parser.get_product_code()
+        return None
+    
+    def get_shop_info(self) -> Optional[Dict]:
+        """获取店铺信息"""
+        if self._parser:
+            return self._parser.get_shop_info()
+        return None
+    
+    def get_ship_from(self) -> Optional[str]:
+        """获取发货地"""
+        if self._parser:
+            return self._parser.get_ship_from()
+        return None
+    
+    def get_sales_count(self) -> int:
+        """获取销量"""
+        if self._parser:
+            return self._parser.get_sales_count()
+        return 0
+    
+    def get_min_order(self) -> int:
+        """获取起批量"""
+        if self._parser:
+            return self._parser.get_min_order()
+        return 1
+    
+    def get_all_info(self) -> Dict:
+        """获取所有信息"""
+        if self._parser:
+            return self._parser.get_all_info()
+        return {}

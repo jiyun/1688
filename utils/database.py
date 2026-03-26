@@ -57,10 +57,31 @@ class Database:
                 shop_product_id VARCHAR,
                 output_path VARCHAR,
                 title VARCHAR,
+                description VARCHAR,
+                product_url VARCHAR,
+                product_code VARCHAR,
+                shop_id VARCHAR,
                 status VARCHAR DEFAULT 'pending',
                 resource_counts VARCHAR,
                 cost_prices VARCHAR,
                 selling_prices VARCHAR,
+                platform VARCHAR DEFAULT 'alibaba',
+                ship_from VARCHAR,
+                sales_count INTEGER DEFAULT 0,
+                min_order INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS shops (
+                id INTEGER PRIMARY KEY,
+                shop_id VARCHAR UNIQUE NOT NULL,
+                shop_name VARCHAR,
+                shop_url VARCHAR,
+                shop_rating DOUBLE,
+                shop_address VARCHAR,
                 platform VARCHAR DEFAULT 'alibaba',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -117,16 +138,54 @@ class Database:
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS products_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS resources_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq')
+        self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shops_id_seq')
+        
+        self._migrate_products_table()
         
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_platform ON products(platform)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_ship_from ON products(ship_from)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_shop_id ON shops(shop_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_platform ON shops(platform)')
+    
+    def _migrate_products_table(self):
+        """迁移 products 表，添加新字段"""
+        try:
+            columns = self.conn.execute("DESCRIBE products").fetchall()
+            existing_columns = {col[0] for col in columns}
+            
+            new_columns = {
+                'description': 'VARCHAR',
+                'product_url': 'VARCHAR',
+                'product_code': 'VARCHAR',
+                'shop_id': 'VARCHAR',
+                'ship_from': 'VARCHAR',
+                'sales_count': 'INTEGER DEFAULT 0',
+                'min_order': 'INTEGER DEFAULT 1'
+            }
+            
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE products ADD COLUMN {col_name} {col_type}')
+                        log_info(f"已添加字段: {col_name}")
+                    except Exception as e:
+                        log_warning(f"添加字段 {col_name} 失败: {e}")
+        except Exception as e:
+            log_warning(f"迁移检查失败: {e}")
     
     def close(self):
         """关闭数据库连接"""
         if self.conn:
+            try:
+                self.conn.execute('CHECKPOINT')
+            except:
+                pass
             self.conn.close()
             self.conn = None
     
@@ -538,6 +597,135 @@ class Database:
             WHERE product_id = ?
         ''', [product_id])
         return result['count'] if result else 0
+    
+    def save_shop(self, shop_id: str, shop_name: str = None, shop_url: str = None, 
+                  shop_rating: float = None, shop_address: str = None, 
+                  platform: str = 'alibaba') -> bool:
+        """保存或更新店铺信息"""
+        existing = self.query_one('SELECT * FROM shops WHERE shop_id = ?', [shop_id])
+        
+        if existing:
+            update_data = {'updated_at': datetime.now()}
+            if shop_name:
+                update_data['shop_name'] = shop_name
+            if shop_url:
+                update_data['shop_url'] = shop_url
+            if shop_rating is not None:
+                update_data['shop_rating'] = shop_rating
+            if shop_address:
+                update_data['shop_address'] = shop_address
+            self.update('shops', update_data, 'shop_id = ?', [shop_id])
+        else:
+            self.insert('shops', {
+                'shop_id': shop_id,
+                'shop_name': shop_name,
+                'shop_url': shop_url,
+                'shop_rating': shop_rating,
+                'shop_address': shop_address,
+                'platform': platform
+            })
+        return True
+    
+    def get_shop(self, shop_id: str) -> Optional[Dict]:
+        """获取店铺信息"""
+        return self.query_one('SELECT * FROM shops WHERE shop_id = ?', [shop_id])
+    
+    def get_all_shops(self) -> List[Dict]:
+        """获取所有店铺"""
+        return self.query('SELECT * FROM shops ORDER BY updated_at DESC')
+    
+    def get_products_by_shop(self, shop_id: str) -> List[Dict]:
+        """获取店铺下的所有商品"""
+        return self.query('SELECT * FROM products WHERE shop_id = ? ORDER BY created_at DESC', [shop_id])
+    
+    def update_product_info(self, product_id: str, title: str = None, description: str = None,
+                            product_url: str = None, product_code: str = None, 
+                            shop_id: str = None, ship_from: str = None,
+                            sales_count: int = None, min_order: int = None) -> bool:
+        """更新商品详细信息"""
+        existing = self.get_product(product_id)
+        
+        update_data = {'updated_at': datetime.now()}
+        if title:
+            update_data['title'] = title
+        if description:
+            update_data['description'] = description
+        if product_url:
+            update_data['product_url'] = product_url
+        if product_code:
+            update_data['product_code'] = product_code
+        if shop_id:
+            update_data['shop_id'] = shop_id
+        if ship_from:
+            update_data['ship_from'] = ship_from
+        if sales_count is not None:
+            update_data['sales_count'] = sales_count
+        if min_order is not None:
+            update_data['min_order'] = min_order
+        
+        if existing:
+            self.update('products', update_data, 'product_id = ?', [product_id])
+        else:
+            update_data['product_id'] = product_id
+            update_data['status'] = 'pending'
+            self.insert('products', update_data)
+        
+        return True
+    
+    def get_statistics(self) -> Dict:
+        """获取整体统计数据"""
+        stats = {}
+        
+        stats['total_products'] = self.query_one('SELECT COUNT(*) as count FROM products')['count']
+        stats['total_shops'] = self.query_one('SELECT COUNT(*) as count FROM shops')['count']
+        stats['total_resources'] = self.query_one('SELECT COUNT(*) as count FROM resources')['count']
+        stats['downloaded_resources'] = self.query_one(
+            'SELECT COUNT(*) as count FROM resources WHERE downloaded = TRUE'
+        )['count']
+        
+        platform_stats = self.query('''
+            SELECT platform, COUNT(*) as count 
+            FROM products 
+            GROUP BY platform
+        ''')
+        stats['by_platform'] = {p['platform']: p['count'] for p in platform_stats}
+        
+        ship_from_stats = self.query('''
+            SELECT ship_from, COUNT(*) as count 
+            FROM products 
+            WHERE ship_from IS NOT NULL AND ship_from != ''
+            GROUP BY ship_from
+            ORDER BY count DESC
+            LIMIT 10
+        ''')
+        stats['by_ship_from'] = {s['ship_from']: s['count'] for s in ship_from_stats}
+        
+        return stats
+    
+    def search_products_full(self, keyword: str = None, shop_id: str = None, 
+                             platform: str = None, ship_from: str = None,
+                             limit: int = 100) -> List[Dict]:
+        """综合搜索商品"""
+        conditions = []
+        params = []
+        
+        if keyword:
+            conditions.append('(title LIKE ? OR product_id LIKE ? OR shop_product_id LIKE ?)')
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+        if shop_id:
+            conditions.append('shop_id = ?')
+            params.append(shop_id)
+        if platform:
+            conditions.append('platform = ?')
+            params.append(platform)
+        if ship_from:
+            conditions.append('ship_from = ?')
+            params.append(ship_from)
+        
+        where_clause = ' AND '.join(conditions) if conditions else '1=1'
+        sql = f'SELECT * FROM products WHERE {where_clause} ORDER BY created_at DESC LIMIT {limit}'
+        
+        return self.query(sql, params if params else None)
 
 
 def get_db():
@@ -564,6 +752,7 @@ def import_pending_data():
     
     from utils.shared_cache import (
         get_pending_resources, get_pending_prices, get_pending_counts,
+        get_pending_product_info, get_pending_shop_info,
         clear_pending_data, has_pending_data
     )
     
@@ -787,6 +976,41 @@ def import_pending_data():
             })
         
         total_imported += 1
+    
+    # 导入商品详细信息
+    product_info_data = get_pending_product_info()
+    for item in product_info_data:
+        product_id = item['product_id']
+        info = item.get('info', {})
+        
+        db.update_product_info(
+            product_id=product_id,
+            title=info.get('title'),
+            description=info.get('description'),
+            product_url=info.get('product_url'),
+            product_code=info.get('product_code'),
+            shop_id=info.get('shop_info', {}).get('shop_id') if info.get('shop_info') else None,
+            ship_from=info.get('ship_from'),
+            sales_count=info.get('sales_count'),
+            min_order=info.get('min_order')
+        )
+        
+        total_imported += 1
+    
+    # 导入店铺信息
+    shop_info_data = get_pending_shop_info()
+    for item in shop_info_data:
+        shop_info = item.get('shop_info', {})
+        if shop_info and shop_info.get('shop_id'):
+            db.save_shop(
+                shop_id=shop_info['shop_id'],
+                shop_name=shop_info.get('shop_name'),
+                shop_url=shop_info.get('shop_url'),
+                shop_rating=shop_info.get('shop_rating'),
+                shop_address=shop_info.get('shop_address'),
+                platform=shop_info.get('platform', 'alibaba')
+            )
+            total_imported += 1
     
     # 清空临时数据
     clear_pending_data()

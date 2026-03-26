@@ -404,3 +404,214 @@ class AlibabaParser(BaseParser):
         
         extractor = PriceExtractor(self.html_content)
         return extractor.extract_all_prices()
+    
+    def get_title(self) -> Optional[str]:
+        """获取商品标题"""
+        selectors = [
+            'div.title-content h1',
+            'div.module-od-title h1',
+            'h1.title-text',
+            'div.title-text h1',
+            'div.mod-detail-title h1',
+            'h1[class*="title"]',
+            'span[class*="title-text"]'
+        ]
+        
+        for selector in selectors:
+            elem = self.soup.select_one(selector)
+            if elem:
+                title = elem.get_text().strip()
+                if title:
+                    return title
+        
+        title_elem = self.soup.find('title')
+        if title_elem:
+            title_text = title_elem.get_text().strip()
+            if ' - ' in title_text:
+                title_text = title_text.split(' - ')[0]
+            if title_text and '阿里巴巴' not in title_text:
+                return title_text
+        
+        title_match = re.search(r'"subject"\s*:\s*"([^"]+)"', self.html_content)
+        if title_match:
+            return title_match.group(1)
+        
+        return None
+    
+    def get_description(self) -> Optional[str]:
+        """获取商品描述/卖点"""
+        desc_selectors = [
+            'div.desc-content',
+            'div[class*="description"]',
+            'div[class*="selling-point"]'
+        ]
+        
+        for selector in desc_selectors:
+            elem = self.soup.select_one(selector)
+            if elem:
+                text = elem.get_text().strip()
+                if text and len(text) > 10:
+                    return text[:500]
+        
+        return None
+    
+    def get_product_url(self) -> Optional[str]:
+        """获取商品原始链接"""
+        canonical = self.soup.find('link', rel='canonical')
+        if canonical and canonical.get('href'):
+            return canonical['href']
+        
+        og_url = self.soup.find('meta', property='og:url')
+        if og_url and og_url.get('content'):
+            return og_url['content']
+        
+        url_match = re.search(r'"offerUrl"\s*:\s*"([^"]+)"', self.html_content)
+        if url_match:
+            return url_match.group(1)
+        
+        return None
+    
+    def get_product_code(self) -> Optional[str]:
+        """获取商品编码"""
+        code_match = re.search(r'"货号"\s*[:：]\s*["\']?([^"\'<>\s,]+)', self.html_content)
+        if code_match:
+            return code_match.group(1)
+        
+        for text in ['货号', '商品编码']:
+            elem = self.soup.find(string=re.compile(text))
+            if elem:
+                parent = elem.parent
+                if parent:
+                    next_elem = parent.find_next_sibling('span')
+                    if next_elem:
+                        return next_elem.get_text().strip()
+                    next_elem = parent.find_next('span')
+                    if next_elem:
+                        return next_elem.get_text().strip()
+        
+        return None
+    
+    def get_shop_info(self) -> Optional[Dict]:
+        """获取店铺信息"""
+        shop_info = {}
+        
+        shop_link = self.soup.select_one('a[class*="shop-name"]')
+        if not shop_link:
+            shop_link = self.soup.select_one('a[href*="shop"]')
+        
+        if shop_link:
+            shop_info['shop_name'] = shop_link.get_text().strip()
+            shop_info['shop_url'] = shop_link.get('href', '')
+            
+            shop_id_match = re.search(r'shop/(\w+)', shop_info['shop_url'])
+            if shop_id_match:
+                shop_info['shop_id'] = shop_id_match.group(1)
+        
+        if not shop_info.get('shop_id'):
+            shop_id_match = re.search(r'"shopId"\s*:\s*"?(\d+)"?', self.html_content)
+            if shop_id_match:
+                shop_info['shop_id'] = shop_id_match.group(1)
+        
+        rating_elem = self.soup.select_one('span[class*="rating"]')
+        if rating_elem:
+            rating_text = rating_elem.get_text().strip()
+            rating_match = re.search(r'[\d.]+', rating_text)
+            if rating_match:
+                shop_info['shop_rating'] = float(rating_match.group())
+        
+        return shop_info if shop_info else None
+    
+    def get_ship_from(self) -> Optional[str]:
+        """获取发货地"""
+        ship_match = re.search(r'"sendGoodsAddress"\s*:\s*"([^"]+)"', self.html_content)
+        if ship_match:
+            return ship_match.group(1)
+        
+        location_elem = self.soup.select_one('span.location')
+        if location_elem:
+            return location_elem.get_text().strip()
+        
+        for text in ['发货地', '发货地址']:
+            elem = self.soup.find(string=re.compile(text))
+            if elem:
+                parent = elem.parent
+                if parent:
+                    parent_text = parent.get_text()
+                    match = re.search(r'发货[地地][：:]\s*([^\s<]+)', parent_text)
+                    if match:
+                        return match.group(1)
+        
+        return None
+    
+    def get_sales_count(self) -> int:
+        """获取销量"""
+        for selector in ['span[class*="sales"]', 'span[class*="sold"]', 'span.offer-sales']:
+            try:
+                elem = self.soup.select_one(selector)
+                if elem:
+                    text = elem.get_text()
+                    match = re.search(r'[\d.]+[万kK]?', text)
+                    if match:
+                        num_str = match.group()
+                        if '万' in num_str:
+                            return int(float(num_str.replace('万', '')) * 10000)
+                        elif 'k' in num_str.lower():
+                            return int(float(num_str.lower().replace('k', '')) * 1000)
+                        else:
+                            num = int(float(num_str))
+                            if num > 1000000:
+                                continue
+                            return num
+            except:
+                pass
+        
+        elem = self.soup.find(string=re.compile('成交'))
+        if elem:
+            parent = elem.parent
+            if parent:
+                text = parent.get_text()
+                if '1688' in text and '成交' not in text[:10]:
+                    return 0
+                match = re.search(r'[\d.]+[万kK]?', text)
+                if match:
+                    num_str = match.group()
+                    if '万' in num_str:
+                        return int(float(num_str.replace('万', '')) * 10000)
+                    elif 'k' in num_str.lower():
+                        return int(float(num_str.lower().replace('k', '')) * 1000)
+                    else:
+                        num = int(float(num_str))
+                        if num <= 1000000:
+                            return num
+        
+        return 0
+    
+    def get_min_order(self) -> int:
+        """获取起批量"""
+        try:
+            elem = self.soup.select_one('span[class*="min-order"]')
+            if elem:
+                text = elem.get_text()
+                match = re.search(r'(\d+)', text)
+                if match:
+                    return int(match.group(1))
+        except:
+            pass
+        
+        for text in ['起批', '件起']:
+            elem = self.soup.find(string=re.compile(text))
+            if elem:
+                parent = elem.parent
+                if parent:
+                    parent_text = parent.get_text()
+                    match = re.search(r'(\d+)', parent_text)
+                    if match:
+                        return int(match.group(1))
+        
+        price_info = self.get_price()
+        if price_info and price_info.get('main_price'):
+            min_amount = price_info['main_price'].get('min_amount')
+            if min_amount:
+                return min_amount
+        
+        return 1
