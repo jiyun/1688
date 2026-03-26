@@ -1727,6 +1727,13 @@ class AlibabaScraperGUI:
         if hasattr(self, 'log_text'):
             self.log_text.configure(font=(self.available_font, self.font_size))
         
+        # 更新按钮字体
+        button_font = (self.available_font, self.font_size)
+        for btn_name in ['add_file_btn', 'add_dir_btn', 'remove_file_btn', 'clear_queue_btn', 
+                         'pricing_btn', 'pause_btn', 'execute_btn']:
+            if hasattr(self, btn_name):
+                getattr(self, btn_name).configure(font=button_font)
+        
         # 更新关于选项卡
         if hasattr(self, 'title_label'):
             self.title_label.configure(font=(self.available_font, self.font_size_title, "bold"))
@@ -1761,17 +1768,26 @@ class AlibabaScraperGUI:
     
     def _on_middle_click(self, event):
         """鼠标中键点击事件"""
-        if self._shift_pressed:
+        # 实时检测Shift键状态（通过event.state）
+        # event.state 的第0位表示Shift键是否按下
+        shift_pressed = bool(event.state & 0x1)
+        if shift_pressed:
             self._show_font_menu(event)
     
     def _show_font_menu(self, event):
         """显示字体选择菜单（带漂亮样式）"""
         import tkinter.font as tkfont
         
+        # 使用与GUI统一的颜色（Light模式）
+        menu_bg = "#dbdbdb"  # gray86 - customtkinter Light模式背景色
+        menu_fg = "#1a1a1a"  # 深色文字
+        menu_active_bg = "#3B8ED0"  # customtkinter 按钮色
+        menu_active_fg = "#ffffff"
+        
         # 创建菜单并设置样式
         menu = tk.Menu(self.root, tearoff=0, 
-                       bg="#2b2b2b", fg="#ffffff",
-                       activebackground="#3d5a80", activeforeground="#ffffff",
+                       bg=menu_bg, fg=menu_fg,
+                       activebackground=menu_active_bg, activeforeground=menu_active_fg,
                        font=(self.available_font, 10),
                        relief="flat", borderwidth=0)
         
@@ -1791,8 +1807,8 @@ class AlibabaScraperGUI:
         
         # 添加字体选项
         font_menu = tk.Menu(menu, tearoff=0,
-                           bg="#2b2b2b", fg="#ffffff",
-                           activebackground="#3d5a80", activeforeground="#ffffff",
+                           bg=menu_bg, fg=menu_fg,
+                           activebackground=menu_active_bg, activeforeground=menu_active_fg,
                            font=(self.available_font, 10),
                            relief="flat", borderwidth=0)
         for font_name in usable_fonts:
@@ -1805,10 +1821,10 @@ class AlibabaScraperGUI:
         
         menu.add_cascade(label="📝 选择字体", menu=font_menu)
         
-        # 添加字体缩放选项
+ # 添加字体缩放选项
         scale_menu = tk.Menu(menu, tearoff=0,
-                            bg="#2b2b2b", fg="#ffffff",
-                            activebackground="#3d5a80", activeforeground="#ffffff",
+                            bg=menu_bg, fg=menu_fg,
+                            activebackground=menu_active_bg, activeforeground=menu_active_fg,
                             font=(self.available_font, 10),
                             relief="flat", borderwidth=0)
         scale_options = [
