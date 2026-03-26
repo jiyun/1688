@@ -6,6 +6,7 @@
 
 import os
 import sys
+import tkinter as tk
 import customtkinter as ctk
 from tkinter import ttk
 import multiprocessing
