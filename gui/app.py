@@ -68,7 +68,6 @@ class AlibabaScraperGUI:
         self.db_tab_visible = False
         self._is_gui_mode = True
         self._queue_shortcuts_bound = False
-        self._shift_pressed = False  # Shift键状态
         
         self.main_frame = ctk.CTkFrame(self.root)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -89,15 +88,9 @@ class AlibabaScraperGUI:
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         
-        # 绑定Shift键事件
-        self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)
-        self.root.bind("<KeyPress-Shift_R>", self._on_shift_press)
-        self.root.bind("<KeyRelease-Shift_L>", self._on_shift_release)
-        self.root.bind("<KeyRelease-Shift_R>", self._on_shift_release)
-        
-        # 绑定右键点击事件到主窗口和选项卡
-        self.root.bind("<Button-3>", self._on_right_click)
-        self.notebook.bind("<Button-3>", self._on_right_click)
+        # 绑定鼠标中键点击事件（临时测试）
+        self.root.bind("<Button-2>", self._show_font_menu)
+        self.notebook.bind("<Button-2>", self._show_font_menu)
         
         self.last_tab_index = -1
         
