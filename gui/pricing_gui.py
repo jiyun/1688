@@ -3,6 +3,7 @@
 """
 商品定价计算工具 - GUI版本 (CustomTkinter)
 功能：基于成本数据和SKU组合，自动计算合理的商品价格
+包含阶梯价格生成器功能
 """
 
 import tkinter as tk
@@ -10,6 +11,7 @@ from tkinter import ttk, filedialog
 import customtkinter as ctk
 import csv
 import json
+import os
 from typing import List, Dict, Any
 
 from gui.dialog import show_info, show_warning, show_error, ask_yes_no
@@ -30,6 +32,80 @@ except ImportError:
         'listbox_height': 10,
         'listbox_width': 70,
     }
+
+
+class TieredPriceGenerator:
+    """阶梯价格生成器类"""
+    
+    def __init__(self):
+        self.configurations = []
+        self.highest_target_price = 0
+    
+    def add_configuration(self, name: str, total_cost: float):
+        self.configurations.append({
+            'name': name,
+            'total_cost': total_cost
+        })
+    
+    def set_highest_target_price(self, price: float):
+        self.highest_target_price = price
+    
+    def calculate_tiered_prices(self, rounding: int = 0, strategy: str = 'multiplier') -> List[Dict[str, Any]]:
+        if not self.configurations:
+            raise ValueError("请先添加产品配置")
+        
+        if self.highest_target_price <= 0:
+            raise ValueError("请设置有效的最高目标价格")
+        
+        sorted_configs = sorted(self.configurations, key=lambda x: x['total_cost'])
+        highest_cost = sorted_configs[-1]['total_cost']
+        
+        result = []
+        for config in sorted_configs:
+            if strategy == 'multiplier':
+                factor = self.highest_target_price / highest_cost
+                target_price = round(config['total_cost'] * factor, rounding)
+            elif strategy == 'margin':
+                fixed_profit = self.highest_target_price - highest_cost
+                target_price = round(config['total_cost'] + fixed_profit, rounding)
+            else:
+                raise ValueError(f"不支持的定价策略：{strategy}")
+            
+            profit = target_price - config['total_cost']
+            profit_rate = (profit / config['total_cost']) * 100 if config['total_cost'] > 0 else 0
+            
+            result.append({
+                'name': config['name'],
+                'total_cost': config['total_cost'],
+                'target_price': target_price,
+                'profit': round(profit, 2),
+                'profit_rate': round(profit_rate, 2)
+            })
+        
+        return result
+    
+    def load_from_json_file(self, file_path: str):
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"文件不存在：{file_path}")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        self.configurations = data.get('configurations', [])
+        self.highest_target_price = data.get('highest_target_price', 0)
+    
+    def save_to_json_file(self, file_path: str):
+        data = {
+            'configurations': self.configurations,
+            'highest_target_price': self.highest_target_price
+        }
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    def clear(self):
+        self.configurations = []
+        self.highest_target_price = 0
 
 
 class PricingToolGUI:

@@ -17,8 +17,7 @@ from gui.utils import hide_console, ScrolledText, create_button
 from config import GUI_CONF
 from gui.logging import GUILogger
 from gui.queue import QueueManager
-from gui.menu import ContextMenuManager
-from gui.commands import ContextMenuCommands
+from gui.menu import ContextMenuManager, ContextMenuCommands
 from gui.dnd import DynamicDropOverlay, HAS_DND
 
 try:
