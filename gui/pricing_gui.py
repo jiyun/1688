@@ -122,7 +122,7 @@ class PricingToolGUI:
         # 获取父窗口的字体设置
         self.font_name = getattr(root, 'available_font', 'Microsoft YaHei')
         self.font_size = getattr(root, 'font_size', 10)
-        self.button_font = (self.font_name, self.font_size)
+        self.button_font = (self.font_name, self.font_size + 1)
         
         self.bases = [{"name": PRICING_CONF.get('default_base_name', '本体1'), "cost": PRICING_CONF.get('default_base_cost', 0.0)}]
         self.attachments = []

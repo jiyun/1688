@@ -127,7 +127,7 @@ class CustomDialog:
                 'primary',
                 fg_color=style['button_fg_color'],
                 hover_color=style['button_hover_color'],
-                font=(self.font_name, self.font_size)
+                font=(self.font_name, self.font_size + 1)
             )
             btn.pack(side=tk.RIGHT, padx=5)
         

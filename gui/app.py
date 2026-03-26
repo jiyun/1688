@@ -1728,11 +1728,11 @@ class AlibabaScraperGUI:
             self.log_text.configure(font=(self.available_font, self.font_size))
         
         # 更新按钮字体
-        button_font = (self.available_font, self.font_size)
+        button_font = (self.available_font, self.font_size + 1)
         for btn_name in ['add_file_btn', 'add_dir_btn', 'remove_file_btn', 'clear_queue_btn', 
                          'pricing_btn', 'pause_btn', 'execute_btn', 'browse_btn',
                          'db_search_btn', 'db_refresh_btn', 'db_price_btn', 'db_delete_btn', 'db_close_btn',
-                         'check_update_btn', 'reinstall_btn']:
+                         'check_update_btn', 'reinstall_btn', 'enter_btn']:
             if hasattr(self, btn_name):
                 getattr(self, btn_name).configure(font=button_font)
         
