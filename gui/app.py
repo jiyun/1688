@@ -55,6 +55,13 @@ class AlibabaScraperGUI:
         except Exception as e:
             print(f"共享内存初始化异常: {e}")
         
+        # 统一字体设置
+        self.available_font = self._get_available_font()
+        self.font_size = GUI_CONF.get('font_size', 10)
+        self.font_size_large = self.font_size + 2
+        self.font_size_title = self.font_size + 10
+        self.font_size_subtitle = self.font_size + 4
+        
         self._version = __version__ if HAS_UPDATER else "未知"
         self.easter_egg_counter = 0
         self.alt_press_counter = 0
@@ -135,7 +142,7 @@ class AlibabaScraperGUI:
         self.queue_frame = ctk.CTkFrame(self.content_frame)
         self.queue_frame.pack(fill="both", expand=True, side="top", pady=(0, 10))
         
-        queue_label = ctk.CTkLabel(self.queue_frame, text="处理队列", font=("", 12, "bold"))
+        queue_label = ctk.CTkLabel(self.queue_frame, text="处理队列", font=(self.available_font, self.font_size_large, "bold"))
         queue_label.pack(anchor="w", padx=10, pady=5)
         
         tree_frame = ctk.CTkFrame(self.queue_frame, fg_color="transparent")
@@ -168,14 +175,12 @@ class AlibabaScraperGUI:
         self.log_frame = ctk.CTkFrame(self.content_frame)
         self.log_frame.pack(fill="both", expand=True, side="bottom")
         
-        log_label = ctk.CTkLabel(self.log_frame, text="日志输出", font=("", 12, "bold"))
+        log_label = ctk.CTkLabel(self.log_frame, text="日志输出", font=(self.available_font, self.font_size_large, "bold"))
         log_label.pack(anchor="w", padx=10, pady=5)
-        
-        available_font = self._get_available_font()
         
         self.log_text = ScrolledText(self.log_frame, width=100, height=15, state="disabled", 
                                      bg="#1a1a2e", fg="#eaeaea", 
-                                     font=(available_font, GUI_CONF.get('font_size', 10)))
+                                     font=(self.available_font, self.font_size))
         self.log_text.pack(fill="both", expand=True, padx=5, pady=5)
         
         self._init_modules()
@@ -202,9 +207,6 @@ class AlibabaScraperGUI:
         """初始化数据库选项卡"""
         self.db_access_confirmed = False
         
-        available_font = self._get_available_font()
-        font_size = GUI_CONF.get('font_size', 12)
-        
         self.db_welcome_frame = ctk.CTkFrame(self.db_tab)
         self.db_welcome_frame.pack(fill="both", expand=True)
         
@@ -212,7 +214,7 @@ class AlibabaScraperGUI:
             self.db_welcome_frame, 
             text="数据库管理\n\n此功能允许浏览和删除商品数据记录。\n\n点击下方按钮进入数据库管理界面。",
             justify="center",
-            font=(available_font, font_size + 2)
+            font=(self.available_font, self.font_size_large)
         )
         welcome_label.pack(expand=True)
         
@@ -303,21 +305,21 @@ class AlibabaScraperGUI:
         title_label = ctk.CTkLabel(
             about_frame,
             text="1688详情页资源采集工具",
-            font=("", 20, "bold")
+            font=(self.available_font, self.font_size_title, "bold")
         )
         title_label.pack(pady=(20, 10))
         
         version_label = ctk.CTkLabel(
             about_frame,
             text=f"版本: {self._version}",
-            font=("", 14)
+            font=(self.available_font, self.font_size_subtitle)
         )
         version_label.pack(pady=5)
         
         author_label = ctk.CTkLabel(
             about_frame,
             text="作者: 急云",
-            font=("", 14)
+            font=(self.available_font, self.font_size_subtitle)
         )
         author_label.pack(pady=5)
         
@@ -325,7 +327,7 @@ class AlibabaScraperGUI:
         github_label = ctk.CTkLabel(
             about_frame,
             text=f"GitHub: {github_url}",
-            font=("", 14),
+            font=(self.available_font, self.font_size_subtitle),
             text_color="#1f6feb",
             cursor="hand2"
         )
@@ -338,7 +340,7 @@ class AlibabaScraperGUI:
         gitee_label = ctk.CTkLabel(
             about_frame,
             text=f"Gitee: {gitee_url}",
-            font=("", 14),
+            font=(self.available_font, self.font_size_subtitle),
             text_color="#1f6feb",
             cursor="hand2"
         )
@@ -350,7 +352,7 @@ class AlibabaScraperGUI:
         desc_label = ctk.CTkLabel(
             about_frame,
             text="用于采集1688商品详情页资源的工具。",
-            font=("", 12),
+            font=(self.available_font, self.font_size_large),
             wraplength=400
         )
         desc_label.pack(pady=(20, 10))
@@ -383,7 +385,7 @@ class AlibabaScraperGUI:
         self.update_status_label = ctk.CTkLabel(
             self.update_status_frame,
             text="",
-            font=("", 12)
+            font=(self.available_font, self.font_size_large)
         )
         self.update_status_label.pack(pady=5)
         
