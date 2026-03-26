@@ -56,11 +56,7 @@ class AlibabaScraperGUI:
             print(f"共享内存初始化异常: {e}")
         
         # 统一字体设置
-        self.available_font = self._get_available_font()
-        self.font_size = GUI_CONF.get('font_size', 10)
-        self.font_size_large = self.font_size + 2
-        self.font_size_title = self.font_size + 10
-        self.font_size_subtitle = self.font_size + 4
+        self._init_font_settings()
         
         # 配置 ttk 样式
         self._configure_ttk_styles()
@@ -72,6 +68,7 @@ class AlibabaScraperGUI:
         self.db_tab_visible = False
         self._is_gui_mode = True
         self._queue_shortcuts_bound = False
+        self._shift_pressed = False  # Shift键状态
         
         self.main_frame = ctk.CTkFrame(self.root)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -91,6 +88,11 @@ class AlibabaScraperGUI:
         self.notebook.add(self.about_tab, text="关于")
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.notebook.bind("<Button-3>", self._on_right_click)  # 右键点击
+        self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)  # 左Shift按下
+        self.root.bind("<KeyPress-Shift_R>", self._on_shift_press)  # 右Shift按下
+        self.root.bind("<KeyRelease-Shift_L>", self._on_shift_release)  # 左Shift释放
+        self.root.bind("<KeyRelease-Shift_R>", self._on_shift_release)  # 右Shift释放
         self.last_tab_index = -1
         
         self._init_db_tab()
@@ -145,8 +147,8 @@ class AlibabaScraperGUI:
         self.queue_frame = ctk.CTkFrame(self.content_frame)
         self.queue_frame.pack(fill="both", expand=True, side="top", pady=(0, 10))
         
-        queue_label = ctk.CTkLabel(self.queue_frame, text="处理队列", font=(self.available_font, self.font_size_large, "bold"))
-        queue_label.pack(anchor="w", padx=10, pady=5)
+        self.queue_label = ctk.CTkLabel(self.queue_frame, text="处理队列", font=(self.available_font, self.font_size_large, "bold"))
+        self.queue_label.pack(anchor="w", padx=10, pady=5)
         
         tree_frame = ctk.CTkFrame(self.queue_frame, fg_color="transparent")
         tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
@@ -178,8 +180,8 @@ class AlibabaScraperGUI:
         self.log_frame = ctk.CTkFrame(self.content_frame)
         self.log_frame.pack(fill="both", expand=True, side="bottom")
         
-        log_label = ctk.CTkLabel(self.log_frame, text="日志输出", font=(self.available_font, self.font_size_large, "bold"))
-        log_label.pack(anchor="w", padx=10, pady=5)
+        self.log_label = ctk.CTkLabel(self.log_frame, text="日志输出", font=(self.available_font, self.font_size_large, "bold"))
+        self.log_label.pack(anchor="w", padx=10, pady=5)
         
         self.log_text = ScrolledText(self.log_frame, width=100, height=15, state="disabled", 
                                      bg="#1a1a2e", fg="#eaeaea", 
@@ -213,13 +215,13 @@ class AlibabaScraperGUI:
         self.db_welcome_frame = ctk.CTkFrame(self.db_tab)
         self.db_welcome_frame.pack(fill="both", expand=True)
         
-        welcome_label = ctk.CTkLabel(
+        self.welcome_label = ctk.CTkLabel(
             self.db_welcome_frame, 
             text="数据库管理\n\n此功能允许浏览和删除商品数据记录。\n\n点击下方按钮进入数据库管理界面。",
             justify="center",
             font=(self.available_font, self.font_size_large)
         )
-        welcome_label.pack(expand=True)
+        self.welcome_label.pack(expand=True)
         
         enter_btn = create_button(
             self.db_welcome_frame, 
@@ -305,60 +307,60 @@ class AlibabaScraperGUI:
         about_frame = ctk.CTkFrame(self.about_tab, fg_color="transparent")
         about_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
-        title_label = ctk.CTkLabel(
+        self.title_label = ctk.CTkLabel(
             about_frame,
             text="1688详情页资源采集工具",
             font=(self.available_font, self.font_size_title, "bold")
         )
-        title_label.pack(pady=(20, 10))
+        self.title_label.pack(pady=(20, 10))
         
-        version_label = ctk.CTkLabel(
+        self.version_label = ctk.CTkLabel(
             about_frame,
             text=f"版本: {self._version}",
             font=(self.available_font, self.font_size_subtitle)
         )
-        version_label.pack(pady=5)
+        self.version_label.pack(pady=5)
         
-        author_label = ctk.CTkLabel(
+        self.author_label = ctk.CTkLabel(
             about_frame,
             text="作者: 急云",
             font=(self.available_font, self.font_size_subtitle)
         )
-        author_label.pack(pady=5)
+        self.author_label.pack(pady=5)
         
         github_url = "https://github.com/jiyun/1688/"
-        github_label = ctk.CTkLabel(
+        self.github_label = ctk.CTkLabel(
             about_frame,
             text=f"GitHub: {github_url}",
             font=(self.available_font, self.font_size_subtitle),
             text_color="#1f6feb",
             cursor="hand2"
         )
-        github_label.pack(pady=5)
-        github_label.bind("<Button-1>", lambda e: self._open_url(github_url))
-        github_label.bind("<Enter>", lambda e: github_label.configure(text_color="#1a5fb7"))
-        github_label.bind("<Leave>", lambda e: github_label.configure(text_color="#1f6feb"))
+        self.github_label.pack(pady=5)
+        self.github_label.bind("<Button-1>", lambda e: self._open_url(github_url))
+        self.github_label.bind("<Enter>", lambda e: self.github_label.configure(text_color="#1a5fb7"))
+        self.github_label.bind("<Leave>", lambda e: self.github_label.configure(text_color="#1f6feb"))
         
         gitee_url = "https://gitee.com/jiyunui/1688/"
-        gitee_label = ctk.CTkLabel(
+        self.gitee_label = ctk.CTkLabel(
             about_frame,
             text=f"Gitee: {gitee_url}",
             font=(self.available_font, self.font_size_subtitle),
             text_color="#1f6feb",
             cursor="hand2"
         )
-        gitee_label.pack(pady=5)
-        gitee_label.bind("<Button-1>", lambda e: self._open_url(gitee_url))
-        gitee_label.bind("<Enter>", lambda e: gitee_label.configure(text_color="#1a5fb7"))
-        gitee_label.bind("<Leave>", lambda e: gitee_label.configure(text_color="#1f6feb"))
+        self.gitee_label.pack(pady=5)
+        self.gitee_label.bind("<Button-1>", lambda e: self._open_url(gitee_url))
+        self.gitee_label.bind("<Enter>", lambda e: self.gitee_label.configure(text_color="#1a5fb7"))
+        self.gitee_label.bind("<Leave>", lambda e: self.gitee_label.configure(text_color="#1f6feb"))
         
-        desc_label = ctk.CTkLabel(
+        self.desc_label = ctk.CTkLabel(
             about_frame,
             text="用于采集1688商品详情页资源的工具。",
             font=(self.available_font, self.font_size_large),
             wraplength=400
         )
-        desc_label.pack(pady=(20, 10))
+        self.desc_label.pack(pady=(20, 10))
         
         btn_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
         btn_frame.pack(pady=10)
@@ -1621,6 +1623,214 @@ class AlibabaScraperGUI:
             self.log(f"已打开资源管理器: {path}")
         except Exception as e:
             self.log(f"打开资源管理器失败: {str(e)}", "error")
+    
+    def _init_font_settings(self):
+        """初始化字体设置"""
+        import json
+        import os
+        
+        # 字体设置文件路径（使用绝对路径）
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.font_settings_file = os.path.join(project_root, 'font_settings.json')
+        
+        # 默认值
+        self.base_font_size = GUI_CONF.get('font_size', 10)
+        self.font_scale = 0  # 字体缩放：-3 到 +5
+        self.available_font = self._get_available_font()
+        
+        # 加载保存的设置
+        self._load_font_settings()
+        
+        # 计算实际字体大小
+        self._update_font_sizes()
+    
+    def _load_font_settings(self):
+        """加载字体设置"""
+        import json
+        import os
+        
+        try:
+            if os.path.exists(self.font_settings_file):
+                with open(self.font_settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                    saved_font = settings.get('font', None)
+                    self.font_scale = settings.get('scale', 0)
+                    
+                    # 验证保存的字体是否仍然可用
+                    if saved_font:
+                        import tkinter.font as tkfont
+                        available_fonts = tkfont.families()
+                        if saved_font in available_fonts or f'@{saved_font}' in available_fonts:
+                            self.available_font = saved_font
+        except Exception as e:
+            print(f"加载字体设置失败: {e}")
+    
+    def _save_font_settings(self):
+        """保存字体设置"""
+        import json
+        
+        try:
+            settings = {
+                'font': self.available_font,
+                'scale': self.font_scale
+            }
+            with open(self.font_settings_file, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存字体设置失败: {e}")
+    
+    def _update_font_sizes(self):
+        """更新字体大小变量"""
+        # 根据缩放计算实际字体大小
+        scale_map = {
+            -3: -4, -2: -3, -1: -2, 0: 0,
+            1: 2, 2: 4, 3: 6, 4: 8, 5: 10
+        }
+        size_offset = scale_map.get(self.font_scale, 0)
+        
+        self.font_size = self.base_font_size + size_offset
+        self.font_size_large = self.font_size + 2
+        self.font_size_title = self.font_size + 10
+        self.font_size_subtitle = self.font_size + 4
+    
+    def _apply_font_to_all(self):
+        """应用字体设置到所有控件"""
+        # 更新 ttk 样式
+        self._configure_ttk_styles()
+        
+        # 更新所有 ctk 控件需要重新创建或更新
+        # 这里我们通过刷新界面来实现
+        self._refresh_ui_fonts()
+    
+    def _refresh_ui_fonts(self):
+        """刷新界面字体"""
+        # 更新队列标签
+        if hasattr(self, 'queue_label'):
+            self.queue_label.configure(font=(self.available_font, self.font_size_large, "bold"))
+        
+        # 更新日志标签
+        if hasattr(self, 'log_label'):
+            self.log_label.configure(font=(self.available_font, self.font_size_large, "bold"))
+        
+        # 更新日志文本框
+        if hasattr(self, 'log_text'):
+            self.log_text.configure(font=(self.available_font, self.font_size))
+        
+        # 更新关于选项卡
+        if hasattr(self, 'title_label'):
+            self.title_label.configure(font=(self.available_font, self.font_size_title, "bold"))
+        if hasattr(self, 'version_label'):
+            self.version_label.configure(font=(self.available_font, self.font_size_subtitle))
+        if hasattr(self, 'author_label'):
+            self.author_label.configure(font=(self.available_font, self.font_size_subtitle))
+        if hasattr(self, 'github_label'):
+            self.github_label.configure(font=(self.available_font, self.font_size_subtitle))
+        if hasattr(self, 'gitee_label'):
+            self.gitee_label.configure(font=(self.available_font, self.font_size_subtitle))
+        if hasattr(self, 'desc_label'):
+            self.desc_label.configure(font=(self.available_font, self.font_size_large))
+        if hasattr(self, 'update_status_label'):
+            self.update_status_label.configure(font=(self.available_font, self.font_size_large))
+        
+        # 更新数据库选项卡
+        if hasattr(self, 'welcome_label'):
+            self.welcome_label.configure(font=(self.available_font, self.font_size_large))
+        
+        # 刷新帮助文档
+        if hasattr(self, 'help_frame') and self.help_frame:
+            self.load_help_content_html()
+    
+    def _show_font_menu(self, event):
+        """显示字体选择菜单"""
+        import tkinter.font as tkfont
+        
+        # 创建菜单
+        menu = tk.Menu(self.root, tearoff=0)
+        
+        # 获取配置中的字体列表
+        font_families = GUI_CONF.get('font_families', [])
+        available_fonts = tkfont.families()
+        
+        # 筛选可用的字体
+        usable_fonts = []
+        for font_name in font_families:
+            if font_name in available_fonts or f'@{font_name}' in available_fonts:
+                usable_fonts.append(font_name)
+        
+        # 添加字体选项
+        font_menu = tk.Menu(menu, tearoff=0)
+        for font_name in usable_fonts:
+            var = tk.BooleanVar(value=(font_name == self.available_font))
+            font_menu.add_radiobutton(
+                label=font_name,
+                variable=var,
+                value=True,
+                command=lambda f=font_name: self._apply_font(f)
+            )
+        
+        menu.add_cascade(label="选择字体", menu=font_menu)
+        
+        # 添加分隔线
+        menu.add_separator()
+        
+        # 添加字体缩放选项
+        scale_menu = tk.Menu(menu, tearoff=0)
+        scale_options = [
+            ("-3 (最小)", -3), ("-2", -2), ("-1", -1),
+            ("0 (默认)", 0),
+            ("+1", 1), ("+2", 2), ("+3", 3), ("+4", 4), ("+5 (最大)", 5)
+        ]
+        
+        for label, scale in scale_options:
+            var = tk.BooleanVar(value=(scale == self.font_scale))
+            scale_menu.add_radiobutton(
+                label=label,
+                variable=var,
+                value=True,
+                command=lambda s=scale: self._apply_font_scale(s)
+            )
+        
+        menu.add_cascade(label="字体缩放", menu=scale_menu)
+        
+        # 添加分隔线
+        menu.add_separator()
+        
+        # 显示当前设置
+        menu.add_command(label=f"当前字体: {self.available_font}", state="disabled")
+        menu.add_command(label=f"当前缩放: {self.font_scale:+d}" if self.font_scale != 0 else "当前缩放: 0 (默认)", state="disabled")
+        menu.add_command(label=f"实际大小: {self.font_size}px", state="disabled")
+        
+        # 显示菜单
+        menu.post(event.x_root, event.y_root)
+    
+    def _apply_font(self, font_name):
+        """应用选中的字体"""
+        self.available_font = font_name
+        self._update_font_sizes()
+        self._apply_font_to_all()
+        self._save_font_settings()
+        self.log(f"字体已切换为: {font_name}")
+    
+    def _apply_font_scale(self, scale):
+        """应用字体缩放"""
+        self.font_scale = scale
+        self._update_font_sizes()
+        self._apply_font_to_all()
+        self._save_font_settings()
+        self.log(f"字体缩放已设置为: {scale:+d} (实际大小: {self.font_size}px)")
+    
+    def _on_shift_press(self, event):
+        """Shift键按下"""
+        self._shift_pressed = True
+    
+    def _on_shift_release(self, event):
+        """Shift键释放"""
+        self._shift_pressed = False
+    
+    def _on_right_click(self, event):
+        """右键点击事件"""
+        if self._shift_pressed:
+            self._show_font_menu(event)
     
     def _configure_ttk_styles(self):
         """配置 ttk 控件的统一样式"""
