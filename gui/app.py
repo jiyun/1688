@@ -1901,10 +1901,10 @@ class AlibabaScraperGUI:
             font=(self.available_font, self.font_size_large, "bold")
         )
         
-        # 配置 Notebook 样式
+        # 配置 Notebook 样式（选项卡文字减小一号）
         style.configure(
             "TNotebook.Tab",
-            font=(self.available_font, self.font_size_large)
+            font=(self.available_font, self.font_size - 1)
         )
     
     def _get_available_font(self):

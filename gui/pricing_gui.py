@@ -122,6 +122,7 @@ class PricingToolGUI:
         # 获取父窗口的字体设置
         self.font_name = getattr(root, 'available_font', 'Microsoft YaHei')
         self.font_size = getattr(root, 'font_size', 10)
+        self.button_font = (self.font_name, self.font_size)
         
         self.bases = [{"name": PRICING_CONF.get('default_base_name', '本体1'), "cost": PRICING_CONF.get('default_base_cost', 0.0)}]
         self.attachments = []
@@ -165,15 +166,13 @@ class PricingToolGUI:
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(fill=tk.X, pady=10)
         
-        button_font = (self.font_name, self.font_size)
-        
-        calculate_btn = create_button(button_frame, "计算价格", self._calculate_prices, 'success', font=button_font)
+        calculate_btn = create_button(button_frame, "计算价格", self._calculate_prices, 'success', font=self.button_font)
         calculate_btn.pack(side=tk.LEFT, padx=5)
         
-        save_btn = create_button(button_frame, "保存到数据库", self._save_to_database, 'primary', font=button_font)
+        save_btn = create_button(button_frame, "保存到数据库", self._save_to_database, 'primary', font=self.button_font)
         save_btn.pack(side=tk.LEFT, padx=5)
         
-        export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary', font=button_font)
+        export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary', font=self.button_font)
         export_btn.pack(side=tk.RIGHT, padx=5)
     
     
@@ -201,7 +200,7 @@ class PricingToolGUI:
         
         base_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         base_btn_frame.pack(fill=tk.X, pady=5)
-        add_base_btn = create_button(base_btn_frame, "添加本体", self._add_base, 'primary')
+        add_base_btn = create_button(base_btn_frame, "添加本体", self._add_base, 'primary', font=self.button_font)
         add_base_btn.pack(side=tk.LEFT, padx=5)
         
         ctk.CTkLabel(parent, text="次级：附件配置（可增减）", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, pady=5, ipady=10)
@@ -227,7 +226,7 @@ class PricingToolGUI:
         
         attachment_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         attachment_btn_frame.pack(fill=tk.X, pady=5)
-        add_attachment_btn = create_button(attachment_btn_frame, "添加附件", self._add_attachment, 'primary')
+        add_attachment_btn = create_button(attachment_btn_frame, "添加附件", self._add_attachment, 'primary', font=self.button_font)
         add_attachment_btn.pack(side=tk.LEFT, padx=5)
         
         shipping_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -267,7 +266,7 @@ class PricingToolGUI:
             cost_entry.pack(side=tk.LEFT, padx=5)
             ctk.CTkLabel(base_frame, text="元", width=20).pack(side=tk.LEFT, padx=5)
             
-            delete_btn = create_button(base_frame, "删除", lambda idx=i: self._delete_base(idx), 'danger', width=60)
+            delete_btn = create_button(base_frame, "删除", lambda idx=i: self._delete_base(idx), 'danger', width=60, font=self.button_font)
             delete_btn.pack(side=tk.RIGHT, padx=5)
             
             name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var: self._update_base(idx, nv.get(), cv.get()))
@@ -323,7 +322,7 @@ class PricingToolGUI:
             stackable_var = tk.BooleanVar(value=attachment.get("stackable", False))
             ctk.CTkCheckBox(attachment_frame, text="累加", variable=stackable_var, width=60).pack(side=tk.LEFT, padx=5)
             
-            delete_btn = create_button(attachment_frame, "删除", lambda idx=i: self._delete_attachment(idx), 'danger', width=60)
+            delete_btn = create_button(attachment_frame, "删除", lambda idx=i: self._delete_attachment(idx), 'danger', width=60, font=self.button_font)
             delete_btn.pack(side=tk.RIGHT, padx=5)
             
             name_entry.bind("<FocusOut>", lambda e, idx=i, nv=name_var, cv=cost_var, sv=stackable_var: self._update_attachment(idx, nv.get(), cv.get(), sv.get()))
@@ -368,11 +367,11 @@ class PricingToolGUI:
         sku_btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
         sku_btn_frame.pack(fill=tk.X, pady=5)
         
-        create_button(sku_btn_frame, "添加SKU", self._add_sku, 'primary').pack(side=tk.LEFT, padx=5)
-        create_button(sku_btn_frame, "自动生成SKU", self._auto_generate_sku, 'success').pack(side=tk.LEFT, padx=5)
-        create_button(sku_btn_frame, "从数据库加载SKU价格", self._load_sku_prices_from_db, 'info').pack(side=tk.LEFT, padx=5)
-        create_button(sku_btn_frame, "编辑SKU", self._edit_sku, 'secondary').pack(side=tk.LEFT, padx=5)
-        create_button(sku_btn_frame, "删除SKU", self._delete_sku, 'danger').pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "添加SKU", self._add_sku, 'primary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "自动生成SKU", self._auto_generate_sku, 'success', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "从数据库加载SKU价格", self._load_sku_prices_from_db, 'info', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "编辑SKU", self._edit_sku, 'secondary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(sku_btn_frame, "删除SKU", self._delete_sku, 'danger', font=self.button_font).pack(side=tk.LEFT, padx=5)
     
     def _create_strategy_result_tab(self, parent):
         strategy_frame = ctk.CTkFrame(parent)
@@ -411,7 +410,7 @@ class PricingToolGUI:
         ctk.CTkLabel(row2, text="%", width=15).pack(side=tk.LEFT, padx=2)
         
         # 计算默认售价按钮
-        calc_default_btn = create_button(row2, "计算", self._calculate_default_price, 'secondary', width=50)
+        calc_default_btn = create_button(row2, "计算", self._calculate_default_price, 'secondary', width=50, font=self.button_font)
         calc_default_btn.pack(side=tk.LEFT, padx=5)
         
         ctk.CTkLabel(row2, text="小数位：", width=60).pack(side=tk.LEFT, padx=5)
@@ -548,7 +547,7 @@ class PricingToolGUI:
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(fill=tk.X, pady=15)
-        create_button(btn_frame, "添加", do_add, 'success').pack(pady=5)
+        create_button(btn_frame, "添加", do_add, 'success', font=self.button_font).pack(pady=5)
     
     def _auto_generate_sku(self):
         if not self.bases:
@@ -769,7 +768,7 @@ class PricingToolGUI:
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(fill=tk.X, pady=15)
-        create_button(btn_frame, "保存", do_edit, 'success').pack(pady=5)
+        create_button(btn_frame, "保存", do_edit, 'success', font=self.button_font).pack(pady=5)
     
     def _delete_sku(self):
         selection = self.sku_listbox.curselection()
