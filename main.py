@@ -27,7 +27,7 @@ ensure_all_dependencies()
 
 from utils.version import __version__
 from utils.parser import HTMLParser
-from utils.downloader import Downloader
+from utils.tool_downloader import Downloader, get_aria2c_path
 from utils.file_handler import FileHandler
 from utils.logger import log_info, log_success, log_warning, log_error
 import config
@@ -177,8 +177,6 @@ class AlibabaScraper:
         if not download_list:
             log_warning("没有可下载的资源", "Main")
             return False
-        
-        from utils.downloader import get_aria2c_path
         
         aria2c_path = get_aria2c_path()
         if not aria2c_path:
