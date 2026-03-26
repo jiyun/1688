@@ -88,9 +88,8 @@ class AlibabaScraperGUI:
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         
-        # 绑定鼠标中键点击事件（临时测试）
-        self.root.bind("<Button-2>", self._show_font_menu)
-        self.notebook.bind("<Button-2>", self._show_font_menu)
+        # 绑定鼠标中键点击事件（使用 bind_all 确保能捕获）
+        self.root.bind_all("<Button-2>", self._show_font_menu)
         
         self.last_tab_index = -1
         
@@ -114,6 +113,10 @@ class AlibabaScraperGUI:
         
         self.pricing_btn = create_button(self.button_frame, "价格计算", self.open_pricing_tool, 'primary')
         self.pricing_btn.pack(side="left", padx=3)
+        
+        # 添加字体设置按钮（临时测试）
+        self.font_btn = create_button(self.button_frame, "字体设置", self._test_font_menu, 'secondary')
+        self.font_btn.pack(side="left", padx=3)
         
         self.pause_btn = create_button(self.button_frame, "暂停 (P)", self.pause, 'warning', state="disabled")
         self.pause_btn.pack(side="right", padx=3)
@@ -1747,6 +1750,8 @@ class AlibabaScraperGUI:
         """显示字体选择菜单"""
         import tkinter.font as tkfont
         
+        print(f"字体菜单触发: event={event}, x={event.x_root}, y={event.y_root}")  # 调试输出
+        
         # 创建菜单
         menu = tk.Menu(self.root, tearoff=0)
         
@@ -1805,6 +1810,22 @@ class AlibabaScraperGUI:
         
         # 显示菜单
         menu.post(event.x_root, event.y_root)
+    
+    def _test_font_menu(self):
+        """测试字体菜单（通过按钮触发）"""
+        import tkinter
+        
+        # 创建一个模拟事件对象
+        class MockEvent:
+            def __init__(self, x_root, y_root):
+                self.x_root = x_root
+                self.y_root = y_root
+        
+        # 获取鼠标位置
+        x = self.root.winfo_pointerx()
+        y = self.root.winfo_pointery()
+        event = MockEvent(x, y)
+        self._show_font_menu(event)
     
     def _apply_font(self, font_name):
         """应用选中的字体"""
