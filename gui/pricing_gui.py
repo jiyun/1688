@@ -119,6 +119,10 @@ class PricingToolGUI:
         self.product_id = product_id
         self.cost_prices_data = []
         
+        # 获取父窗口的字体设置
+        self.font_name = getattr(root, 'available_font', 'Microsoft YaHei')
+        self.font_size = getattr(root, 'font_size', 10)
+        
         self.bases = [{"name": PRICING_CONF.get('default_base_name', '本体1'), "cost": PRICING_CONF.get('default_base_cost', 0.0)}]
         self.attachments = []
         self.sku_configs = []
@@ -161,18 +165,20 @@ class PricingToolGUI:
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(fill=tk.X, pady=10)
         
-        calculate_btn = create_button(button_frame, "计算价格", self._calculate_prices, 'success')
+        button_font = (self.font_name, self.font_size)
+        
+        calculate_btn = create_button(button_frame, "计算价格", self._calculate_prices, 'success', font=button_font)
         calculate_btn.pack(side=tk.LEFT, padx=5)
         
-        save_btn = create_button(button_frame, "保存到数据库", self._save_to_database, 'primary')
+        save_btn = create_button(button_frame, "保存到数据库", self._save_to_database, 'primary', font=button_font)
         save_btn.pack(side=tk.LEFT, padx=5)
         
-        export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary')
+        export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary', font=button_font)
         export_btn.pack(side=tk.RIGHT, padx=5)
     
     
     def _create_cost_config_tab(self, parent):
-        ctk.CTkLabel(parent, text="一级：商品本体（可增减）", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
+        ctk.CTkLabel(parent, text="一级：商品本体（可增减）", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, pady=5)
         
         bases_container = ctk.CTkFrame(parent, fg_color="transparent")
         bases_container.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -198,7 +204,7 @@ class PricingToolGUI:
         add_base_btn = create_button(base_btn_frame, "添加本体", self._add_base, 'primary')
         add_base_btn.pack(side=tk.LEFT, padx=5)
         
-        ctk.CTkLabel(parent, text="次级：附件配置（可增减）", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5, ipady=10)
+        ctk.CTkLabel(parent, text="次级：附件配置（可增减）", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, pady=5, ipady=10)
         
         attachments_container = ctk.CTkFrame(parent, fg_color="transparent")
         attachments_container.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -227,7 +233,7 @@ class PricingToolGUI:
         shipping_frame = ctk.CTkFrame(parent, fg_color="transparent")
         shipping_frame.pack(fill=tk.X, pady=10)
         
-        shipping_label = ctk.CTkLabel(shipping_frame, text="运费：", font=("Arial", 12, "bold"))
+        shipping_label = ctk.CTkLabel(shipping_frame, text="运费：", font=(self.font_name, self.font_size + 2, "bold"))
         shipping_label.pack(side=tk.LEFT, padx=5)
         
         self.shipping_cost_var = tk.DoubleVar(value=self.shipping_cost)
@@ -237,7 +243,7 @@ class PricingToolGUI:
         shipping_unit_label = ctk.CTkLabel(shipping_frame, text="元", width=20)
         shipping_unit_label.pack(side=tk.LEFT, padx=5)
         
-        shipping_desc = ctk.CTkLabel(shipping_frame, text="(固定成本，计入总成本，不参与SKU生成)", font=("Arial", 10), text_color="gray")
+        shipping_desc = ctk.CTkLabel(shipping_frame, text="(固定成本，计入总成本，不参与SKU生成)", font=(self.font_name, self.font_size), text_color="gray")
         shipping_desc.pack(side=tk.LEFT, padx=10)
         
         shipping_entry.bind("<FocusOut>", lambda e: self._update_shipping_cost())
@@ -349,7 +355,7 @@ class PricingToolGUI:
             self.shipping_cost = 0.0
     
     def _create_sku_config_tab(self, parent):
-        ctk.CTkLabel(parent, text="SKU组合配置", font=("Arial", 14, "bold")).pack(anchor=tk.W, pady=5)
+        ctk.CTkLabel(parent, text="SKU组合配置", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, pady=5)
         
         listbox_frame = ctk.CTkFrame(parent)
         listbox_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -372,7 +378,7 @@ class PricingToolGUI:
         strategy_frame = ctk.CTkFrame(parent)
         strategy_frame.pack(fill=tk.X, pady=5)
         
-        ctk.CTkLabel(strategy_frame, text="定价策略", font=("Arial", 14, "bold")).pack(anchor=tk.W, padx=10, pady=5)
+        ctk.CTkLabel(strategy_frame, text="定价策略", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, padx=10, pady=5)
         
         row1 = ctk.CTkFrame(strategy_frame, fg_color="transparent")
         row1.pack(fill=tk.X, pady=5, padx=10)
@@ -421,7 +427,7 @@ class PricingToolGUI:
         result_frame = ctk.CTkFrame(parent)
         result_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        ctk.CTkLabel(result_frame, text="计算结果", font=("Arial", 14, "bold")).pack(anchor=tk.W, padx=10, pady=5)
+        ctk.CTkLabel(result_frame, text="计算结果", font=(self.font_name, self.font_size + 4, "bold")).pack(anchor=tk.W, padx=10, pady=5)
         
         tree_frame = ctk.CTkFrame(result_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
@@ -447,10 +453,10 @@ class PricingToolGUI:
         stats_frame.pack(fill=tk.X, pady=5, padx=10)
         
         self.total_cost_var = tk.StringVar(value="总生产成本：0.00 元")
-        ctk.CTkLabel(stats_frame, textvariable=self.total_cost_var, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
+        ctk.CTkLabel(stats_frame, textvariable=self.total_cost_var, font=(self.font_name, self.font_size + 2)).pack(side=tk.LEFT, padx=10)
         
         self.average_profit_rate_var = tk.StringVar(value="平均利润率：0.00%")
-        ctk.CTkLabel(stats_frame, textvariable=self.average_profit_rate_var, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
+        ctk.CTkLabel(stats_frame, textvariable=self.average_profit_rate_var, font=(self.font_name, self.font_size + 2)).pack(side=tk.LEFT, padx=10)
     
     def _update_target_sku_combobox(self):
         sku_names = [sku["name"] for sku in self.sku_configs]

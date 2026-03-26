@@ -64,6 +64,10 @@ class CustomDialog:
         self.buttons = buttons or [('确定', None)]
         self.result = None
         
+        # 获取父窗口的字体设置
+        self.font_name = getattr(parent, 'available_font', 'Microsoft YaHei')
+        self.font_size = getattr(parent, 'font_size', 10)
+        
         self._create_dialog()
     
     def _create_dialog(self):
@@ -97,7 +101,7 @@ class CustomDialog:
         title_label = ctk.CTkLabel(
             content_frame,
             text=self.title,
-            font=('Microsoft YaHei', 14, 'bold'),
+            font=(self.font_name, self.font_size + 4, 'bold'),
             text_color=style['text_color']
         )
         title_label.pack(anchor='w')
@@ -105,7 +109,7 @@ class CustomDialog:
         message_label = ctk.CTkLabel(
             content_frame,
             text=self.message,
-            font=('Microsoft YaHei', 12),
+            font=(self.font_name, self.font_size + 2),
             text_color=style['text_color'],
             wraplength=280,
             justify=tk.LEFT
@@ -122,7 +126,8 @@ class CustomDialog:
                 lambda cmd=command: self._on_button_click(cmd),
                 'primary',
                 fg_color=style['button_fg_color'],
-                hover_color=style['button_hover_color']
+                hover_color=style['button_hover_color'],
+                font=(self.font_name, self.font_size)
             )
             btn.pack(side=tk.RIGHT, padx=5)
         

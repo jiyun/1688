@@ -230,7 +230,7 @@ class AlibabaScraperGUI:
         )
         self.welcome_label.pack(expand=True)
         
-        enter_btn = create_button(
+        self.enter_btn = create_button(
             self.db_welcome_frame, 
             "进入数据库管理", 
             self._confirm_db_access,
@@ -238,7 +238,7 @@ class AlibabaScraperGUI:
             width=160,
             height=40
         )
-        enter_btn.pack(pady=20)
+        self.enter_btn.pack(pady=20)
         
         self.db_content_frame = ctk.CTkFrame(self.db_tab, fg_color="transparent")
         
@@ -1730,7 +1730,9 @@ class AlibabaScraperGUI:
         # 更新按钮字体
         button_font = (self.available_font, self.font_size)
         for btn_name in ['add_file_btn', 'add_dir_btn', 'remove_file_btn', 'clear_queue_btn', 
-                         'pricing_btn', 'pause_btn', 'execute_btn']:
+                         'pricing_btn', 'pause_btn', 'execute_btn', 'browse_btn',
+                         'db_search_btn', 'db_refresh_btn', 'db_price_btn', 'db_delete_btn', 'db_close_btn',
+                         'check_update_btn', 'reinstall_btn']:
             if hasattr(self, btn_name):
                 getattr(self, btn_name).configure(font=button_font)
         
