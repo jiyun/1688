@@ -3,10 +3,12 @@
 """
 共享内存缓存模块
 用于跨进程共享数据，避免硬盘I/O
+包含基础设施和临时存储高级接口
 """
 
 import json
 import struct
+import sys
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -16,8 +18,6 @@ try:
 except ImportError:
     HAS_SHARED_MEMORY = False
     print("警告: shared_memory 需要 Python 3.8+")
-
-import sys
 
 if sys.platform == 'win32':
     SHM_NAME = 'Local\\1688_cache'
@@ -228,16 +228,13 @@ def get_shared_cache() -> Optional[SharedCache]:
     """获取共享内存缓存实例"""
     global _cache
     if _cache is not None and _cache.shm is not None:
-        # 已经有连接好的缓存实例，直接返回
         return _cache
     
     if _cache is None and HAS_SHARED_MEMORY:
         _cache = SharedCache()
-        # 只尝试连接已存在的共享内存，不创建新的
         if not _cache.connect():
             _cache = None
     elif _cache is not None and _cache.shm is None:
-        # 缓存实例存在但未连接，尝试连接
         if not _cache.connect():
             _cache = None
     return _cache
@@ -280,3 +277,167 @@ def destroy_shared_cache():
     if _cache:
         _cache.unlink()
         _cache = None
+
+
+def _get_cache():
+    """获取缓存实例，如果不存在则尝试连接"""
+    if not HAS_SHARED_MEMORY:
+        return None
+    
+    cache = get_shared_cache()
+    if cache and cache.shm:
+        return cache
+    
+    if connect_shared_cache():
+        cache = get_shared_cache()
+        if cache and cache.shm:
+            return cache
+    
+    return None
+
+
+def save_resources_temp(product_id: str, main_images: List, color_images: List, 
+                        detail_images: List, videos: List) -> bool:
+    """临时保存资源链接"""
+    try:
+        data = {
+            'product_id': product_id,
+            'main_images': main_images,
+            'color_images': color_images,
+            'detail_images': detail_images,
+            'videos': videos,
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        cache = _get_cache()
+        if cache:
+            key = f'resources_{product_id}'
+            return cache.write(key, data)
+        
+        return True
+    except Exception as e:
+        print(f"临时保存资源失败: {e}")
+        return False
+
+
+def save_prices_temp(product_id: str, prices: Dict) -> bool:
+    """临时保存价格信息"""
+    try:
+        data = {
+            'product_id': product_id,
+            'prices': prices,
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        cache = _get_cache()
+        if cache:
+            key = f'prices_{product_id}'
+            return cache.write(key, data)
+        
+        return True
+    except Exception as e:
+        print(f"临时保存价格失败: {e}")
+        return False
+
+
+def save_resource_counts_temp(product_id: str, main_images: int, color_images: int,
+                               detail_images: int, videos: int, output_path: str = None,
+                               platform: str = 'alibaba') -> bool:
+    """临时保存资源计数"""
+    try:
+        data = {
+            'product_id': product_id,
+            'resource_counts': [main_images, color_images, detail_images, videos],
+            'output_path': output_path,
+            'platform': platform,
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        cache = _get_cache()
+        if cache:
+            key = f'counts_{product_id}'
+            return cache.write(key, data)
+        
+        return True
+    except Exception as e:
+        print(f"临时保存资源计数失败: {e}")
+        return False
+
+
+def get_pending_resources() -> List[Dict]:
+    """获取待导入的资源数据"""
+    cache = _get_cache()
+    if not cache:
+        return []
+    
+    result = []
+    all_data = cache.read_all()
+    for key, data in all_data.items():
+        if key.startswith('resources_'):
+            result.append(data)
+    
+    return result
+
+
+def get_pending_prices() -> List[Dict]:
+    """获取待导入的价格数据"""
+    cache = _get_cache()
+    if not cache:
+        return []
+    
+    result = []
+    all_data = cache.read_all()
+    for key, data in all_data.items():
+        if key.startswith('prices_'):
+            result.append(data)
+    
+    return result
+
+
+def get_pending_counts() -> List[Dict]:
+    """获取待导入的资源计数数据"""
+    cache = _get_cache()
+    if not cache:
+        return []
+    
+    result = []
+    all_data = cache.read_all()
+    for key, data in all_data.items():
+        if key.startswith('counts_'):
+            result.append(data)
+    
+    return result
+
+
+def clear_pending_data():
+    """清空共享内存缓存"""
+    cache = _get_cache()
+    if cache:
+        cache.clear()
+
+
+def has_pending_data() -> bool:
+    """检查是否有待导入的数据"""
+    cache = _get_cache()
+    if not cache:
+        return False
+    
+    all_data = cache.read_all()
+    for key in all_data.keys():
+        if key.startswith(('resources_', 'prices_', 'counts_')):
+            return True
+    return False
+
+
+def get_cache_stats() -> Dict:
+    """获取缓存统计"""
+    cache = _get_cache()
+    if not cache:
+        return {'resources': 0, 'prices': 0, 'counts': 0}
+    
+    all_data = cache.read_all()
+    return {
+        'resources': sum(1 for k in all_data if k.startswith('resources_')),
+        'prices': sum(1 for k in all_data if k.startswith('prices_')),
+        'counts': sum(1 for k in all_data if k.startswith('counts_'))
+    }

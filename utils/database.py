@@ -521,7 +521,7 @@ def import_pending_data():
         log_info("共享内存不可用")
         return 0
     
-    from utils.temp_storage import (
+    from utils.shared_cache import (
         get_pending_resources, get_pending_prices, get_pending_counts,
         clear_pending_data, has_pending_data
     )

@@ -114,7 +114,7 @@ class AlibabaScraper:
         else:
             log_info("资源提取完成: 未发现有效资源", "Main")
         
-        from utils.temp_storage import save_resources_temp
+        from utils.shared_cache import save_resources_temp
         save_resources_temp(
             self.product_id,
             self.resources.get('main_images', []),
@@ -141,7 +141,7 @@ class AlibabaScraper:
         
         self.prices = prices
         
-        from utils.temp_storage import save_prices_temp
+        from utils.shared_cache import save_prices_temp
         save_prices_temp(self.product_id, prices)
         
         return True
@@ -354,7 +354,7 @@ class AlibabaScraper:
             self.create_rebuild_script()
             self.create_recutpic_script()
         
-        from utils.temp_storage import save_resource_counts_temp
+        from utils.shared_cache import save_resource_counts_temp
         main_count = len(self.resources.get('main_images', []))
         color_count = len(self.resources.get('color_card_images', []))
         detail_count = len(self.resources.get('detail_images', []))
