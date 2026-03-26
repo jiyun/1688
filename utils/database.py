@@ -106,6 +106,14 @@ class Database:
             )
         ''')
         
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key VARCHAR PRIMARY KEY,
+                value VARCHAR,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS products_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS resources_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq')
@@ -143,6 +151,39 @@ class Database:
         """查询单条记录"""
         results = self.query(sql, params)
         return results[0] if results else None
+    
+    def get_setting(self, key: str, default=None):
+        """获取设置值"""
+        try:
+            result = self.conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                [key]
+            ).fetchone()
+            if result:
+                import json
+                return json.loads(result[0])
+            return default
+        except Exception as e:
+            print(f"获取设置失败: {e}")
+            return default
+    
+    def save_setting(self, key: str, value):
+        """保存设置值"""
+        try:
+            import json
+            from datetime import datetime
+            value_str = json.dumps(value, ensure_ascii=False)
+            self.conn.execute('''
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+            ''', [key, value_str, datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+            return True
+        except Exception as e:
+            print(f"保存设置失败: {e}")
+            return False
     
     def insert(self, table: str, data: Dict) -> int:
         """插入数据并返回ID"""

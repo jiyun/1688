@@ -88,11 +88,17 @@ class AlibabaScraperGUI:
         self.notebook.add(self.about_tab, text="关于")
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-        self.notebook.bind("<Button-3>", self._on_right_click)  # 右键点击
-        self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)  # 左Shift按下
-        self.root.bind("<KeyPress-Shift_R>", self._on_shift_press)  # 右Shift按下
-        self.root.bind("<KeyRelease-Shift_L>", self._on_shift_release)  # 左Shift释放
-        self.root.bind("<KeyRelease-Shift_R>", self._on_shift_release)  # 右Shift释放
+        
+        # 绑定Shift键事件
+        self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)
+        self.root.bind("<KeyPress-Shift_R>", self._on_shift_press)
+        self.root.bind("<KeyRelease-Shift_L>", self._on_shift_release)
+        self.root.bind("<KeyRelease-Shift_R>", self._on_shift_release)
+        
+        # 绑定右键点击事件到主窗口和选项卡
+        self.root.bind("<Button-3>", self._on_right_click)
+        self.notebook.bind("<Button-3>", self._on_right_click)
+        
         self.last_tab_index = -1
         
         self._init_db_tab()
@@ -1626,33 +1632,25 @@ class AlibabaScraperGUI:
     
     def _init_font_settings(self):
         """初始化字体设置"""
-        import json
-        import os
-        
-        # 字体设置文件路径（使用绝对路径）
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.font_settings_file = os.path.join(project_root, 'font_settings.json')
-        
         # 默认值
         self.base_font_size = GUI_CONF.get('font_size', 10)
         self.font_scale = 0  # 字体缩放：-3 到 +5
         self.available_font = self._get_available_font()
         
-        # 加载保存的设置
+        # 从数据库加载保存的设置
         self._load_font_settings()
         
         # 计算实际字体大小
         self._update_font_sizes()
     
     def _load_font_settings(self):
-        """加载字体设置"""
-        import json
-        import os
-        
+        """从数据库加载字体设置"""
         try:
-            if os.path.exists(self.font_settings_file):
-                with open(self.font_settings_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            if db:
+                settings = db.get_setting('font_settings')
+                if settings:
                     saved_font = settings.get('font', None)
                     self.font_scale = settings.get('scale', 0)
                     
@@ -1666,6 +1664,18 @@ class AlibabaScraperGUI:
             print(f"加载字体设置失败: {e}")
     
     def _save_font_settings(self):
+        """保存字体设置到数据库"""
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            if db:
+                settings = {
+                    'font': self.available_font,
+                    'scale': self.font_scale
+                }
+                db.save_setting('font_settings', settings)
+        except Exception as e:
+            print(f"保存字体设置失败: {e}")
         """保存字体设置"""
         import json
         
