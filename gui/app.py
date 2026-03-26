@@ -89,8 +89,16 @@ class AlibabaScraperGUI:
         
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         
-        # 绑定鼠标中键点击事件（使用 bind_all 确保能捕获）
-        self.root.bind_all("<Button-2>", self._show_font_menu)
+        # 绑定Shift键事件
+        self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)
+        self.root.bind("<KeyPress-Shift_R>", self._on_shift_press)
+        self.root.bind("<KeyRelease-Shift_L>", self._on_shift_release)
+        self.root.bind("<KeyRelease-Shift_R>", self._on_shift_release)
+        
+        # 绑定鼠标中键点击事件
+        self.root.bind_all("<Button-2>", self._on_middle_click)
+        
+        self._shift_pressed = False  # Shift键状态
         
         self.last_tab_index = -1
         
@@ -114,10 +122,6 @@ class AlibabaScraperGUI:
         
         self.pricing_btn = create_button(self.button_frame, "价格计算", self.open_pricing_tool, 'primary')
         self.pricing_btn.pack(side="left", padx=3)
-        
-        # 添加字体设置按钮（临时测试）
-        self.font_btn = create_button(self.button_frame, "字体设置", self._test_font_menu, 'secondary')
-        self.font_btn.pack(side="left", padx=3)
         
         self.pause_btn = create_button(self.button_frame, "暂停 (P)", self.pause, 'warning', state="disabled")
         self.pause_btn.pack(side="right", padx=3)
@@ -1747,14 +1751,29 @@ class AlibabaScraperGUI:
         if hasattr(self, 'help_frame') and self.help_frame:
             self.load_help_content_html()
     
+    def _on_shift_press(self, event):
+        """Shift键按下"""
+        self._shift_pressed = True
+    
+    def _on_shift_release(self, event):
+        """Shift键释放"""
+        self._shift_pressed = False
+    
+    def _on_middle_click(self, event):
+        """鼠标中键点击事件"""
+        if self._shift_pressed:
+            self._show_font_menu(event)
+    
     def _show_font_menu(self, event):
-        """显示字体选择菜单"""
+        """显示字体选择菜单（带漂亮样式）"""
         import tkinter.font as tkfont
         
-        print(f"字体菜单触发: event={event}, x={event.x_root}, y={event.y_root}")  # 调试输出
-        
-        # 创建菜单
-        menu = tk.Menu(self.root, tearoff=0)
+        # 创建菜单并设置样式
+        menu = tk.Menu(self.root, tearoff=0, 
+                       bg="#2b2b2b", fg="#ffffff",
+                       activebackground="#3d5a80", activeforeground="#ffffff",
+                       font=(self.available_font, 10),
+                       relief="flat", borderwidth=0)
         
         # 获取配置中的字体列表
         font_families = GUI_CONF.get('font_families', [])
@@ -1766,67 +1785,59 @@ class AlibabaScraperGUI:
             if font_name in available_fonts or f'@{font_name}' in available_fonts:
                 usable_fonts.append(font_name)
         
+        # 添加标题
+        menu.add_command(label="🎨 字体设置", state="disabled")
+        menu.add_separator()
+        
         # 添加字体选项
-        font_menu = tk.Menu(menu, tearoff=0)
+        font_menu = tk.Menu(menu, tearoff=0,
+                           bg="#2b2b2b", fg="#ffffff",
+                           activebackground="#3d5a80", activeforeground="#ffffff",
+                           font=(self.available_font, 10),
+                           relief="flat", borderwidth=0)
         for font_name in usable_fonts:
-            var = tk.BooleanVar(value=(font_name == self.available_font))
-            font_menu.add_radiobutton(
-                label=font_name,
-                variable=var,
-                value=True,
+            is_current = (font_name == self.available_font)
+            label = f"✓ {font_name}" if is_current else f"   {font_name}"
+            font_menu.add_command(
+                label=label,
                 command=lambda f=font_name: self._apply_font(f)
             )
         
-        menu.add_cascade(label="选择字体", menu=font_menu)
-        
-        # 添加分隔线
-        menu.add_separator()
+        menu.add_cascade(label="📝 选择字体", menu=font_menu)
         
         # 添加字体缩放选项
-        scale_menu = tk.Menu(menu, tearoff=0)
+        scale_menu = tk.Menu(menu, tearoff=0,
+                            bg="#2b2b2b", fg="#ffffff",
+                            activebackground="#3d5a80", activeforeground="#ffffff",
+                            font=(self.available_font, 10),
+                            relief="flat", borderwidth=0)
         scale_options = [
-            ("-3 (最小)", -3), ("-2", -2), ("-1", -1),
-            ("0 (默认)", 0),
-            ("+1", 1), ("+2", 2), ("+3", 3), ("+4", 4), ("+5 (最大)", 5)
+            ("🔍 -3 (最小)", -3), ("🔍 -2", -2), ("🔍 -1", -1),
+            ("✓ 0 (默认)", 0),
+            ("🔍 +1", 1), ("🔍 +2", 2), ("🔍 +3", 3), ("🔍 +4", 4), ("🔍 +5 (最大)", 5)
         ]
         
         for label, scale in scale_options:
-            var = tk.BooleanVar(value=(scale == self.font_scale))
-            scale_menu.add_radiobutton(
-                label=label,
-                variable=var,
-                value=True,
+            is_current = (scale == self.font_scale)
+            display_label = label if is_current else label.replace("✓", " ")
+            scale_menu.add_command(
+                label=display_label,
                 command=lambda s=scale: self._apply_font_scale(s)
             )
         
-        menu.add_cascade(label="字体缩放", menu=scale_menu)
+        menu.add_cascade(label="🔤 字体缩放", menu=scale_menu)
         
         # 添加分隔线
         menu.add_separator()
         
         # 显示当前设置
-        menu.add_command(label=f"当前字体: {self.available_font}", state="disabled")
-        menu.add_command(label=f"当前缩放: {self.font_scale:+d}" if self.font_scale != 0 else "当前缩放: 0 (默认)", state="disabled")
-        menu.add_command(label=f"实际大小: {self.font_size}px", state="disabled")
+        menu.add_command(label=f"📍 当前字体: {self.available_font}", state="disabled")
+        scale_text = f"{self.font_scale:+d}" if self.font_scale != 0 else "0 (默认)"
+        menu.add_command(label=f"📍 当前缩放: {scale_text}", state="disabled")
+        menu.add_command(label=f"📍 实际大小: {self.font_size}px", state="disabled")
         
         # 显示菜单
         menu.post(event.x_root, event.y_root)
-    
-    def _test_font_menu(self):
-        """测试字体菜单（通过按钮触发）"""
-        import tkinter
-        
-        # 创建一个模拟事件对象
-        class MockEvent:
-            def __init__(self, x_root, y_root):
-                self.x_root = x_root
-                self.y_root = y_root
-        
-        # 获取鼠标位置
-        x = self.root.winfo_pointerx()
-        y = self.root.winfo_pointery()
-        event = MockEvent(x, y)
-        self._show_font_menu(event)
     
     def _apply_font(self, font_name):
         """应用选中的字体"""
