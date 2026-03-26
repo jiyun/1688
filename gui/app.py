@@ -1267,7 +1267,8 @@ class AlibabaScraperGUI:
     <meta charset="utf-8">
     <style>
         body {{
-            font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
+            font-family: '{self.available_font}', 'Microsoft YaHei', '微软雅黑', sans-serif;
+            font-size: {self.font_size + 2}px;
             padding: 20px;
             line-height: 1.6;
             color: #333;
@@ -1278,23 +1279,26 @@ class AlibabaScraperGUI:
             color: #2c3e50;
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
+            font-size: {self.font_size + 8}px;
         }}
         h2 {{
             color: #34495e;
             border-bottom: 1px solid #bdc3c7;
             padding-bottom: 8px;
             margin-top: 25px;
+            font-size: {self.font_size + 6}px;
         }}
         h3 {{
             color: #7f8c8d;
             margin-top: 20px;
+            font-size: {self.font_size + 4}px;
         }}
         code {{
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
             font-family: Consolas, 'Courier New', monospace;
-            font-size: 0.9em;
+            font-size: {self.font_size}px;
         }}
         pre {{
             background: #f8f8f8;
