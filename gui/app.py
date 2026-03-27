@@ -921,18 +921,17 @@ class AlibabaScraperGUI:
             notebook = ctk.CTkTabview(main_frame)
             notebook.pack(fill="both", expand=True)
             
-            for res_type, res_list in resources.items():
-                if not res_list:
-                    continue
+            # 资源类型中文映射 - 按顺序显示
+            type_order = [
+                ('main_image', '主图'),
+                ('color_image', '色卡图'),
+                ('detail_image', '详情图'),
+                ('video', '视频')
+            ]
+            
+            for res_type, tab_name in type_order:
+                res_list = resources.get(res_type, [])
                 
-                # 资源类型中文映射
-                type_names = {
-                    'main_image': '主图',
-                    'color_image': '色卡图',
-                    'detail_image': '详情图',
-                    'video': '视频'
-                }
-                tab_name = type_names.get(res_type, res_type.replace('_', ' ').title())
                 tab = notebook.add(tab_name)
                 
                 columns = ("文件名", "URL", "状态", "大小", "下载时间")
@@ -963,6 +962,9 @@ class AlibabaScraperGUI:
                         size_str,
                         download_time
                     ))
+                
+                if not res_list:
+                    tree.insert("", "end", values=("-", "无数据", "-", "-", "-"))
                 
                 scrollbar = ttk.Scrollbar(tab, orient="vertical", command=tree.yview)
                 tree.configure(yscrollcommand=scrollbar.set)
