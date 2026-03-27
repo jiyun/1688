@@ -86,12 +86,26 @@ class AutoCollector:
             os.path.dirname(os.path.abspath(__file__)),
             'tools', '1688-extension'
         )
+        singlefile_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'tools', 'SingleFile-master'
+        )
+        
+        extensions = []
         if os.path.exists(extension_dir):
+            extensions.append(extension_dir)
+        if os.path.exists(singlefile_dir):
+            extensions.append(singlefile_dir)
+        
+        if extensions:
+            ext_paths = ','.join(extensions)
             args.extend([
-                f'--disable-extensions-except={extension_dir}',
-                f'--load-extension={extension_dir}',
+                f'--disable-extensions-except={ext_paths}',
+                f'--load-extension={ext_paths}',
             ])
-            print(f"加载 1688 扩展: {extension_dir}")
+            print(f"加载扩展: {len(extensions)} 个")
+            for ext in extensions:
+                print(f"  - {os.path.basename(ext)}")
         
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir='./browser_data',
