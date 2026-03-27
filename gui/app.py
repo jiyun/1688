@@ -1001,51 +1001,51 @@ class AlibabaScraperGUI:
         """显示导入对话框"""
         import_dialog = ctk.CTkToplevel(self.root)
         import_dialog.title("导入数据")
-        import_dialog.geometry("800x700")
+        import_dialog.geometry("950x850")
         import_dialog.transient(self.root)
         import_dialog.grab_set()
         
         main_frame = ctk.CTkFrame(import_dialog)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
         # 格式说明
         format_frame = ctk.CTkFrame(main_frame)
-        format_frame.pack(fill="x", pady=5)
+        format_frame.pack(fill="x", pady=8)
         
         ctk.CTkLabel(
             format_frame, 
-            text="导入格式说明：每行格式为 \"url 【文本】 dsid\"",
-            font=(self.available_font, self.font_size_small, "bold")
-        ).pack(anchor="w", padx=5)
+            text="导入格式说明",
+            font=(self.available_font, self.font_size_large, "bold")
+        ).pack(anchor="w", padx=8)
         
         ctk.CTkLabel(
             format_frame, 
-            text="• url: 商品链接，从中解析商品ID\n• 【文本】: 包含价格数字的文本，如【¥25.00】\n• dsid: 店铺商品ID（可选）",
-            font=(self.available_font, self.font_size_small),
+            text="• 格式：URL [中间内容] DSID（空格分隔）\n• URL：商品链接，从中解析商品ID\n• 中间内容：可选，包含价格数字的文本\n• DSID：店铺商品ID（主要目的）",
+            font=(self.available_font, self.font_size),
             justify="left"
         ).pack(anchor="w", padx=20)
         
         ctk.CTkLabel(
             format_frame, 
-            text="示例: https://detail.1688.com/offer/123456789.html 【¥25.00】 ABC123",
-            font=(self.available_font, self.font_size_small),
+            text="示例：\n  https://detail.1688.com/offer/123456789.html ABC123\n  https://detail.1688.com/offer/123456789.html 【¥25.00】 ABC123",
+            font=(self.available_font, self.font_size),
             text_color="gray"
-        ).pack(anchor="w", padx=20, pady=2)
+        ).pack(anchor="w", padx=20, pady=5)
         
         # 文本输入区
         input_frame = ctk.CTkFrame(main_frame)
-        input_frame.pack(fill="both", expand=True, pady=5)
+        input_frame.pack(fill="both", expand=True, pady=8)
         
-        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=(self.available_font, self.font_size_small)).pack(anchor="w", padx=5)
+        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=(self.available_font, self.font_size)).pack(anchor="w", padx=8)
         
-        text_input = ctk.CTkTextbox(input_frame, height=150)
-        text_input.pack(fill="both", expand=True, padx=5, pady=5)
+        text_input = ctk.CTkTextbox(input_frame, height=200, font=(self.available_font, self.font_size))
+        text_input.pack(fill="both", expand=True, padx=8, pady=8)
         
         # 预览区
         preview_frame = ctk.CTkFrame(main_frame)
-        preview_frame.pack(fill="both", expand=True, pady=5)
+        preview_frame.pack(fill="both", expand=True, pady=8)
         
-        ctk.CTkLabel(preview_frame, text="解析预览：", font=(self.available_font, self.font_size_small)).pack(anchor="w", padx=5)
+        ctk.CTkLabel(preview_frame, text="解析预览：", font=(self.available_font, self.font_size)).pack(anchor="w", padx=8)
         
         preview_columns = ("行号", "商品ID", "目标售价", "DSID", "状态")
         preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=8)
@@ -1181,7 +1181,13 @@ class AlibabaScraperGUI:
         ctk.CTkButton(btn_frame, text="取消", command=import_dialog.destroy).pack(side="right", padx=5)
     
     def _parse_import_line(self, line: str) -> dict:
-        """解析单行导入数据"""
+        """解析单行导入数据
+        
+        格式：URL [中间内容] DSID
+        - URL开头
+        - DSID在结尾（主要目的）
+        - 中间内容可选，可能包含价格
+        """
         import re
         
         result = {
@@ -1193,13 +1199,18 @@ class AlibabaScraperGUI:
         }
         
         try:
-            # 提取URL
-            url_match = re.search(r'https?://[^\s]+', line)
-            if not url_match:
-                result['error'] = '未找到URL'
+            line = line.strip()
+            if not line:
+                result['error'] = '空行'
                 return result
             
-            url = url_match.group()
+            # 提取URL（开头部分）
+            url_match = re.match(r'(https?://[^\s]+)', line)
+            if not url_match:
+                result['error'] = '行首未找到URL'
+                return result
+            
+            url = url_match.group(1)
             
             # 从URL中提取商品ID
             id_match = re.search(r'offer/(\d+)\.html', url)
@@ -1212,22 +1223,30 @@ class AlibabaScraperGUI:
             
             result['product_id'] = id_match.group(1)
             
-            # 提取【文本】中的价格
-            price_match = re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', line)
-            if price_match:
-                try:
-                    result['target_price'] = float(price_match.group(1))
-                except ValueError:
-                    pass
-            
-            # 提取DSID（URL后的最后一个非空字段）
-            remaining = line.replace(url, '').strip()
-            remaining = re.sub(r'【[^】]*】', '', remaining).strip()
+            # 获取URL后的剩余部分
+            remaining = line[len(url):].strip()
             
             if remaining:
-                parts = remaining.split()
-                if parts:
-                    result['dsid'] = parts[-1] if parts[-1] and not parts[-1].startswith('【') else None
+                # 提取【】中的价格
+                price_match = re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', remaining)
+                if price_match:
+                    try:
+                        result['target_price'] = float(price_match.group(1))
+                    except ValueError:
+                        pass
+                
+                # 提取DSID（最后一个非URL、非【】的字段）
+                # 先移除【】内容
+                remaining_no_bracket = re.sub(r'【[^】]*】', '', remaining).strip()
+                
+                if remaining_no_bracket:
+                    parts = remaining_no_bracket.split()
+                    if parts:
+                        # 最后一个字段作为DSID
+                        last_part = parts[-1]
+                        # 确保不是URL的一部分
+                        if not last_part.startswith('http') and not last_part.startswith('//'):
+                            result['dsid'] = last_part
             
             result['valid'] = True
             
