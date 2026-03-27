@@ -634,63 +634,66 @@ class AlibabaScraperGUI:
             from utils.database import get_shared_db
             db = get_shared_db()
             
-            stats = db.get_statistics()
-            self.db_stats_labels['total'].configure(text=str(stats['total_products']))
-            self.db_stats_labels['resources'].configure(text=str(stats['total_resources']))
-            self.db_stats_labels['downloaded'].configure(text=str(stats['downloaded_resources']))
-            self.db_stats_labels['shops'].configure(text=str(stats['total_shops']))
-            platform_str = '/'.join([f"{k}:{v}" for k, v in stats['by_platform'].items()])
-            self.db_stats_labels['platform'].configure(text=platform_str if platform_str else '-')
-            
-            products = db.get_all_products()
-            
-            for product in products:
-                output_path = product.get('output_path', '') or ''
-                if len(output_path) > 18:
-                    output_path = '...' + output_path[-15:]
+            try:
+                stats = db.get_statistics()
+                self.db_stats_labels['total'].configure(text=str(stats['total_products']))
+                self.db_stats_labels['resources'].configure(text=str(stats['total_resources']))
+                self.db_stats_labels['downloaded'].configure(text=str(stats['downloaded_resources']))
+                self.db_stats_labels['shops'].configure(text=str(stats['total_shops']))
+                platform_str = '/'.join([f"{k}:{v}" for k, v in stats['by_platform'].items()])
+                self.db_stats_labels['platform'].configure(text=platform_str if platform_str else '-')
                 
-                title = product.get('title', '') or ''
-                if len(title) > 18:
-                    title = title[:18] + '...'
+                products = db.get_all_products()
                 
-                product_id = product.get('product_id', '')
+                for product in products:
+                    output_path = product.get('output_path', '') or ''
+                    if len(output_path) > 18:
+                        output_path = '...' + output_path[-15:]
+                    
+                    title = product.get('title', '') or ''
+                    if len(title) > 18:
+                        title = title[:18] + '...'
+                    
+                    product_id = product.get('product_id', '')
+                    
+                    sku_prices_count = db.count_sku_prices(product_id)
+                    sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
+                    
+                    resource_counts = db.count_resources(product_id)
+                    total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
+                    resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
+                    
+                    shop_id = product.get('shop_id', '')
+                    shop_name = ''
+                    if shop_id:
+                        shop = db.get_shop(shop_id)
+                        if shop:
+                            shop_name = shop.get('shop_name', '')[:10]
+                    
+                    ship_from = product.get('ship_from', '') or '-'
+                    
+                    status = product.get('status', '') or '-'
+                    if status == 'pending':
+                        status = '待处理'
+                    elif status == 'completed':
+                        status = '完成'
+                    
+                    self.db_tree.insert("", "end", values=(
+                        product_id,
+                        product.get('shop_product_id', ''),
+                        title,
+                        shop_name,
+                        ship_from,
+                        resource_counts_str,
+                        sku_prices_str,
+                        output_path,
+                        status,
+                        str(product.get('created_at', ''))[:16]
+                    ))
                 
-                sku_prices_count = db.count_sku_prices(product_id)
-                sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
-                
-                resource_counts = db.count_resources(product_id)
-                total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
-                resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
-                
-                shop_id = product.get('shop_id', '')
-                shop_name = ''
-                if shop_id:
-                    shop = db.get_shop(shop_id)
-                    if shop:
-                        shop_name = shop.get('shop_name', '')[:10]
-                
-                ship_from = product.get('ship_from', '') or '-'
-                
-                status = product.get('status', '') or '-'
-                if status == 'pending':
-                    status = '待处理'
-                elif status == 'completed':
-                    status = '完成'
-                
-                self.db_tree.insert("", "end", values=(
-                    product_id,
-                    product.get('shop_product_id', ''),
-                    title,
-                    shop_name,
-                    ship_from,
-                    resource_counts_str,
-                    sku_prices_str,
-                    output_path,
-                    status,
-                    str(product.get('created_at', ''))[:16]
-                ))
-            
-            self.db_status_label.configure(text=f"共 {len(products)} 条")
+                self.db_status_label.configure(text=f"共 {len(products)} 条")
+            finally:
+                db.close()
         except Exception as e:
             self.log(f"读取数据库失败: {e}", "error")
             self.db_status_label.configure(text="读取失败")
