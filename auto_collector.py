@@ -39,9 +39,13 @@ def find_extensions():
         for item in os.listdir(edge_extensions):
             item_path = os.path.join(edge_extensions, item)
             if os.path.isdir(item_path):
-                manifest_path = os.path.join(item_path, 'manifest.json')
-                if os.path.exists(manifest_path):
-                    extensions.append(item_path)
+                versions = [v for v in os.listdir(item_path) if v[0].isdigit()]
+                if versions:
+                    latest_version = sorted(versions)[-1]
+                    ext_path = os.path.join(item_path, latest_version)
+                    manifest_path = os.path.join(ext_path, 'manifest.json')
+                    if os.path.exists(manifest_path):
+                        extensions.append(ext_path)
     
     return extensions
 
@@ -74,11 +78,33 @@ class AutoCollector:
                     f'--disable-extensions-except={ext_paths}',
                     f'--load-extension={ext_paths}',
                 ])
-                print(f"加载扩展: {valid_extensions}")
+                print(f"加载扩展: {len(valid_extensions)} 个")
+        
+        args.append('--start-maximized')
+        
+        chrome_path = os.path.join(
+            os.environ.get('PROGRAMFILES', ''),
+            'Google', 'Chrome', 'Application', 'chrome.exe'
+        )
+        edge_path = os.path.join(
+            os.environ.get('PROGRAMFILES(X86)', ''),
+            'Microsoft', 'Edge', 'Application', 'msedge.exe'
+        )
+        
+        executable_path = None
+        if os.path.exists(chrome_path):
+            executable_path = chrome_path
+            print(f"使用 Chrome 浏览器: {chrome_path}")
+        elif os.path.exists(edge_path):
+            executable_path = edge_path
+            print(f"使用 Edge 浏览器: {edge_path}")
+        else:
+            print("未找到 Chrome 或 Edge 浏览器，使用默认浏览器")
         
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir='./browser_data',
             headless=self.headless,
+            executable_path=executable_path,
             args=args if args else None
         )
         
@@ -92,6 +118,23 @@ class AutoCollector:
         if self.playwright:
             self.playwright.stop()
         print("浏览器已关闭")
+    
+    def interactive_mode(self):
+        """交互模式：等待用户登录和安装插件"""
+        print("\n" + "=" * 50)
+        print("交互模式")
+        print("=" * 50)
+        print("请在浏览器中完成以下操作：")
+        print("1. 登录 1688 账号")
+        print("2. 安装需要的浏览器插件")
+        print("3. 完成后按 Enter 键继续采集...")
+        print("=" * 50)
+        
+        page = self.context.new_page()
+        page.goto('https://www.1688.com')
+        
+        input("\n按 Enter 键继续...")
+        page.close()
     
     def save_page(self, url: str, wait_time: int = 5) -> Optional[str]:
         """保存页面"""
@@ -145,23 +188,26 @@ class AutoCollector:
         return success_count
 
 def main():
+    print("1688 商品信息自动采集工具")
+    print("")
+    
     if len(sys.argv) < 2:
-        print("1688 商品信息自动采集工具")
-        print("")
         print("用法:")
         print("  python auto_collector.py <URL1> [URL2] ...")
         print("  python auto_collector.py --file urls.txt")
+        print("  python auto_collector.py --interactive  # 交互模式，先登录再采集")
         print("")
         print("选项:")
         print("  --headless    无头模式运行（不显示浏览器窗口）")
         print("  --ext PATH    加载浏览器扩展路径（可多次使用）")
         print("  --delay N     请求间隔秒数（默认3秒）")
-        print("  --auto-ext   自动查找并加载已安装的扩展")
+        print("  --auto-ext    自动查找并加载已安装的扩展")
+        print("  --interactive 交互模式，先登录和安装插件")
         print("")
         print("示例:")
+        print("  python auto_collector.py --interactive")
         print("  python auto_collector.py https://detail.1688.com/offer/123456789.html")
         print("  python auto_collector.py --file urls.txt --headless")
-        print("  python auto_collector.py --auto-ext https://...")
         sys.exit(1)
     
     urls = []
@@ -169,6 +215,7 @@ def main():
     extension_paths = []
     delay = 3
     auto_find_ext = '--auto-ext' in sys.argv
+    interactive = '--interactive' in sys.argv
     
     i = 1
     while i < len(sys.argv):
@@ -193,23 +240,35 @@ def main():
         found_extensions = find_extensions()
         if found_extensions:
             extension_paths = found_extensions
-            print(f"自动发现扩展: {found_extensions}")
+            print(f"自动发现扩展: {len(found_extensions)} 个")
     
-    if not urls:
+    if interactive:
+        print("交互模式: 先登录和安装插件")
+        headless = False
+    elif urls:
+        print(f"准备采集 {len(urls)} 个页面")
+    else:
         print("错误: 未提供有效的URL")
         sys.exit(1)
     
-    print(f"准备采集 {len(urls)} 个页面")
     print(f"无头模式: {headless}")
     print(f"请求间隔: {delay}秒")
     if extension_paths:
-        print(f"加载扩展: {extension_paths}")
+        print(f"加载扩展: {len(extension_paths)} 个")
     
     collector = AutoCollector(output_dir='products', headless=headless)
     
     try:
         collector.start_browser(extension_paths=extension_paths if extension_paths else None)
-        collector.collect_urls(urls, delay=delay)
+        
+        if interactive:
+            collector.interactive_mode()
+            if urls:
+                collector.collect_urls(urls, delay=delay)
+            else:
+                print("\n交互模式结束。下次可以直接提供 URL 进行采集。")
+        else:
+            collector.collect_urls(urls, delay=delay)
     finally:
         collector.close_browser()
 

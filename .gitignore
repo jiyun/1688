@@ -101,3 +101,9 @@ products.duckdb
 
 # 测试数据
 old-0306/
+
+# 浏览器数据目录
+browser_data/
+
+# 采集输出目录
+products/
