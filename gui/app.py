@@ -831,10 +831,8 @@ class AlibabaScraperGUI:
             self.log(f"过滤失败: {e}", "error")
     
     def _validate_search_input(self, *args):
-        """验证搜索输入，只允许数字"""
-        current = self.db_search_var.get()
-        if current and not current.isdigit():
-            self.db_search_var.set(''.join(filter(str.isdigit, current)))
+        """验证搜索输入"""
+        pass
     
     def _open_product_page(self, product_id):
         """用浏览器打开商品页面"""
