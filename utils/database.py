@@ -287,11 +287,19 @@ class Database:
         return self.query(f'SELECT * FROM products WHERE {search_field} = ?', [search_term])
     
     def search_products_by_id(self, search_term: str) -> List[Dict]:
-        """自动匹配商品ID和DSID搜索"""
+        """模糊搜索商品 - 支持商品ID、DSID、标题、发货地"""
         if not search_term:
             return []
         
-        return self.query('SELECT * FROM products WHERE product_id = ? OR shop_product_id = ?', [search_term, search_term])
+        search_pattern = f'%{search_term}%'
+        return self.query('''
+            SELECT * FROM products 
+            WHERE product_id LIKE ? 
+               OR shop_product_id LIKE ? 
+               OR title LIKE ?
+               OR ship_from LIKE ?
+            ORDER BY created_at DESC
+        ''', [search_pattern, search_pattern, search_pattern, search_pattern])
     
     def get_product(self, product_id: str) -> Optional[Dict]:
         """获取单个商品"""
