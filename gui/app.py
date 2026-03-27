@@ -1817,6 +1817,7 @@ class AlibabaScraperGUI:
         size_offset = scale_map.get(self.font_scale, 0)
         
         self.font_size = self.base_font_size + size_offset
+        self.font_size_small = self.font_size - 2
         self.font_size_large = self.font_size + 2
         self.font_size_title = self.font_size + 10
         self.font_size_subtitle = self.font_size + 4
