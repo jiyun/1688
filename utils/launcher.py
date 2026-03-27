@@ -174,7 +174,10 @@ def should_start_gui() -> bool:
         for arg in sys.argv[1:]:
             if arg in ('--gui', '-g'):
                 return True
-            if arg in ('--help', '-h', '--version', '-v'):
+            if arg in ('--help', '-h', '--version', '-v', '--no-rebuild', '--output', '--keep-avif', '--no-gui'):
+                return False
+            # 如果参数是文件路径，不启动 GUI
+            if not arg.startswith('-') and os.path.exists(arg):
                 return False
     
     return is_launched_from_explorer()
