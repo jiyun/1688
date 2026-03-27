@@ -1227,26 +1227,56 @@ class AlibabaScraperGUI:
             remaining = line[len(url):].strip()
             
             if remaining:
-                # 提取【】中的价格
-                price_match = re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', remaining)
-                if price_match:
-                    try:
-                        result['target_price'] = float(price_match.group(1))
-                    except ValueError:
-                        pass
+                parts = remaining.split()
                 
-                # 提取DSID（最后一个非URL、非【】的字段）
-                # 先移除【】内容
-                remaining_no_bracket = re.sub(r'【[^】]*】', '', remaining).strip()
-                
-                if remaining_no_bracket:
-                    parts = remaining_no_bracket.split()
-                    if parts:
-                        # 最后一个字段作为DSID
-                        last_part = parts[-1]
-                        # 确保不是URL的一部分
-                        if not last_part.startswith('http') and not last_part.startswith('//'):
-                            result['dsid'] = last_part
+                if len(parts) >= 1:
+                    # 最后一个字段作为DSID
+                    result['dsid'] = parts[-1]
+                    
+                    # 如果有多个字段，中间部分可能包含价格
+                    if len(parts) >= 2:
+                        middle_parts = parts[:-1]  # 排除最后一个（DSID）
+                        middle_text = ' '.join(middle_parts)
+                        
+                        # 1. 先尝试匹配【】中的价格
+                        price_match = re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', middle_text)
+                        if price_match:
+                            try:
+                                result['target_price'] = float(price_match.group(1))
+                            except ValueError:
+                                pass
+                        else:
+                            # 2. 尝试从中间文本提取价格数字
+                            # 匹配 "价格99.0" 或 "99.0" 这样的格式
+                            price_patterns = [
+                                r'价格\s*(\d+\.?\d*)',      # 价格99.0
+                                r'售价\s*(\d+\.?\d*)',      # 售价99.0
+                                r'[¥￥]\s*(\d+\.?\d*)',     # ¥99.0
+                                r'(\d+\.?\d*)\s*元',        # 99.0元
+                            ]
+                            
+                            for pattern in price_patterns:
+                                match = re.search(pattern, middle_text)
+                                if match:
+                                    try:
+                                        result['target_price'] = float(match.group(1))
+                                        break
+                                    except ValueError:
+                                        pass
+                            
+                            # 3. 如果还是没有找到，尝试提取独立的数字
+                            if result['target_price'] is None:
+                                # 查找独立的数字（前后有空格或边界）
+                                numbers = re.findall(r'(?<![a-zA-Z0-9.])(\d+\.?\d*)(?![a-zA-Z0-9.])', middle_text)
+                                for num_str in numbers:
+                                    try:
+                                        num = float(num_str)
+                                        # 假设价格在合理范围内（1-10000）
+                                        if 1 <= num <= 10000:
+                                            result['target_price'] = num
+                                            break
+                                    except ValueError:
+                                        pass
             
             result['valid'] = True
             
