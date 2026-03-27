@@ -329,6 +329,9 @@ class AlibabaScraperGUI:
         self.db_price_btn = create_button(self.db_btn_frame, "价格计算", self._open_pricing_for_selected, 'primary', width=70)
         self.db_price_btn.pack(side="left", padx=5)
         
+        self.db_import_btn = create_button(self.db_btn_frame, "导入", self._show_import_dialog, 'success', width=60)
+        self.db_import_btn.pack(side="left", padx=5)
+        
         self.db_delete_btn = create_button(self.db_btn_frame, "删除选中", self._delete_db_record, 'danger', width=70)
         self.db_delete_btn.pack(side="left", padx=5)
         
@@ -993,6 +996,245 @@ class AlibabaScraperGUI:
         except Exception as e:
             self.log(f"获取资源链接失败: {e}", "error")
             self.show_info("错误", f"获取资源链接失败: {e}")
+    
+    def _show_import_dialog(self):
+        """显示导入对话框"""
+        import_dialog = ctk.CTkToplevel(self.root)
+        import_dialog.title("导入数据")
+        import_dialog.geometry("800x700")
+        import_dialog.transient(self.root)
+        import_dialog.grab_set()
+        
+        main_frame = ctk.CTkFrame(import_dialog)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # 格式说明
+        format_frame = ctk.CTkFrame(main_frame)
+        format_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(
+            format_frame, 
+            text="导入格式说明：每行格式为 \"url 【文本】 dsid\"",
+            font=(self.available_font, self.font_size_small, "bold")
+        ).pack(anchor="w", padx=5)
+        
+        ctk.CTkLabel(
+            format_frame, 
+            text="• url: 商品链接，从中解析商品ID\n• 【文本】: 包含价格数字的文本，如【¥25.00】\n• dsid: 店铺商品ID（可选）",
+            font=(self.available_font, self.font_size_small),
+            justify="left"
+        ).pack(anchor="w", padx=20)
+        
+        ctk.CTkLabel(
+            format_frame, 
+            text="示例: https://detail.1688.com/offer/123456789.html 【¥25.00】 ABC123",
+            font=(self.available_font, self.font_size_small),
+            text_color="gray"
+        ).pack(anchor="w", padx=20, pady=2)
+        
+        # 文本输入区
+        input_frame = ctk.CTkFrame(main_frame)
+        input_frame.pack(fill="both", expand=True, pady=5)
+        
+        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=(self.available_font, self.font_size_small)).pack(anchor="w", padx=5)
+        
+        text_input = ctk.CTkTextbox(input_frame, height=150)
+        text_input.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # 预览区
+        preview_frame = ctk.CTkFrame(main_frame)
+        preview_frame.pack(fill="both", expand=True, pady=5)
+        
+        ctk.CTkLabel(preview_frame, text="解析预览：", font=(self.available_font, self.font_size_small)).pack(anchor="w", padx=5)
+        
+        preview_columns = ("行号", "商品ID", "目标售价", "DSID", "状态")
+        preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=8)
+        
+        preview_tree.heading("行号", text="行号")
+        preview_tree.heading("商品ID", text="商品ID")
+        preview_tree.heading("目标售价", text="目标售价")
+        preview_tree.heading("DSID", text="DSID")
+        preview_tree.heading("状态", text="状态")
+        
+        preview_tree.column("行号", width=50, anchor="center")
+        preview_tree.column("商品ID", width=120, anchor="center")
+        preview_tree.column("目标售价", width=100, anchor="center")
+        preview_tree.column("DSID", width=120, anchor="center")
+        preview_tree.column("状态", width=100, anchor="center")
+        
+        preview_scrollbar = ttk.Scrollbar(preview_frame, orient="vertical", command=preview_tree.yview)
+        preview_tree.configure(yscrollcommand=preview_scrollbar.set)
+        preview_tree.pack(side="left", fill="both", expand=True, padx=5)
+        preview_scrollbar.pack(side="right", fill="y")
+        
+        # 存储解析结果
+        parsed_data = []
+        
+        def parse_input():
+            """解析输入数据"""
+            nonlocal parsed_data
+            parsed_data = []
+            
+            for item in preview_tree.get_children():
+                preview_tree.delete(item)
+            
+            text = text_input.get("1.0", "end-1c")
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            for idx, line in enumerate(lines, 1):
+                result = self._parse_import_line(line)
+                parsed_data.append(result)
+                
+                status = "✓ 有效" if result['valid'] else f"✗ {result['error']}"
+                status_color = "有效" if result['valid'] else "无效"
+                
+                preview_tree.insert("", "end", values=(
+                    idx,
+                    result.get('product_id', '-'),
+                    result.get('target_price', '-'),
+                    result.get('dsid', '-'),
+                    status
+                ))
+            
+            valid_count = sum(1 for d in parsed_data if d['valid'])
+            count_label.configure(text=f"共 {len(lines)} 行，有效 {valid_count} 行")
+        
+        def confirm_import():
+            """确认导入"""
+            valid_data = [d for d in parsed_data if d['valid']]
+            
+            if not valid_data:
+                self.show_info("提示", "没有有效数据可导入")
+                return
+            
+            confirm = self.ask_yes_no("确认导入", f"将导入 {len(valid_data)} 条记录，是否继续？")
+            if not confirm:
+                return
+            
+            success_count = 0
+            fail_count = 0
+            errors = []
+            
+            try:
+                from utils.database import get_shared_db
+                db = get_shared_db()
+                
+                for data in valid_data:
+                    try:
+                        product_id = data['product_id']
+                        target_price = data.get('target_price')
+                        dsid = data.get('dsid')
+                        
+                        existing = db.get_product(product_id)
+                        
+                        if existing:
+                            update_data = {'updated_at': datetime.now()}
+                            if target_price is not None:
+                                update_data['target_price'] = target_price
+                            if dsid:
+                                update_data['shop_product_id'] = dsid
+                            
+                            db.update('products', update_data, 'product_id = ?', [product_id])
+                        else:
+                            insert_data = {
+                                'product_id': product_id,
+                                'status': 'pending',
+                                'created_at': datetime.now()
+                            }
+                            if target_price is not None:
+                                insert_data['target_price'] = target_price
+                            if dsid:
+                                insert_data['shop_product_id'] = dsid
+                            
+                            db.insert('products', insert_data)
+                        
+                        success_count += 1
+                    except Exception as e:
+                        fail_count += 1
+                        errors.append(f"商品ID {data.get('product_id', '?')}: {str(e)}")
+                
+                db.close()
+            except Exception as e:
+                self.show_info("错误", f"数据库操作失败: {e}")
+                return
+            
+            # 显示导入报告
+            report = f"导入完成！\n\n成功: {success_count} 条\n失败: {fail_count} 条"
+            if errors:
+                report += f"\n\n失败原因:\n" + "\n".join(errors[:10])
+                if len(errors) > 10:
+                    report += f"\n... 还有 {len(errors) - 10} 条错误"
+            
+            self.show_info("导入报告", report)
+            self._refresh_db_data()
+            import_dialog.destroy()
+        
+        # 按钮区
+        btn_frame = ctk.CTkFrame(main_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        count_label = ctk.CTkLabel(btn_frame, text="共 0 行", font=(self.available_font, self.font_size_small))
+        count_label.pack(side="left", padx=10)
+        
+        ctk.CTkButton(btn_frame, text="解析预览", command=parse_input).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="确认导入", command=confirm_import).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="取消", command=import_dialog.destroy).pack(side="right", padx=5)
+    
+    def _parse_import_line(self, line: str) -> dict:
+        """解析单行导入数据"""
+        import re
+        
+        result = {
+            'valid': False,
+            'product_id': None,
+            'target_price': None,
+            'dsid': None,
+            'error': None
+        }
+        
+        try:
+            # 提取URL
+            url_match = re.search(r'https?://[^\s]+', line)
+            if not url_match:
+                result['error'] = '未找到URL'
+                return result
+            
+            url = url_match.group()
+            
+            # 从URL中提取商品ID
+            id_match = re.search(r'offer/(\d+)\.html', url)
+            if not id_match:
+                id_match = re.search(r'/(\d{10,})', url)
+            
+            if not id_match:
+                result['error'] = 'URL中未找到商品ID'
+                return result
+            
+            result['product_id'] = id_match.group(1)
+            
+            # 提取【文本】中的价格
+            price_match = re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', line)
+            if price_match:
+                try:
+                    result['target_price'] = float(price_match.group(1))
+                except ValueError:
+                    pass
+            
+            # 提取DSID（URL后的最后一个非空字段）
+            remaining = line.replace(url, '').strip()
+            remaining = re.sub(r'【[^】]*】', '', remaining).strip()
+            
+            if remaining:
+                parts = remaining.split()
+                if parts:
+                    result['dsid'] = parts[-1] if parts[-1] and not parts[-1].startswith('【') else None
+            
+            result['valid'] = True
+            
+        except Exception as e:
+            result['error'] = str(e)
+        
+        return result
     
     def _open_pricing_for_selected(self):
         """为选中的数据库记录打开价格计算工具"""
