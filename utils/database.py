@@ -576,9 +576,9 @@ class Database:
             ORDER BY p.created_at DESC
         ''')
     
-    def count_resources(self, product_id: str) -> Optional[Dict]:
+    def count_resources(self, product_id: str) -> Dict:
         """统计商品资源数量"""
-        return self.query_one('''
+        result = self.query_one('''
             SELECT 
                 SUM(CASE WHEN resource_type = 'main_image' THEN 1 ELSE 0 END) as main_images,
                 SUM(CASE WHEN resource_type = 'color_image' THEN 1 ELSE 0 END) as color_images,
@@ -587,6 +587,16 @@ class Database:
             FROM resources
             WHERE product_id = ?
         ''', [product_id])
+        
+        if result is None:
+            return {'main_images': 0, 'color_images': 0, 'detail_images': 0, 'videos': 0}
+        
+        return {
+            'main_images': result.get('main_images') or 0,
+            'color_images': result.get('color_images') or 0,
+            'detail_images': result.get('detail_images') or 0,
+            'videos': result.get('videos') or 0
+        }
     
     def get_sku_prices(self, product_id: str) -> List[Dict]:
         """获取商品的SKU价格"""
