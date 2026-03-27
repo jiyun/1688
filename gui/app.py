@@ -220,6 +220,7 @@ class AlibabaScraperGUI:
         self.db_access_confirmed = False
         
         self.db_welcome_frame = ctk.CTkFrame(self.db_tab)
+        self.db_welcome_frame.pack(fill="both", expand=True)
         
         self.welcome_label = ctk.CTkLabel(
             self.db_welcome_frame, 
@@ -240,9 +241,6 @@ class AlibabaScraperGUI:
         self.enter_btn.pack(pady=20)
         
         self.db_content_frame = ctk.CTkFrame(self.db_tab, fg_color="transparent")
-        self.db_content_frame.pack(fill="both", expand=True)
-        
-        self._refresh_db_data()
         
         self.db_stats_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
         self.db_stats_frame.pack(fill="x", padx=5, pady=5)
