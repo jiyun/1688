@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 1688 商品信息自动采集脚本
-使用 Playwright 控制浏览器，支持加载扩展
-配合 1688 官方插件和 SingleFile 使用
+使用 Playwright 控制浏览器，支持加载 1688 官方插件和 SingleFile 扩展
 """
 
 import subprocess
@@ -26,6 +25,25 @@ def get_product_id_from_url(url: str) -> Optional[str]:
     if match:
         return match.group(1)
     return None
+
+def find_extensions():
+    """查找已安装的浏览器扩展"""
+    extensions = []
+    
+    edge_extensions = os.path.join(
+        os.environ.get('LOCALAPPDATA', ''),
+        'Microsoft', 'Edge', 'User Data', 'Default', 'Extensions'
+    )
+    
+    if os.path.exists(edge_extensions):
+        for item in os.listdir(edge_extensions):
+            item_path = os.path.join(edge_extensions, item)
+            if os.path.isdir(item_path):
+                manifest_path = os.path.join(item_path, 'manifest.json')
+                if os.path.exists(manifest_path):
+                    extensions.append(item_path)
+    
+    return extensions
 
 class AutoCollector:
     """自动采集器"""
@@ -138,17 +156,19 @@ def main():
         print("  --headless    无头模式运行（不显示浏览器窗口）")
         print("  --ext PATH    加载浏览器扩展路径（可多次使用）")
         print("  --delay N     请求间隔秒数（默认3秒）")
+        print("  --auto-ext   自动查找并加载已安装的扩展")
         print("")
         print("示例:")
         print("  python auto_collector.py https://detail.1688.com/offer/123456789.html")
         print("  python auto_collector.py --file urls.txt --headless")
-        print("  python auto_collector.py --ext ./extensions/1688 --ext ./extensions/singlefile https://...")
+        print("  python auto_collector.py --auto-ext https://...")
         sys.exit(1)
     
     urls = []
     headless = '--headless' in sys.argv
     extension_paths = []
     delay = 3
+    auto_find_ext = '--auto-ext' in sys.argv
     
     i = 1
     while i < len(sys.argv):
@@ -169,6 +189,12 @@ def main():
         else:
             i += 1
     
+    if auto_find_ext:
+        found_extensions = find_extensions()
+        if found_extensions:
+            extension_paths = found_extensions
+            print(f"自动发现扩展: {found_extensions}")
+    
     if not urls:
         print("错误: 未提供有效的URL")
         sys.exit(1)
@@ -182,7 +208,7 @@ def main():
     collector = AutoCollector(output_dir='products', headless=headless)
     
     try:
-        collector.start_browser(extension_paths=extension_paths)
+        collector.start_browser(extension_paths=extension_paths if extension_paths else None)
         collector.collect_urls(urls, delay=delay)
     finally:
         collector.close_browser()
