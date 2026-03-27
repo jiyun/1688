@@ -1230,8 +1230,10 @@ class AlibabaScraperGUI:
                 parts = remaining.split()
                 
                 if len(parts) >= 1:
-                    # 最后一个字段作为DSID
-                    result['dsid'] = parts[-1]
+                    # 最后一个字段作为DSID（必须是纯数字）
+                    last_part = parts[-1]
+                    if last_part.isdigit():
+                        result['dsid'] = last_part
                     
                     # 如果有多个字段，中间部分可能包含价格
                     if len(parts) >= 2:
