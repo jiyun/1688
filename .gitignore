@@ -107,3 +107,6 @@ browser_data/
 
 # 采集输出目录
 products/
+
+# 浏览器扩展目录
+extensions/
