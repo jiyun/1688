@@ -82,29 +82,9 @@ class AutoCollector:
         
         args.append('--start-maximized')
         
-        chrome_path = os.path.join(
-            os.environ.get('PROGRAMFILES', ''),
-            'Google', 'Chrome', 'Application', 'chrome.exe'
-        )
-        edge_path = os.path.join(
-            os.environ.get('PROGRAMFILES(X86)', ''),
-            'Microsoft', 'Edge', 'Application', 'msedge.exe'
-        )
-        
-        executable_path = None
-        if os.path.exists(chrome_path):
-            executable_path = chrome_path
-            print(f"使用 Chrome 浏览器: {chrome_path}")
-        elif os.path.exists(edge_path):
-            executable_path = edge_path
-            print(f"使用 Edge 浏览器: {edge_path}")
-        else:
-            print("未找到 Chrome 或 Edge 浏览器，使用默认浏览器")
-        
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir='./browser_data',
             headless=self.headless,
-            executable_path=executable_path,
             args=args if args else None
         )
         
