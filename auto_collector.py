@@ -82,6 +82,17 @@ class AutoCollector:
         
         args.append('--start-maximized')
         
+        extension_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'tools', '1688-extension'
+        )
+        if os.path.exists(extension_dir):
+            args.extend([
+                f'--disable-extensions-except={extension_dir}',
+                f'--load-extension={extension_dir}',
+            ])
+            print(f"加载 1688 扩展: {extension_dir}")
+        
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir='./browser_data',
             headless=self.headless,
