@@ -459,8 +459,11 @@ class ContextMenuCommands:
                     if output_path:
                         cmd.extend(["--output", output_path])
                     
-                    if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
-                        cmd.append("--keep-avif")
+                    if hasattr(self.parent, 'context_menu_manager'):
+                        if self.parent.context_menu_manager.get_avif_support():
+                            cmd.append("--keep-avif")
+                        if self.parent.context_menu_manager.get_webp_support():
+                            cmd.append("--webp-support")
                     
                     env = os.environ.copy()
                     env['NO_COLOR'] = '1'
