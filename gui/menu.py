@@ -596,56 +596,6 @@ class ContextMenuCommands:
         
         thread = threading.Thread(target=recollect_thread, daemon=True)
         thread.start()
-                    
-                    if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
-                        cmd.append("--keep-avif")
-                    
-                    env = os.environ.copy()
-                    env['NO_COLOR'] = '1'
-                    env['TERM'] = 'dumb'
-                    
-                    process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding='utf-8',
-                        bufsize=1,
-                        universal_newlines=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
-                        env=env
-                    )
-                    
-                    while True:
-                        line = process.stdout.readline()
-                        if not line and process.poll() is not None:
-                            break
-                        if line:
-                            line = line.strip()
-                            if line:
-                                if "错误" in line or "失败" in line or "[失败]" in line:
-                                    self.parent.log(line, "error")
-                                elif "成功" in line or "完成" in line:
-                                    self.parent.log(line, "success")
-                                else:
-                                    self.parent.log(line, "info")
-                    
-                    process.wait()
-                    
-                    if process.returncode == 0:
-                        self.parent.queue_manager.file_status[file_path] = "success"
-                        self.parent.log("采集完成", "success")
-                    else:
-                        self.parent.queue_manager.file_status[file_path] = "error"
-                        self.parent.log("采集失败", "error")
-                    
-                    self.parent.queue_manager.update_queue_list()
-            except Exception as e:
-                self.parent.log(f"重新采集失败: {e}", "error")
-        
-        thread = threading.Thread(target=recollect_thread)
-        thread.daemon = True
-        thread.start()
     
     def context_visit_url(self):
         file_path = self.get_selected_file_path()
