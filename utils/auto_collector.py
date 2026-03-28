@@ -137,10 +137,18 @@ class AutoCollector:
     
     def close_browser(self):
         """关闭浏览器"""
-        if self.context:
-            self.context.close()
-        if self.playwright:
-            self.playwright.stop()
+        try:
+            if self.context:
+                self.context.close()
+        except Exception as e:
+            print(f"关闭上下文时出错: {e}")
+        
+        try:
+            if self.playwright:
+                self.playwright.stop()
+        except Exception as e:
+            print(f"停止Playwright时出错: {e}")
+        
         print("浏览器已关闭")
     
     def interactive_mode(self):
