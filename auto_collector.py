@@ -160,7 +160,7 @@ class AutoCollector:
         
         try:
             print("正在打开 1688 首页...")
-            page.goto('https://www.1688.com', wait_until='domcontentloaded', timeout=30000)
+            page.goto('https://www.1688.com', wait_until='domcontentloaded', timeout=15000)
             print("页面加载完成")
         except Exception as e:
             print(f"页面加载失败: {e}")
@@ -180,7 +180,8 @@ class AutoCollector:
         try:
             page = self.context.new_page()
             print(f"正在访问: {url}")
-            page.goto(url, wait_until='networkidle', timeout=60000)
+            # 使用 domcontentloaded 而不是 networkidle，避免超时
+            page.goto(url, wait_until='domcontentloaded', timeout=60000)
             
             print(f"等待页面加载 ({wait_time}秒)...")
             time.sleep(wait_time)
