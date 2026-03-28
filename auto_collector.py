@@ -89,7 +89,15 @@ class AutoCollector:
         
         extensions = []
         if os.path.exists(extension_dir):
-            extensions.append(extension_dir)
+            # 检查manifest.json是否存在
+            manifest_path = os.path.join(extension_dir, 'manifest.json')
+            if os.path.exists(manifest_path):
+                extensions.append(extension_dir)
+                print(f"找到扩展: 1688-extension")
+            else:
+                print(f"警告: 扩展目录缺少manifest.json: {extension_dir}")
+        else:
+            print(f"警告: 扩展目录不存在: {extension_dir}")
         
         if extensions:
             ext_paths = ','.join(extensions)
@@ -98,17 +106,27 @@ class AutoCollector:
                 f'--load-extension={ext_paths}',
             ])
             print(f"加载扩展: {len(extensions)} 个")
-            for ext in extensions:
-                print(f"  - {os.path.basename(ext)}")
         
-        self.context = self.playwright.chromium.launch_persistent_context(
-            user_data_dir='./browser_data',
-            headless=self.headless,
-            args=args if args else None
-        )
-        
-        self.browser = self.context
-        print("浏览器启动成功")
+        try:
+            self.context = self.playwright.chromium.launch_persistent_context(
+                user_data_dir='./browser_data',
+                headless=self.headless,
+                args=args if args else None
+            )
+            self.browser = self.context
+            print("浏览器启动成功")
+        except Exception as e:
+            print(f"浏览器启动失败: {e}")
+            print("尝试不加载扩展启动...")
+            # 不加载扩展重试
+            args = [a for a in args if not a.startswith('--disable-extensions') and not a.startswith('--load-extension')]
+            self.context = self.playwright.chromium.launch_persistent_context(
+                user_data_dir='./browser_data',
+                headless=self.headless,
+                args=args if args else None
+            )
+            self.browser = self.context
+            print("浏览器启动成功（无扩展）")
     
     def close_browser(self):
         """关闭浏览器"""
