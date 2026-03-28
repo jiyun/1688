@@ -53,6 +53,9 @@ class AutoCollector:
     """自动采集器"""
     
     def __init__(self, output_dir: str = 'products', headless: bool = False):
+        # 使用绝对路径
+        if not os.path.isabs(output_dir):
+            output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), output_dir)
         self.output_dir = output_dir
         self.headless = headless
         self.browser = None
@@ -61,6 +64,7 @@ class AutoCollector:
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+            print(f"创建输出目录: {output_dir}")
     
     def start_browser(self, extension_paths: List[str] = None):
         """启动浏览器，支持加载多个扩展"""
