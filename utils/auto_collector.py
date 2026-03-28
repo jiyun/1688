@@ -89,16 +89,16 @@ class AutoCollector:
                 extensions.append(extension_dir)
                 print(f"找到扩展: 1688-extension")
         
-        # 2. SingleFile扩展
+        # 2. SingleFile扩展 (Manifest V3)
         singlefile_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'tools', 'SingleFile-new', 'SingleFile-master'
+            'tools', 'SingleFile-crx'
         )
         if os.path.exists(singlefile_dir):
             manifest_path = os.path.join(singlefile_dir, 'manifest.json')
             if os.path.exists(manifest_path):
                 extensions.append(singlefile_dir)
-                print(f"找到扩展: SingleFile")
+                print(f"找到扩展: SingleFile (Manifest V3)")
         
         # 3. 外部传入的扩展路径
         if extension_paths:
