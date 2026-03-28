@@ -147,11 +147,22 @@ class AutoCollector:
         print("3. 完成后按 Enter 键继续采集...")
         print("=" * 50)
         
-        page = self.context.new_page()
-        page.goto('https://www.1688.com')
+        # 获取现有页面或创建新页面
+        pages = self.context.pages
+        if pages:
+            page = pages[0]
+        else:
+            page = self.context.new_page()
+        
+        try:
+            print("正在打开 1688 首页...")
+            page.goto('https://www.1688.com', wait_until='domcontentloaded', timeout=30000)
+            print("页面加载完成")
+        except Exception as e:
+            print(f"页面加载失败: {e}")
+            print("请手动在浏览器中打开 https://www.1688.com")
         
         input("\n按 Enter 键继续...")
-        page.close()
     
     def save_page(self, url: str, wait_time: int = 5) -> Optional[str]:
         """保存页面"""
