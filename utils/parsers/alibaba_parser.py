@@ -278,29 +278,48 @@ class AlibabaParser(BaseParser):
     def get_detail_images(self) -> List[str]:
         """获取详情图链接"""
         detail_images = []
-        # 尝试多种选择器来找到详情图
-        selectors = [
-            'div.content-detail',
-            'div#detail',
-            'v-detail-p img',
-            'div.module-od-product-description img'
-        ]
         
-        for selector in selectors:
-            img_elements = self.soup.select(selector)
-            for img in img_elements:
-                if 'data-sf-original-src' in img.attrs:
-                    url = self._normalize_url(img['data-sf-original-src'])
-                elif 'data-lazyload-src' in img.attrs:
-                    url = self._normalize_url(img['data-lazyload-src'])
-                elif 'src' in img.attrs and not img['src'].startswith('data:,'):
-                    url = self._normalize_url(img['src'])
-                else:
-                    continue
-                detail_images.append(url)
+        # 方法1: 从 data-lazyload-src 属性提取
+        lazyload_imgs = self.soup.find_all('img', attrs={'data-lazyload-src': True})
+        for img in lazyload_imgs:
+            url = img.get('data-lazyload-src', '')
+            if url and 'alicdn.com' in url:
+                url = self._normalize_url(url)
+                if url not in detail_images:
+                    detail_images.append(url)
         
-        # 过滤掉lazyload.png等占位图和空链接
-        detail_images = [url for url in detail_images if url and 'lazyload.png' not in url]
+        # 方法2: 从 data-sf-original-src 属性提取
+        sf_imgs = self.soup.find_all('img', attrs={'data-sf-original-src': True})
+        for img in sf_imgs:
+            url = img.get('data-sf-original-src', '')
+            if url and 'alicdn.com' in url:
+                url = self._normalize_url(url)
+                if url not in detail_images:
+                    detail_images.append(url)
+        
+        # 方法3: 从普通 img 标签提取
+        all_imgs = self.soup.find_all('img')
+        for img in all_imgs:
+            url = img.get('src', '') or img.get('data-src', '')
+            if url and 'alicdn.com' in url and 'lazyload.png' not in url:
+                url = self._normalize_url(url)
+                if url not in detail_images:
+                    detail_images.append(url)
+        
+        # 方法4: 从背景图片URL提取
+        style_elements = self.soup.find_all(style=True)
+        for elem in style_elements:
+            style = elem.get('style', '')
+            if 'alicdn.com' in style and 'imgextra' in style:
+                import re
+                matches = re.findall(r'url\(["\']?(https?://[^"\']+)["\']?\)', style)
+                for match in matches:
+                    url = self._normalize_url(match)
+                    if url not in detail_images:
+                        detail_images.append(url)
+        
+        # 过滤掉占位图和空链接
+        detail_images = [url for url in detail_images if url and 'lazyload.png' not in url and len(url) > 50]
         
         # 应用WebP格式
         if self.webp_support:
