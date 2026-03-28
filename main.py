@@ -33,11 +33,13 @@ from utils.logger import log_info, log_success, log_warning, log_error
 import config
 
 class AlibabaScraper:
-    def __init__(self, html_file, output_path=None, keep_avif=False, webp_support=False):
+    def __init__(self, html_file, output_path=None, keep_avif=False, webp_support=False, data_only=False, resources_only=False):
         self.html_file = html_file
         self.output_path = output_path
         self.keep_avif = keep_avif
         self.webp_support = webp_support
+        self.data_only = data_only
+        self.resources_only = resources_only
         self.product_id = self._extract_product_id()
         self.parser = None
         self.downloader = Downloader({
@@ -320,7 +322,16 @@ class AlibabaScraper:
         return True
     
     def run(self, create_rebuild_script=True):
-        """运行完整流程"""
+        """运行完整流程
+        
+        Args:
+            create_rebuild_script: 是否创建重建脚本
+            
+        采集模式:
+            - data_only=True: 只采集数据（标题、价格等）
+            - resources_only=True: 只采集资源链接
+            - 两者都为False: 同时采集数据和资源
+        """
         log_info("=== 1688详情页资源采集工具 ====", "Main")
         
         html_abs_path = os.path.abspath(self.html_file)
@@ -361,6 +372,26 @@ class AlibabaScraper:
             log_error("加载HTML文件失败", "Main")
             return False
         
+        # 根据采集模式执行不同操作
+        if self.data_only:
+            # 只采集数据
+            log_info("模式: 只采集数据", "Main")
+            self.extract_product_info()
+            self.extract_prices()
+            log_success("数据采集完成", "Main")
+            return True
+        
+        if self.resources_only:
+            # 只采集资源
+            log_info("模式: 只采集资源", "Main")
+            if not self.extract_resources():
+                log_error("提取资源失败", "Main")
+                return False
+            self.download_resources()
+            log_success("资源采集完成", "Main")
+            return True
+        
+        # 完整采集流程
         # 2. 提取商品详细信息
         self.extract_product_info()
         
@@ -451,6 +482,8 @@ def main():
     output_path = None  # 新增：输出路径参数
     keep_avif = False  # 新增：保留AVIF格式参数
     webp_support = False  # 新增：WebP格式支持参数
+    data_only = False  # 新增：只采集数据
+    resources_only = False  # 新增：只采集资源
     
     # 检查帮助参数
     if len(sys.argv) > 1 and (sys.argv[1] == "--help" or sys.argv[1] == "-h"):
@@ -584,6 +617,12 @@ def main():
                 elif args[i] == "--webp-support":
                     webp_support = True
                     i += 1
+                elif args[i] == "--data-only":
+                    data_only = True
+                    i += 1
+                elif args[i] == "--resources-only":
+                    resources_only = True
+                    i += 1
                 elif args[i] == "--output" and i + 1 < len(args):
                     output_path = args[i + 1]
                     i += 2
@@ -606,7 +645,7 @@ def main():
             log_error(f"HTML文件不存在: {html_file}", "Main")
             return 1
         
-        scraper = AlibabaScraper(html_file, output_path, keep_avif, webp_support)
+        scraper = AlibabaScraper(html_file, output_path, keep_avif, webp_support, data_only, resources_only)
         success = scraper.run(create_rebuild_script)
         
         return 0 if success else 1

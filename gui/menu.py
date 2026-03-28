@@ -417,7 +417,27 @@ class ContextMenuCommands:
         else:
             self.parent.show_info("提示", "文件夹不存在")
     
+    def context_recollect_data(self):
+        """重采数据：只采集HTML里的标题、价格等数据导入数据库"""
+        self._context_recollect_internal(mode='data')
+    
+    def context_recollect_resources(self):
+        """重采资源：只采集HTML里的资源链接"""
+        self._context_recollect_internal(mode='resources')
+    
     def context_recollect(self):
+        """执行重采：同时执行数据与资源采集"""
+        self._context_recollect_internal(mode='all')
+    
+    def _context_recollect_internal(self, mode='all'):
+        """内部重采方法
+        
+        Args:
+            mode: 采集模式
+                - 'data': 只采集数据（标题、价格等）
+                - 'resources': 只采集资源链接
+                - 'all': 同时采集数据和资源
+        """
         file_path = self.get_selected_file_path()
         if not file_path:
             return
@@ -432,87 +452,88 @@ class ContextMenuCommands:
                 self.parent.show_info("错误", f"输出目录名称与商品ID不匹配\n目录: {folder_name}\n商品ID: {product_id}")
                 return
         
-        confirm = self.parent.ask_yes_no("确认", "是否重新采集该资源？\n这将删除现有文件并重新下载。")
+        mode_names = {
+            'data': '重采数据',
+            'resources': '重采资源',
+            'all': '执行重采'
+        }
+        mode_name = mode_names.get(mode, '重新采集')
+        
+        confirm = self.parent.ask_yes_no("确认", f"是否{mode_name}？\n这将更新数据库和/或资源文件。")
         if not confirm:
             return
         
-        self.parent.log(f"重新采集: {os.path.basename(file_path)}")
+        self.parent.log(f"{mode_name}: {os.path.basename(file_path)}")
         
         def recollect_thread():
             try:
-                if folder_path and os.path.exists(folder_path):
-                    self.parent.log(f"正在删除: {folder_path}")
-                    for item in os.listdir(folder_path):
-                        if item.startswith('.'):
-                            continue
-                        item_path = os.path.join(folder_path, item)
-                        if os.path.isfile(item_path):
-                            os.remove(item_path)
-                        elif os.path.isdir(item_path):
-                            shutil.rmtree(item_path)
-                    
-                    self.parent.log("正在重新采集...")
-                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                    
-                    output_path = self.parent.get_output_path()
-                    cmd = ["python", main_py_path, file_path, "--no-rebuild"]
-                    if output_path:
-                        cmd.extend(["--output", output_path])
-                    
-                    if hasattr(self.parent, 'context_menu_manager'):
-                        if self.parent.context_menu_manager.get_avif_support():
-                            cmd.append("--keep-avif")
-                        if self.parent.context_menu_manager.get_webp_support():
-                            cmd.append("--webp-support")
-                    
-                    env = os.environ.copy()
-                    env['NO_COLOR'] = '1'
-                    env['TERM'] = 'dumb'
-                    
-                    process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding='utf-8',
-                        bufsize=1,
-                        universal_newlines=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
-                        env=env
-                    )
-                    
-                    while True:
-                        line = process.stdout.readline()
-                        if not line and process.poll() is not None:
-                            break
+                main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
+                
+                output_path = self.parent.get_output_path()
+                cmd = ["python", main_py_path, file_path, "--no-rebuild"]
+                
+                if output_path:
+                    cmd.extend(["--output", output_path])
+                
+                # 添加采集模式参数
+                if mode == 'data':
+                    cmd.append("--data-only")
+                elif mode == 'resources':
+                    cmd.append("--resources-only")
+                
+                if hasattr(self.parent, 'context_menu_manager'):
+                    if self.parent.context_menu_manager.get_avif_support():
+                        cmd.append("--keep-avif")
+                    if self.parent.context_menu_manager.get_webp_support():
+                        cmd.append("--webp-support")
+                
+                env = os.environ.copy()
+                env['NO_COLOR'] = '1'
+                env['TERM'] = 'dumb'
+                
+                self.parent.log(f"正在{mode_name}...")
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='utf-8',
+                    bufsize=1,
+                    universal_newlines=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                    env=env
+                )
+                
+                while True:
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if line:
+                        line = line.strip()
                         if line:
-                            line = line.strip()
-                            if line:
-                                if "错误" in line or "失败" in line or "[失败]" in line:
-                                    self.parent.log(line, "error")
-                                elif "成功" in line or "完成" in line:
-                                    self.parent.log(line, "success")
-                                else:
-                                    self.parent.log(line, "info")
-                    
-                    process.wait()
-                    
-                    if process.returncode == 0:
-                        self.parent.queue_manager.file_status[file_path] = "success"
-                        self.parent.log("重新采集完成", "success")
-                    else:
-                        self.parent.queue_manager.file_status[file_path] = "error"
-                        self.parent.log("重新采集失败", "error")
-                    
-                    self.parent.queue_manager.update_queue_list()
+                            if "错误" in line or "失败" in line or "[失败]" in line:
+                                self.parent.log(line, "error")
+                            elif "成功" in line or "完成" in line:
+                                self.parent.log(line, "success")
+                            else:
+                                self.parent.log(line, "info")
+                
+                process.wait()
+                
+                if process.returncode == 0:
+                    self.parent.queue_manager.file_status[file_path] = "success"
+                    self.parent.log(f"{mode_name}完成", "success")
                 else:
-                    self.parent.log("文件夹不存在，执行新采集...")
-                    main_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "main.py")
-                    
-                    output_path = self.parent.get_output_path()
-                    cmd = ["python", main_py_path, file_path, "--no-rebuild"]
-                    if output_path:
-                        cmd.extend(["--output", output_path])
+                    self.parent.queue_manager.file_status[file_path] = "error"
+                    self.parent.log(f"{mode_name}失败", "error")
+                
+                self.parent.queue_manager.update_queue_list()
+            except Exception as e:
+                self.parent.log(f"{mode_name}失败: {e}", "error")
+        
+        thread = threading.Thread(target=recollect_thread, daemon=True)
+        thread.start()
                     
                     if hasattr(self.parent, 'context_menu_manager') and self.parent.context_menu_manager.get_avif_support():
                         cmd.append("--keep-avif")
