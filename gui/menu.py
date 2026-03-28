@@ -429,6 +429,68 @@ class ContextMenuCommands:
         """执行重采：同时执行数据与资源采集"""
         self._context_recollect_internal(mode='all')
     
+    def context_online_collect(self):
+        """在线采集：使用浏览器访问页面采集最新数据"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            return
+        
+        # 从文件名提取商品ID
+        product_id = os.path.splitext(os.path.basename(file_path))[0]
+        url = f"https://detail.1688.com/offer/{product_id}.html"
+        
+        confirm = self.parent.ask_yes_no("确认", f"是否在线采集？\n\nURL: {url}")
+        if not confirm:
+            return
+        
+        self.parent.log(f"在线采集: {url}")
+        
+        def collect_thread():
+            try:
+                auto_collector_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), 
+                    "..", "utils", "auto_collector.py"
+                )
+                
+                cmd = ["python", auto_collector_path, url]
+                
+                env = os.environ.copy()
+                env['NO_COLOR'] = '1'
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='gbk',
+                    errors='ignore',
+                    bufsize=1,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                    env=env
+                )
+                
+                while True:
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if line:
+                        line = line.strip()
+                        if line:
+                            self.parent.log(line, "info")
+                
+                process.wait()
+                
+                if process.returncode == 0:
+                    self.parent.log("在线采集完成", "success")
+                else:
+                    self.parent.log("在线采集失败", "error")
+                    
+            except Exception as e:
+                self.parent.log(f"在线采集异常: {e}", "error")
+        
+        thread = threading.Thread(target=collect_thread, daemon=True)
+        thread.start()
+    
     def _context_recollect_internal(self, mode='all'):
         """内部重采方法
         
@@ -815,6 +877,11 @@ class ContextMenuManager:
         self.context_menu.add_cascade(
             label="重新采集",
             menu=recollect_menu
+        )
+        
+        self.context_menu.add_command(
+            label="在线采集",
+            command=self.context_online_collect
         )
         
         self.context_menu.add_separator()

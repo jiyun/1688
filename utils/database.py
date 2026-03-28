@@ -118,6 +118,41 @@ class Database:
         ''')
         
         self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS product_extended (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL UNIQUE,
+                
+                -- 插件导航数据
+                category VARCHAR,
+                listing_date DATE,
+                monthly_sales INTEGER,
+                monthly_dropship INTEGER,
+                yearly_volume INTEGER,
+                yearly_orders INTEGER,
+                review_count INTEGER,
+                positive_rate FLOAT,
+                pickup_rate FLOAT,
+                
+                -- 核心容器数据
+                procurement_trend TEXT,
+                features TEXT,
+                supplier_highlights TEXT,
+                
+                -- 店铺数据
+                shop_name VARCHAR,
+                shop_years INTEGER,
+                shop_category VARCHAR,
+                shop_return_rate FLOAT,
+                shop_service_score FLOAT,
+                shop_delivery_rate FLOAT,
+                shop_positive_rate FLOAT,
+                
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
             CREATE TABLE IF NOT EXISTS pricing (
                 id INTEGER PRIMARY KEY,
                 product_id VARCHAR NOT NULL,
