@@ -631,8 +631,11 @@ class PricingToolGUI:
             price_matrix = {}
             
             for sku in sku_prices:
-                sku_name = sku['sku_name']
-                price = sku['price']
+                sku_name = sku.get('sku_name', '')
+                price = sku.get('price', 0)
+                
+                if not sku_name:
+                    continue
                 
                 # 尝试解析 "颜色>规格" 或 "颜色 规格" 格式
                 if '>' in sku_name:
