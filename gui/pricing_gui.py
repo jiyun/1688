@@ -634,11 +634,15 @@ class PricingToolGUI:
                 sku_name = sku['sku_name']
                 price = sku['price']
                 
-                # 尝试解析 "颜色 规格" 格式
-                parts = sku_name.split()
+                # 尝试解析 "颜色>规格" 或 "颜色 规格" 格式
+                if '>' in sku_name:
+                    parts = sku_name.split('>')
+                else:
+                    parts = sku_name.split()
+                
                 if len(parts) >= 2:
-                    color = parts[0]
-                    size = parts[1]
+                    color = parts[0].strip()
+                    size = parts[1].strip()
                     
                     if color not in colors:
                         colors.append(color)
