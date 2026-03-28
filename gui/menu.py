@@ -433,17 +433,14 @@ class ContextMenuCommands:
         """在线采集：使用浏览器访问页面采集最新数据"""
         file_path = self.get_selected_file_path()
         if not file_path:
+            self.parent.log("请先选择一个文件", "warning")
             return
         
         # 从文件名提取商品ID
         product_id = os.path.splitext(os.path.basename(file_path))[0]
         url = f"https://detail.1688.com/offer/{product_id}.html"
         
-        confirm = self.parent.ask_yes_no("确认", f"是否在线采集？\n\nURL: {url}")
-        if not confirm:
-            return
-        
-        self.parent.log(f"在线采集: {url}")
+        self.parent.log(f"准备在线采集: {url}", "info")
         
         def collect_thread():
             try:
@@ -451,6 +448,12 @@ class ContextMenuCommands:
                     os.path.dirname(os.path.abspath(__file__)), 
                     "..", "utils", "auto_collector.py"
                 )
+                
+                if not os.path.exists(auto_collector_path):
+                    self.parent.log(f"采集器不存在: {auto_collector_path}", "error")
+                    return
+                
+                self.parent.log(f"启动采集器...", "info")
                 
                 cmd = ["python", auto_collector_path, url]
                 
