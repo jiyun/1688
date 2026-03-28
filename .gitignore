@@ -104,6 +104,10 @@ old-0306/
 
 # 浏览器数据目录
 browser_data/
+browser_data_new/
+
+# 扩展目录
+extensions/
 
 # 采集输出目录
 products/
