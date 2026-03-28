@@ -109,7 +109,7 @@ class AutoCollector:
         
         try:
             self.context = self.playwright.chromium.launch_persistent_context(
-                user_data_dir='./browser_data',
+                user_data_dir='./browser_data_new',
                 headless=self.headless,
                 args=args if args else None
             )
@@ -121,7 +121,7 @@ class AutoCollector:
             # 不加载扩展重试
             args = [a for a in args if not a.startswith('--disable-extensions') and not a.startswith('--load-extension')]
             self.context = self.playwright.chromium.launch_persistent_context(
-                user_data_dir='./browser_data',
+                user_data_dir='./browser_data_new',
                 headless=self.headless,
                 args=args if args else None
             )
