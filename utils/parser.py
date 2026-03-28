@@ -11,12 +11,12 @@ from utils.parsers.base_parser import BaseParser
 class HTMLParser:
     """HTML解析器 - 兼容层，自动选择平台解析器"""
     
-    def __init__(self, html_content: str, keep_avif: bool = False):
+    def __init__(self, html_content: str, keep_avif: bool = False, webp_support: bool = False):
         self.html_content = html_content
         self.soup = BeautifulSoup(html_content, 'html.parser')
         
         # 使用工厂创建解析器
-        self._parser = ParserFactory.create_parser(html_content, keep_avif=keep_avif)
+        self._parser = ParserFactory.create_parser(html_content, keep_avif=keep_avif, webp_support=webp_support)
         self._platform = self._parser.get_platform() if self._parser else 'unknown'
     
     def get_platform(self) -> str:

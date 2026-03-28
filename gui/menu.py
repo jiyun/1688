@@ -716,6 +716,7 @@ class ContextMenuManager:
     def _create_context_menu(self):
         self.context_menu = tk.Menu(self.root, tearoff=0)
         
+        # 图像优化菜单
         image_menu = tk.Menu(self.context_menu, tearoff=0)
         
         image_menu.add_checkbutton(
@@ -723,32 +724,20 @@ class ContextMenuManager:
             variable=self.checkbox_vars['with_animated']
         )
         
-        image_menu.add_checkbutton(
-            label="AVIF支持",
-            variable=self.checkbox_vars['avif_support']
-        )
-        
-        webp_menu = tk.Menu(image_menu, tearoff=0)
-        webp_menu.add_checkbutton(
+        # WebP选项作为支持动图的子菜单
+        webp_submenu = tk.Menu(image_menu, tearoff=0)
+        webp_submenu.add_checkbutton(
             label="支持主图",
-            variable=self.checkbox_vars['webp_main'],
-            state=tk.DISABLED
+            variable=self.checkbox_vars['webp_main']
         )
-        webp_menu.add_checkbutton(
+        webp_submenu.add_checkbutton(
             label="支持色卡图",
-            variable=self.checkbox_vars['webp_color'],
-            state=tk.DISABLED
+            variable=self.checkbox_vars['webp_color']
         )
         
-        image_menu.add_checkbutton(
-            label="WebP支持",
-            variable=self.checkbox_vars['webp_support'],
-            command=self._toggle_webp_options
-        )
         image_menu.add_cascade(
             label="WebP选项",
-            menu=webp_menu,
-            state=tk.DISABLED
+            menu=webp_submenu
         )
         
         image_menu.add_separator()
@@ -767,11 +756,46 @@ class ContextMenuManager:
             label="资源打包",
             command=lambda: self._call_command("context_pack_files")
         )
+        
         self.context_menu.add_separator()
-        self.context_menu.add_command(
-            label="重新采集",
+        
+        # 重新采集菜单（改为目录）
+        recollect_menu = tk.Menu(self.context_menu, tearoff=0)
+        
+        recollect_menu.add_command(
+            label="重采数据",
+            command=lambda: self._call_command("context_recollect_data")
+        )
+        
+        recollect_menu.add_separator()
+        
+        recollect_menu.add_command(
+            label="重采资源",
             command=lambda: self._call_command("context_recollect")
         )
+        
+        recollect_menu.add_checkbutton(
+            label="AVIF支持",
+            variable=self.checkbox_vars['avif_support']
+        )
+        
+        recollect_menu.add_checkbutton(
+            label="WebP支持",
+            variable=self.checkbox_vars['webp_support']
+        )
+        
+        recollect_menu.add_separator()
+        
+        recollect_menu.add_command(
+            label="执行重采",
+            command=lambda: self._call_command("context_recollect")
+        )
+        
+        self.context_menu.add_cascade(
+            label="重新采集",
+            menu=recollect_menu
+        )
+        
         self.context_menu.add_separator()
         self.context_menu.add_command(
             label="访问原址 ©",
