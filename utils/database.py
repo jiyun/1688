@@ -109,8 +109,10 @@ class Database:
                 id INTEGER PRIMARY KEY,
                 product_id VARCHAR NOT NULL,
                 sku_name VARCHAR,
+                sku_id VARCHAR,
                 price DOUBLE,
                 original_price DOUBLE,
+                stock INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -544,13 +546,15 @@ class Database:
             self.insert('products', {'product_id': product_id, 'status': 'pending'})
     
     def save_sku_prices(self, product_id: str, sku_prices: List[Dict]):
-        """保存SKU价格"""
+        """保存SKU价格和库存"""
         for sku in sku_prices:
             self.insert('sku_prices', {
                 'product_id': product_id,
-                'sku_name': sku.get('name', ''),
+                'sku_name': sku.get('sku_name', sku.get('name', '')),
+                'sku_id': sku.get('sku_id', ''),
                 'price': sku.get('price', 0),
-                'original_price': sku.get('original_price')
+                'original_price': sku.get('original_price'),
+                'stock': sku.get('stock', 0)
             })
     
     def save_consign_prices(self, product_id: str, consign_prices: List[Dict]):
@@ -599,9 +603,9 @@ class Database:
         }
     
     def get_sku_prices(self, product_id: str) -> List[Dict]:
-        """获取商品的SKU价格"""
+        """获取商品的SKU价格和库存"""
         return self.query('''
-            SELECT id, product_id, sku_name, price, original_price, created_at
+            SELECT id, product_id, sku_name, sku_id, price, original_price, stock, created_at
             FROM sku_prices
             WHERE product_id = ?
             ORDER BY id

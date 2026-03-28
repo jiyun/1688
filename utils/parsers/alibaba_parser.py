@@ -430,6 +430,86 @@ class AlibabaParser(BaseParser):
         extractor = PriceExtractor(self.html_content)
         return extractor.extract_all_prices()
     
+    def get_sku_matrix(self) -> List[Dict]:
+        """提取SKU矩阵数据（新版页面格式）
+        
+        从 skuInfoMapOriginal JSON数据中提取：
+        - specAttrs: SKU名称（如：酒红色>均码M80-125）
+        - price: 售价
+        - discountPrice: 折扣价
+        - canBookCount: 库存
+        - skuId: SKU ID
+        """
+        sku_list = []
+        
+        # 方法1: 从JavaScript数据中提取skuInfoMapOriginal
+        sku_pattern = r'"skuInfoMapOriginal"\s*:\s*(\{[^}]+\})'
+        match = re.search(sku_pattern, self.html_content)
+        
+        if match:
+            try:
+                import json
+                sku_json_str = match.group(1)
+                # 处理JSON字符串
+                sku_data = json.loads(sku_json_str)
+                
+                for spec_id, sku_info in sku_data.items():
+                    sku_item = {
+                        'sku_name': sku_info.get('specAttrs', ''),
+                        'sku_id': str(sku_info.get('skuId', '')),
+                        'price': float(sku_info.get('price', 0)),
+                        'original_price': float(sku_info.get('discountPrice', 0)),
+                        'stock': int(sku_info.get('canBookCount', 0))
+                    }
+                    sku_list.append(sku_item)
+                
+                return sku_list
+            except (json.JSONDecodeError, ValueError) as e:
+                pass
+        
+        # 方法2: 从全局变量中提取
+        global_pattern = r'window\.__INIT_DATA__\s*=\s*({[^;]+});'
+        match = re.search(global_pattern, self.html_content)
+        
+        if match:
+            try:
+                import json
+                global_data = json.loads(match.group(1))
+                
+                # 尝试从不同路径获取SKU数据
+                paths = [
+                    ['globalData', 'offerBaseInfo', 'skuInfoMapOriginal'],
+                    ['offerBaseInfo', 'skuInfoMapOriginal'],
+                    ['skuInfoMapOriginal']
+                ]
+                
+                for path in paths:
+                    data = global_data
+                    for key in path:
+                        if isinstance(data, dict) and key in data:
+                            data = data[key]
+                        else:
+                            data = None
+                            break
+                    
+                    if data and isinstance(data, dict):
+                        for spec_id, sku_info in data.items():
+                            sku_item = {
+                                'sku_name': sku_info.get('specAttrs', ''),
+                                'sku_id': str(sku_info.get('skuId', '')),
+                                'price': float(sku_info.get('price', 0)),
+                                'original_price': float(sku_info.get('discountPrice', 0)),
+                                'stock': int(sku_info.get('canBookCount', 0))
+                            }
+                            sku_list.append(sku_item)
+                        
+                        if sku_list:
+                            return sku_list
+            except (json.JSONDecodeError, ValueError):
+                pass
+        
+        return sku_list
+    
     def get_title(self) -> Optional[str]:
         """获取商品标题"""
         selectors = [
