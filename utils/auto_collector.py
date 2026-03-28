@@ -73,35 +73,38 @@ class AutoCollector:
         
         self.playwright = sync_playwright().start()
         
-        args = []
-        if extension_paths:
-            valid_extensions = [p for p in extension_paths if os.path.exists(p)]
-            if valid_extensions:
-                ext_paths = ','.join(valid_extensions)
-                args.extend([
-                    f'--disable-extensions-except={ext_paths}',
-                    f'--load-extension={ext_paths}',
-                ])
-                print(f"加载扩展: {len(valid_extensions)} 个")
+        args = ['--start-maximized']
         
-        args.append('--start-maximized')
+        # 收集所有扩展路径
+        extensions = []
         
+        # 1. 1688-extension
         extension_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             'tools', '1688-extension'
         )
-        
-        extensions = []
         if os.path.exists(extension_dir):
-            # 检查manifest.json是否存在
             manifest_path = os.path.join(extension_dir, 'manifest.json')
             if os.path.exists(manifest_path):
                 extensions.append(extension_dir)
                 print(f"找到扩展: 1688-extension")
-            else:
-                print(f"警告: 扩展目录缺少manifest.json: {extension_dir}")
-        else:
-            print(f"警告: 扩展目录不存在: {extension_dir}")
+        
+        # 2. SingleFile扩展
+        singlefile_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'tools', 'SingleFile-new', 'SingleFile-master'
+        )
+        if os.path.exists(singlefile_dir):
+            manifest_path = os.path.join(singlefile_dir, 'manifest.json')
+            if os.path.exists(manifest_path):
+                extensions.append(singlefile_dir)
+                print(f"找到扩展: SingleFile")
+        
+        # 3. 外部传入的扩展路径
+        if extension_paths:
+            for ext_path in extension_paths:
+                if os.path.exists(ext_path) and ext_path not in extensions:
+                    extensions.append(ext_path)
         
         if extensions:
             ext_paths = ','.join(extensions)
@@ -115,7 +118,7 @@ class AutoCollector:
             self.context = self.playwright.chromium.launch_persistent_context(
                 user_data_dir='./browser_data_new',
                 headless=self.headless,
-                args=args if args else None
+                args=args
             )
             self.browser = self.context
             print("浏览器启动成功")
@@ -127,7 +130,7 @@ class AutoCollector:
             self.context = self.playwright.chromium.launch_persistent_context(
                 user_data_dir='./browser_data_new',
                 headless=self.headless,
-                args=args if args else None
+                args=args
             )
             self.browser = self.context
             print("浏览器启动成功（无扩展）")
