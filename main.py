@@ -33,16 +33,17 @@ from utils.logger import log_info, log_success, log_warning, log_error
 import config
 
 class AlibabaScraper:
-    def __init__(self, html_file, output_path=None, keep_avif=False):
+    def __init__(self, html_file, output_path=None, keep_avif=False, webp_support=False):
         self.html_file = html_file
         self.output_path = output_path
         self.keep_avif = keep_avif
+        self.webp_support = webp_support
         self.product_id = self._extract_product_id()
         self.parser = None
         self.downloader = Downloader({
             'DOWNLOAD_CONF': config.DOWNLOAD_CONF,
             'FILE_NAMING': config.FILE_NAMING
-        }, keep_avif=self.keep_avif)
+        }, keep_avif=self.keep_avif, webp_support=self.webp_support)
         self.file_handler = FileHandler({
             'DOWNLOAD_CONF': config.DOWNLOAD_CONF,
             'FILE_NAMING': config.FILE_NAMING
@@ -59,7 +60,7 @@ class AlibabaScraper:
         try:
             with open(self.html_file, 'r', encoding='utf-8') as f:
                 html_content = f.read()
-            self.parser = HTMLParser(html_content, keep_avif=self.keep_avif)
+            self.parser = HTMLParser(html_content, keep_avif=self.keep_avif, webp_support=self.webp_support)
             return True
         except Exception as e:
             log_error(f"HTML文件加载失败: {e}", "Main")
@@ -579,6 +580,9 @@ def main():
                 elif args[i] == "--keep-avif":
                     keep_avif = True
                     i += 1
+                elif args[i] == "--webp-support":
+                    webp_support = True
+                    i += 1
                 elif args[i] == "--output" and i + 1 < len(args):
                     output_path = args[i + 1]
                     i += 2
@@ -601,7 +605,7 @@ def main():
             log_error(f"HTML文件不存在: {html_file}", "Main")
             return 1
         
-        scraper = AlibabaScraper(html_file, output_path, keep_avif)
+        scraper = AlibabaScraper(html_file, output_path, keep_avif, webp_support)
         success = scraper.run(create_rebuild_script)
         
         return 0 if success else 1

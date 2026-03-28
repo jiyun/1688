@@ -833,6 +833,9 @@ class ContextMenuManager:
     def get_avif_support(self) -> bool:
         return self.checkbox_vars['avif_support'].get()
     
+    def get_webp_support(self) -> bool:
+        return self.checkbox_vars['webp_support'].get()
+    
     def _call_command(self, command_name):
         if hasattr(self.parent_widget, command_name):
             command = getattr(self.parent_widget, command_name)
