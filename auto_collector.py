@@ -86,16 +86,10 @@ class AutoCollector:
             os.path.dirname(os.path.abspath(__file__)),
             'tools', '1688-extension'
         )
-        singlefile_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'tools', 'SingleFile-master'
-        )
         
         extensions = []
         if os.path.exists(extension_dir):
             extensions.append(extension_dir)
-        if os.path.exists(singlefile_dir):
-            extensions.append(singlefile_dir)
         
         if extensions:
             ext_paths = ','.join(extensions)
