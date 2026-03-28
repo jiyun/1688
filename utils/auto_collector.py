@@ -144,13 +144,17 @@ class AutoCollector:
         print("浏览器已关闭")
     
     def interactive_mode(self):
-        """交互模式：等待用户登录和安装插件"""
+        """交互模式：等待用户登录和初始化扩展"""
         print("\n" + "=" * 50)
         print("交互模式")
         print("=" * 50)
         print("请在浏览器中完成以下操作：")
         print("1. 登录 1688 账号")
-        print("2. 安装需要的浏览器插件")
+        print("2. 初始化 SingleFile 扩展设置：")
+        print("   - 点击浏览器右上角 SingleFile 图标")
+        print("   - 点击齿轮图标进入设置")
+        print("   - 勾选 '保存原始HTML' 选项")
+        print("   - 其他选项根据需要调整")
         print("3. 完成后按 Enter 键继续采集...")
         print("=" * 50)
         
