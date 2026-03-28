@@ -202,6 +202,9 @@ class AutoCollector:
             time.sleep(wait_time)
             
             print("正在保存页面...")
+            print("提示: 可以使用 SingleFile 扩展保存完整页面 (Ctrl+Shift+Y)")
+            print("SingleFile 保存位置: 浏览器下载目录")
+            
             html_content = page.content()
             
             # 验证内容长度
