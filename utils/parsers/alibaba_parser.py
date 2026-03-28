@@ -167,7 +167,11 @@ class AlibabaParser(BaseParser):
         # 但要确保至少取5张（如果主图区有5张的话）
         if len(main_area_all_urls) == 5:
             # 主图区刚好5张，直接返回
-            return main_area_all_urls[:5]
+            result = main_area_all_urls[:5]
+            if self.webp_support:
+                return [self._apply_webp_format(url) for url in result]
+            return result
+            return [self._apply_webp_format(url) for url in result] if self.webp_support else result
         
         # 计算非色卡图片数量
         non_color_card_count = len(main_area_all_urls) - main_area_color_card_count
@@ -181,7 +185,7 @@ class AlibabaParser(BaseParser):
                     main_images.append(url)
                     if len(main_images) >= 5:
                         break
-            return main_images
+            return [self._apply_webp_format(url) for url in main_images] if self.webp_support else main_images
         
         # 非色卡图片不足5张，先取非色卡图片，再补充色卡图片
         main_images = []
@@ -206,7 +210,7 @@ class AlibabaParser(BaseParser):
                         if len(main_images) >= 5:
                             break
         
-        return main_images
+        return [self._apply_webp_format(url) for url in main_images] if self.webp_support else main_images
     
     def get_color_options(self) -> List[Tuple[str, Optional[str]]]:
         """获取颜色选项"""
@@ -286,14 +290,22 @@ class AlibabaParser(BaseParser):
             img_elements = self.soup.select(selector)
             for img in img_elements:
                 if 'data-sf-original-src' in img.attrs:
-                    detail_images.append(img['data-sf-original-src'])
+                    url = self._normalize_url(img['data-sf-original-src'])
                 elif 'data-lazyload-src' in img.attrs:
-                    detail_images.append(img['data-lazyload-src'])
+                    url = self._normalize_url(img['data-lazyload-src'])
                 elif 'src' in img.attrs and not img['src'].startswith('data:,'):
-                    detail_images.append(img['src'])
+                    url = self._normalize_url(img['src'])
+                else:
+                    continue
+                detail_images.append(url)
         
         # 过滤掉lazyload.png等占位图和空链接
         detail_images = [url for url in detail_images if url and 'lazyload.png' not in url]
+        
+        # 应用WebP格式
+        if self.webp_support:
+            detail_images = [self._apply_webp_format(url) for url in detail_images]
+        
         return detail_images
     
     def get_videos(self) -> List[str]:
