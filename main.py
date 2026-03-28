@@ -450,6 +450,7 @@ def main():
     convert_color = False
     output_path = None  # 新增：输出路径参数
     keep_avif = False  # 新增：保留AVIF格式参数
+    webp_support = False  # 新增：WebP格式支持参数
     
     # 检查帮助参数
     if len(sys.argv) > 1 and (sys.argv[1] == "--help" or sys.argv[1] == "-h"):
