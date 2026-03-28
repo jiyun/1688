@@ -728,7 +728,7 @@ class ContextMenuCommands:
                 self.parent.log(f"已复制商品链接: {url}")
 
 
-class ContextMenuManager:
+class ContextMenuManager(ContextMenuCommands):
     """上下文菜单管理器"""
     
     def __init__(self, root, parent_widget):
