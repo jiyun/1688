@@ -14,12 +14,13 @@ class ParserFactory:
     }
     
     @classmethod
-    def create_parser(cls, html_content: str, keep_avif: bool = False) -> Optional[BaseParser]:
+    def create_parser(cls, html_content: str, keep_avif: bool = False, webp_support: bool = False) -> Optional[BaseParser]:
         """根据HTML内容创建合适的解析器
         
         Args:
             html_content: HTML内容
             keep_avif: 是否保留AVIF格式（仅京东平台有效）
+            webp_support: 是否支持WebP格式（仅阿里平台有效）
         
         Returns:
             对应平台的解析器实例，如果无法识别则返回None
@@ -34,6 +35,9 @@ class ParserFactory:
             # 京东解析器支持keep_avif参数
             if platform == 'jd':
                 return parser_class(html_content, keep_avif=keep_avif)
+            # 阿里解析器支持webp_support参数
+            elif platform == 'alibaba':
+                return parser_class(html_content, keep_avif=keep_avif, webp_support=webp_support)
             return parser_class(html_content)
         
         return None

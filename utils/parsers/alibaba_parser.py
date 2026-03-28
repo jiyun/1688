@@ -9,6 +9,11 @@ class AlibabaParser(BaseParser):
     
     PLATFORM = 'alibaba'
     
+    def __init__(self, html_content: str, keep_avif: bool = False, webp_support: bool = False):
+        super().__init__(html_content)
+        self.keep_avif = keep_avif
+        self.webp_support = webp_support
+    
     @staticmethod
     def detect_platform(html_content: str) -> bool:
         """检测是否为1688/阿里巴巴页面"""
@@ -32,6 +37,26 @@ class AlibabaParser(BaseParser):
         if '.jpg_sum' in url:
             url = url.replace('.jpg_sum', '')
         return url
+    
+    def _apply_webp_format(self, url: str) -> str:
+        """应用WebP格式（阿里平台专用）
+        
+        阿里平台图片支持WebP格式，通过在URL末尾添加_.webp后缀获取
+        """
+        if not self.webp_support:
+            return url
+        
+        # 如果URL已经包含_.webp，不再重复添加
+        if url.endswith('_.webp'):
+            return url
+        
+        # 移除现有的扩展名后缀（如.jpg），然后添加_.webp
+        # 阿里CDN图片URL格式：https://cbu01.alicdn.com/img/ibank/O1CN01xxx_.webp
+        if re.search(r'\.(jpg|jpeg|png|gif)(_\w+)?$', url, re.IGNORECASE):
+            # 移除扩展名及其后缀
+            url = re.sub(r'\.(jpg|jpeg|png|gif)(_\w+)?$', '', url, flags=re.IGNORECASE)
+        
+        return url + '_.webp'
     
     def _get_color_card_urls(self) -> Tuple[List[str], set]:
         """获取色卡区所有图片URL（优先完整获取）"""

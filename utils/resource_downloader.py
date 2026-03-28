@@ -198,7 +198,7 @@ class ResourceDownloader:
         for f in os.listdir(self.output_base_dir):
             filepath = os.path.join(self.output_base_dir, f)
             if os.path.isfile(filepath) and os.path.getsize(filepath) < min_size:
-                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webp')):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.mp4')):
                     os.remove(filepath)
                     cleaned += 1
         return cleaned

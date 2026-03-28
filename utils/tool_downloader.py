@@ -332,13 +332,14 @@ if __name__ == '__main__':
 class Downloader:
     """下载管理器"""
     
-    def __init__(self, config, keep_avif=False):
+    def __init__(self, config, keep_avif=False, webp_support=False):
         self.config = config
         self.keep_avif = keep_avif
+        self.webp_support = webp_support
     
     def _clean_duplicate_extension(self, url):
         """清理URL中的重复扩展名，如.jpg_b.jpg -> .jpg"""
-        media_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.mp4', '.avi', '.mov']
+        media_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.mp4', '.avi', '.mov']
 
         for ext in media_extensions:
             ext_positions = []
@@ -357,12 +358,24 @@ class Downloader:
         return url
 
     def _clean_url(self, url):
-        """清理URL，删除扩展名后的查询参数和重复扩展名"""
+        """清理URL，删除扩展名后的查询参数和重复扩展名
+        
+        JD平台：保留AVIF格式（如果keep_avif=True）
+        阿里平台：保留WebP格式（如果webp_support=True）
+        """
         url = self._clean_duplicate_extension(url)
         
+        # JD平台AVIF处理
         if not self.keep_avif and url.endswith('.avif'):
             url = url[:-5]
-
+        
+        # 阿里平台WebP处理
+        # 如果启用了WebP支持且URL以_.webp结尾
+        if self.webp_support and url.endswith('_.webp'):
+            pass  # 保留WebP格式
+        elif url.endswith('_.webp'):
+            url = url[:-6]  # 移除WebP后缀
+        
         if '?' in url:
             base_url = url.split('?')[0]
             return base_url
@@ -429,7 +442,8 @@ class Downloader:
         for file in os.listdir(directory):
             file_path = os.path.join(directory, file)
             if os.path.isfile(file_path):
-                if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov', '.webp')):
+                # 支持更多图片格式：JPG, PNG, GIF, WebP, AVIF, 视频格式
+                if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.mp4', '.avi', '.mov')):
                     file_size = os.path.getsize(file_path)
                     if file_size < min_size:
                         os.remove(file_path)
