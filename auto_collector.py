@@ -184,12 +184,24 @@ class AutoCollector:
             print("正在保存页面...")
             html_content = page.content()
             
+            # 验证内容长度
+            content_len = len(html_content)
+            if content_len < 1000:
+                print(f"警告: 页面内容过短 ({content_len} 字节)")
+            
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(html_content)
             
             page.close()
-            print(f"页面保存成功: {output_file}")
-            return output_file
+            
+            # 验证文件是否保存成功
+            if os.path.exists(output_file):
+                file_size = os.path.getsize(output_file)
+                print(f"页面保存成功: {output_file} ({file_size} 字节)")
+                return output_file
+            else:
+                print(f"文件保存失败: 文件不存在")
+                return None
             
         except Exception as e:
             print(f"保存页面失败: {e}")
