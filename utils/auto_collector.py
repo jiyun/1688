@@ -151,8 +151,12 @@ class AutoCollector:
         
         print("浏览器已关闭")
     
-    def interactive_mode(self):
-        """交互模式：等待用户登录和初始化扩展"""
+    def interactive_mode(self, target_url: str = None):
+        """交互模式：等待用户登录和初始化扩展
+        
+        Args:
+            target_url: 目标页面URL，如果提供则在登录后自动打开
+        """
         print("\n" + "=" * 50)
         print("交互模式")
         print("=" * 50)
@@ -173,13 +177,24 @@ class AutoCollector:
         else:
             page = self.context.new_page()
         
-        try:
-            print("正在打开 1688 首页...")
-            page.goto('https://www.1688.com', wait_until='domcontentloaded', timeout=15000)
-            print("页面加载完成")
-        except Exception as e:
-            print(f"页面加载失败: {e}")
-            print("请手动在浏览器中打开 https://www.1688.com")
+        # 如果有目标URL，直接打开目标页面
+        if target_url:
+            try:
+                print(f"正在打开目标页面: {target_url}")
+                page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
+                print("目标页面加载完成")
+                print("\n提示: 可以使用 SingleFile 保存完整页面 (Ctrl+Shift+Y)")
+            except Exception as e:
+                print(f"目标页面加载失败: {e}")
+                print("请手动在浏览器中打开目标页面")
+        else:
+            try:
+                print("正在打开 1688 首页...")
+                page.goto('https://www.1688.com', wait_until='domcontentloaded', timeout=15000)
+                print("页面加载完成")
+            except Exception as e:
+                print(f"页面加载失败: {e}")
+                print("请手动在浏览器中打开 https://www.1688.com")
         
         input("\n按 Enter 键继续...")
     
@@ -325,7 +340,9 @@ def main():
         collector.start_browser(extension_paths=extension_paths if extension_paths else None)
         
         if interactive:
-            collector.interactive_mode()
+            # 交互模式：如果有URL，打开第一个URL让用户操作
+            target_url = urls[0] if urls else None
+            collector.interactive_mode(target_url=target_url)
             if urls:
                 collector.collect_urls(urls, delay=delay)
             else:
