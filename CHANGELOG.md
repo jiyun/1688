@@ -4,6 +4,39 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [0.4.2] - 2026-03-29
+
+### 新增
+
+#### 数据库重构
+- 全面重构数据库架构，优化表结构和索引
+- 新增 product_extended 表存储扩展数据
+- 新增 sku_prices 表存储SKU价格矩阵
+- 创建 v_product_full、v_resource_stats、v_price_stats 视图
+- 新增数据库迁移脚本 (migrate_database.py)
+
+#### GUI增强
+- 数据库选项卡新增高级筛选功能（平台/发货地/状态）
+- 新增数据库查看器模块 (db_viewer.py)
+- 定价工具支持从数据库加载SKU价格矩阵
+- 移除关于页面Gitee链接
+
+#### 采集功能
+- 新增 SingleFile 扩展配置工具
+- 新增 CRX 扩展解压工具
+- auto_collector.py 移动到 utils/ 目录
+
+### 修复
+
+- 修复定价工具无法读取数据库SKU价格问题
+- 修复 get_sku_prices 方法SQL查询字段不匹配问题
+- 修复 SKU 价格解析优先使用 color/size 字段
+
+### 优化
+
+- 更新数据库重构规划文档完成状态
+- 更新新数据源采集规划文档完成状态
+
 ## [0.4.0] - 2026-03-24
 
 ### 新增

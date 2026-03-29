@@ -323,6 +323,18 @@ class AlibabaScraperGUI:
             values=["全部", "alibaba", "jd"], width=80, command=self._filter_by_platform)
         self.db_platform_menu.pack(side="left", padx=2)
         
+        ctk.CTkLabel(self.db_filter_frame, text="发货地:").pack(side="left", padx=(10, 0))
+        self.db_ship_from_var = ctk.StringVar(value="全部")
+        self.db_ship_from_menu = ctk.CTkOptionMenu(self.db_filter_frame, variable=self.db_ship_from_var,
+            values=["全部"], width=80, command=self._filter_by_ship_from)
+        self.db_ship_from_menu.pack(side="left", padx=2)
+        
+        ctk.CTkLabel(self.db_filter_frame, text="状态:").pack(side="left", padx=(10, 0))
+        self.db_status_var = ctk.StringVar(value="全部")
+        self.db_status_menu = ctk.CTkOptionMenu(self.db_filter_frame, variable=self.db_status_var,
+            values=["全部", "完成", "待处理"], width=80, command=self._filter_by_status)
+        self.db_status_menu.pack(side="left", padx=2)
+        
         self.db_refresh_btn = create_button(self.db_btn_frame, "刷新", self._refresh_db_data, 'secondary', width=60)
         self.db_refresh_btn.pack(side="left", padx=5)
         
@@ -379,19 +391,6 @@ class AlibabaScraperGUI:
         self.github_label.bind("<Button-1>", lambda e: self._open_url(github_url))
         self.github_label.bind("<Enter>", lambda e: self.github_label.configure(text_color="#1a5fb7"))
         self.github_label.bind("<Leave>", lambda e: self.github_label.configure(text_color="#1f6feb"))
-        
-        gitee_url = "https://gitee.com/jiyunui/1688/"
-        self.gitee_label = ctk.CTkLabel(
-            about_frame,
-            text=f"Gitee: {gitee_url}",
-            font=(self.available_font, self.font_size_subtitle),
-            text_color="#1f6feb",
-            cursor="hand2"
-        )
-        self.gitee_label.pack(pady=5)
-        self.gitee_label.bind("<Button-1>", lambda e: self._open_url(gitee_url))
-        self.gitee_label.bind("<Enter>", lambda e: self.gitee_label.configure(text_color="#1a5fb7"))
-        self.gitee_label.bind("<Leave>", lambda e: self.gitee_label.configure(text_color="#1f6feb"))
         
         self.desc_label = ctk.CTkLabel(
             about_frame,
@@ -695,11 +694,29 @@ class AlibabaScraperGUI:
                     ))
                 
                 self.db_status_label.configure(text=f"共 {len(products)} 条")
+                
+                self._update_ship_from_options(db, stats)
             finally:
                 db.close()
         except Exception as e:
             self.log(f"读取数据库失败: {e}", "error")
             self.db_status_label.configure(text="读取失败")
+    
+    def _update_ship_from_options(self, db, stats):
+        """更新发货地筛选选项"""
+        try:
+            ship_from_list = ["全部"]
+            for ship_from, count in stats.get('by_ship_from', {}).items():
+                if ship_from and ship_from.strip():
+                    ship_from_list.append(ship_from)
+            
+            current_selection = self.db_ship_from_var.get()
+            self.db_ship_from_menu.configure(values=ship_from_list)
+            
+            if current_selection not in ship_from_list:
+                self.db_ship_from_var.set("全部")
+        except Exception:
+            pass
     
     def _search_db_records(self):
         """搜索数据库记录 - 自动匹配商品ID和DSID"""
@@ -771,6 +788,18 @@ class AlibabaScraperGUI:
     
     def _filter_by_platform(self, platform: str):
         """按平台过滤"""
+        self._apply_db_filters()
+    
+    def _filter_by_ship_from(self, ship_from: str):
+        """按发货地过滤"""
+        self._apply_db_filters()
+    
+    def _filter_by_status(self, status: str):
+        """按状态过滤"""
+        self._apply_db_filters()
+    
+    def _apply_db_filters(self):
+        """应用所有筛选条件"""
         for item in self.db_tree.get_children():
             self.db_tree.delete(item)
         
@@ -778,10 +807,20 @@ class AlibabaScraperGUI:
             from utils.database import get_shared_db
             db = get_shared_db()
             
-            if platform == "全部":
+            platform = self.db_platform_var.get()
+            ship_from = self.db_ship_from_var.get()
+            status = self.db_status_var.get()
+            
+            if platform == "全部" and ship_from == "全部" and status == "全部":
                 products = db.get_all_products()
             else:
-                products = db.search_products_full(platform=platform)
+                products = db.search_products_full(
+                    platform=platform if platform != "全部" else None,
+                    ship_from=ship_from if ship_from != "全部" else None
+                )
+                if status != "全部":
+                    status_map = {"完成": "completed", "待处理": "pending"}
+                    products = [p for p in products if p.get('status') == status_map.get(status, status)]
             
             for product in products:
                 output_path = product.get('output_path', '') or ''
@@ -807,28 +846,37 @@ class AlibabaScraperGUI:
                     if shop:
                         shop_name = shop.get('shop_name', '')[:10]
                 
-                ship_from = product.get('ship_from', '') or '-'
+                ship_from_val = product.get('ship_from', '') or '-'
                 
-                status = product.get('status', '') or '-'
-                if status == 'pending':
-                    status = '待处理'
-                elif status == 'completed':
-                    status = '完成'
+                status_val = product.get('status', '') or '-'
+                if status_val == 'pending':
+                    status_val = '待处理'
+                elif status_val == 'completed':
+                    status_val = '完成'
                 
                 self.db_tree.insert("", "end", values=(
                     product_id,
                     product.get('shop_product_id', ''),
                     title,
                     shop_name,
-                    ship_from,
+                    ship_from_val,
                     resource_counts_str,
                     sku_prices_str,
                     output_path,
-                    status,
+                    status_val,
                     str(product.get('created_at', ''))[:16]
                 ))
             
-            self.db_status_label.configure(text=f"{platform}: {len(products)} 条")
+            filter_desc = []
+            if platform != "全部":
+                filter_desc.append(f"平台:{platform}")
+            if ship_from != "全部":
+                filter_desc.append(f"发货地:{ship_from}")
+            if status != "全部":
+                filter_desc.append(f"状态:{status}")
+            
+            filter_str = " | ".join(filter_desc) if filter_desc else "全部"
+            self.db_status_label.configure(text=f"{filter_str}: {len(products)} 条")
             
         except Exception as e:
             self.log(f"过滤失败: {e}", "error")
@@ -2159,8 +2207,6 @@ class AlibabaScraperGUI:
             self.author_label.configure(font=(self.available_font, self.font_size_subtitle))
         if hasattr(self, 'github_label'):
             self.github_label.configure(font=(self.available_font, self.font_size_subtitle))
-        if hasattr(self, 'gitee_label'):
-            self.gitee_label.configure(font=(self.available_font, self.font_size_subtitle))
         if hasattr(self, 'desc_label'):
             self.desc_label.configure(font=(self.available_font, self.font_size_large))
         if hasattr(self, 'update_status_label'):

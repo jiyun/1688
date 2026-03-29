@@ -612,10 +612,8 @@ class PricingToolGUI:
     def _load_sku_prices_from_db(self):
         """从数据库加载SKU价格数据并自动生成配置
         
-        支持的SKU名称格式：
-        - "颜色>规格" (如: "酒红色>均码M80-125")
-        - "颜色 规格" (如: "酒红色 均码M80-125")
-        - "颜色" (单规格，如: "酒红色")
+        优先使用数据库中的 color 和 size 字段，
+        如果不存在则从 sku_name 解析
         """
         if not self.product_id:
             show_warning(self.root, "警告", "请先选择商品")
@@ -631,37 +629,37 @@ class PricingToolGUI:
                 show_warning(self.root, "警告", "该商品没有SKU价格数据")
                 return
             
-            # 解析SKU名称，提取颜色和规格
             colors = []
             sizes = []
             price_matrix = {}
-            stock_matrix = {}
             
             for sku in sku_prices:
                 sku_name = sku.get('sku_name', '')
                 price = sku.get('price', 0)
-                stock = sku.get('stock', 0)
                 
-                if not sku_name:
+                color = sku.get('color', '')
+                size = sku.get('size', '')
+                
+                if not color and not size and sku_name:
+                    if '>' in sku_name:
+                        parts = sku_name.split('>')
+                    elif ' ' in sku_name:
+                        parts = sku_name.split()
+                    else:
+                        parts = [sku_name, '默认规格']
+                    
+                    if len(parts) >= 2:
+                        color = parts[0].strip()
+                        size = parts[1].strip()
+                    elif len(parts) == 1:
+                        color = parts[0].strip()
+                        size = '默认规格'
+                
+                if not color:
                     continue
                 
-                # 尝试解析多种格式
-                if '>' in sku_name:
-                    parts = sku_name.split('>')
-                elif ' ' in sku_name:
-                    parts = sku_name.split()
-                else:
-                    # 单规格，只有颜色
-                    parts = [sku_name, '默认规格']
-                
-                if len(parts) >= 2:
-                    color = parts[0].strip()
-                    size = parts[1].strip()
-                elif len(parts) == 1:
-                    color = parts[0].strip()
+                if not size:
                     size = '默认规格'
-                else:
-                    continue
                 
                 if color not in colors:
                     colors.append(color)
@@ -670,9 +668,7 @@ class PricingToolGUI:
                 
                 if color not in price_matrix:
                     price_matrix[color] = {}
-                    stock_matrix[color] = {}
                 price_matrix[color][size] = price
-                stock_matrix[color][size] = stock
             
             if not colors or not sizes:
                 show_warning(self.root, "警告", "无法解析SKU名称格式，请手动配置")
@@ -728,17 +724,9 @@ class PricingToolGUI:
             # 自动计算默认售价
             self._calculate_default_price()
             
-            # 显示统计信息
-            total_stock = sum(
-                stock_matrix.get(color, {}).get(size, 0) 
-                for color in colors 
-                for size in sizes
-            )
-            
             show_info(self.root, "成功", 
                 f"已加载 {len(sku_prices)} 条SKU价格数据\n"
-                f"生成 {len(self.bases)} 个本体，{len(self.attachments)} 个附件，{len(self.sku_configs)} 个SKU配置\n"
-                f"总库存: {total_stock}"
+                f"生成 {len(self.bases)} 个本体，{len(self.attachments)} 个附件，{len(self.sku_configs)} 个SKU配置"
             )
             
         except Exception as e:

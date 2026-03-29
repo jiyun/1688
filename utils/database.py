@@ -640,7 +640,7 @@ class Database:
     def get_sku_prices(self, product_id: str) -> List[Dict]:
         """获取商品的SKU价格和库存"""
         return self.query('''
-            SELECT id, product_id, sku_name, sku_id, price, original_price, stock, created_at
+            SELECT id, product_id, sku_name, color, size, price, original_price, cost_price, created_at, updated_at
             FROM sku_prices
             WHERE product_id = ?
             ORDER BY id

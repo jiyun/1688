@@ -1,6 +1,6 @@
 # 1688详情页资源采集工具
 
-![Version](https://img.shields.io/badge/version-0.4.1-blue)
+![Version](https://img.shields.io/badge/version-0.4.2-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -11,10 +11,10 @@
 
 ## 版本信息 
 
-- 当前版本：0.4.1
+- 当前版本：0.4.2
 - 作者：急云
 - 项目地址：https://github.com/jiyun/1688/
-- 发布日期：2026-03-27
+- 发布日期：2026-03-29
 - [查看完整更新日志](CHANGELOG.md)
 
 ## 核心功能
