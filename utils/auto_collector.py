@@ -10,6 +10,8 @@ import sys
 import os
 import time
 import re
+import shutil
+import glob
 from datetime import datetime
 from typing import List, Optional
 
@@ -114,14 +116,25 @@ class AutoCollector:
             ])
             print(f"加载扩展: {len(extensions)} 个")
         
+        downloads_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'products'
+        )
+        os.makedirs(downloads_dir, exist_ok=True)
+        
         try:
             self.context = self.playwright.chromium.launch_persistent_context(
                 user_data_dir='./browser_data_new',
                 headless=self.headless,
-                args=args
+                args=args,
+                accept_downloads=True,
+                downloads_path=downloads_dir
             )
             self.browser = self.context
-            print("浏览器启动成功")
+            self.downloads_dir = downloads_dir
+            print(f"浏览器启动成功，下载目录: {downloads_dir}")
+            
+            self._setup_singlefile_config()
         except Exception as e:
             print(f"浏览器启动失败: {e}")
             print("尝试不加载扩展启动...")
@@ -134,6 +147,51 @@ class AutoCollector:
             )
             self.browser = self.context
             print("浏览器启动成功（无扩展）")
+    
+    def _setup_singlefile_config(self):
+        """设置 SingleFile 配置
+        
+        通过 CDP (Chrome DevTools Protocol) 设置扩展存储
+        SingleFile 配置键名: profile___Default_Settings__
+        """
+        try:
+            pages = self.context.pages
+            if not pages:
+                page = self.context.new_page()
+            else:
+                page = pages[0]
+            
+            cdp = page.context.new_cdp_session(page)
+            
+            singlefile_config = {
+                "saveOriginalURLs": True,
+                "filenameTemplate": "{url-last-segment}.{filename-extension}",
+                "filenameConflictAction": "uniquify",
+                "compressHTML": True,
+                "loadDeferredImages": True,
+                "blockScripts": True,
+                "blockVideos": True,
+                "blockAudios": True
+            }
+            
+            storage_data = {
+                "profile___Default_Settings__": singlefile_config,
+                "rules": [{"url": "file:", "profile": "__Default_Settings__", "autoSaveProfile": "__Disabled_Settings__"}]
+            }
+            
+            try:
+                cdp.send('DOMStorage.setDOMStorageItem', {
+                    'storageId': {'securityOrigin': 'chrome-extension://mdiodlaeghegjfkbcjlhgjlnhfgfcbjj', 'isLocalStorage': True},
+                    'key': 'profile___Default_Settings__',
+                    'value': str(singlefile_config)
+                })
+                print("SingleFile 配置已通过 CDP 注入")
+            except Exception as e:
+                print(f"CDP 注入失败: {e}")
+                print("SingleFile 配置需要手动设置：点击扩展图标 -> 齿轮图标")
+                
+        except Exception as e:
+            print(f"设置 SingleFile 配置失败: {e}")
     
     def close_browser(self):
         """关闭浏览器"""
@@ -151,6 +209,66 @@ class AutoCollector:
         
         print("浏览器已关闭")
     
+    def find_singlefile_downloads(self) -> List[str]:
+        """查找 SingleFile 下载的文件
+        
+        SingleFile 默认保存到浏览器下载目录，
+        文件名格式通常是: {url-last-segment}.html
+        """
+        download_dirs = [
+            os.path.join(os.environ.get('USERPROFILE', ''), 'Downloads'),
+            os.path.join(os.environ.get('USERPROFILE', ''), '下载'),
+        ]
+        
+        found_files = []
+        for download_dir in download_dirs:
+            if os.path.exists(download_dir):
+                # 查找最近的 HTML 文件
+                html_files = glob.glob(os.path.join(download_dir, '*.html'))
+                for f in html_files:
+                    # 排除太旧的文件（超过1小时）
+                    if time.time() - os.path.getmtime(f) < 3600:
+                        found_files.append(f)
+        
+        return found_files
+    
+    def move_singlefile_download(self, product_id: str) -> Optional[str]:
+        """将 SingleFile 下载的文件移动到输出目录
+        
+        Args:
+            product_id: 商品ID，用于匹配文件名
+        
+        Returns:
+            移动后的文件路径，如果未找到则返回 None
+        """
+        download_dirs = [
+            os.path.join(os.environ.get('USERPROFILE', ''), 'Downloads'),
+            os.path.join(os.environ.get('USERPROFILE', ''), '下载'),
+        ]
+        
+        # 可能的文件名格式
+        patterns = [
+            f'{product_id}.html',
+            f'{product_id}*.html',
+        ]
+        
+        for download_dir in download_dirs:
+            if not os.path.exists(download_dir):
+                continue
+                
+            for pattern in patterns:
+                matches = glob.glob(os.path.join(download_dir, pattern))
+                for src_file in matches:
+                    # 检查文件是否是最近创建的（5分钟内）
+                    if time.time() - os.path.getmtime(src_file) < 300:
+                        dst_file = os.path.join(self.output_dir, os.path.basename(src_file))
+                        if src_file != dst_file:
+                            shutil.move(src_file, dst_file)
+                            print(f"已移动 SingleFile 下载: {dst_file}")
+                            return dst_file
+        
+        return None
+    
     def interactive_mode(self, target_url: str = None):
         """交互模式：等待用户登录和初始化扩展
         
@@ -162,28 +280,27 @@ class AutoCollector:
         print("=" * 50)
         print("请在浏览器中完成以下操作：")
         print("1. 登录 1688 账号")
-        print("2. 初始化 SingleFile 扩展设置：")
+        print("2. 使用 SingleFile 保存页面：")
         print("   - 点击浏览器右上角 SingleFile 图标")
-        print("   - 点击齿轮图标进入设置")
-        print("   - 勾选 '保存原始HTML' 选项")
-        print("   - 其他选项根据需要调整")
-        print("3. 完成后按 Enter 键继续采集...")
+        print("   - 或按快捷键 Ctrl+Shift+Y")
+        print("3. 完成后按 Enter 键移动文件到 products 目录...")
         print("=" * 50)
         
-        # 获取现有页面或创建新页面
         pages = self.context.pages
         if pages:
             page = pages[0]
         else:
             page = self.context.new_page()
         
-        # 如果有目标URL，直接打开目标页面
         if target_url:
             try:
                 print(f"正在打开目标页面: {target_url}")
                 page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
                 print("目标页面加载完成")
-                print("\n提示: 可以使用 SingleFile 保存完整页面 (Ctrl+Shift+Y)")
+                product_id = get_product_id_from_url(target_url)
+                if product_id:
+                    print(f"\n商品ID: {product_id}")
+                print("\n提示: 点击 SingleFile 图标或按 Ctrl+Shift+Y 保存页面")
             except Exception as e:
                 print(f"目标页面加载失败: {e}")
                 print("请手动在浏览器中打开目标页面")
@@ -196,10 +313,33 @@ class AutoCollector:
                 print(f"页面加载失败: {e}")
                 print("请手动在浏览器中打开 https://www.1688.com")
         
-        input("\n按 Enter 键继续...")
+        input("\n按 Enter 键移动 SingleFile 下载的文件...")
+        
+        # 移动 SingleFile 下载的文件
+        if target_url:
+            product_id = get_product_id_from_url(target_url)
+            if product_id:
+                moved_file = self.move_singlefile_download(product_id)
+                if moved_file:
+                    print(f"文件已移动到: {moved_file}")
+                else:
+                    print("未找到 SingleFile 下载的文件")
+                    print("请检查浏览器下载目录")
+        else:
+            # 列出所有最近的下载
+            downloads = self.find_singlefile_downloads()
+            if downloads:
+                print(f"找到 {len(downloads)} 个最近的 HTML 文件:")
+                for f in downloads:
+                    print(f"  {f}")
     
     def save_page(self, url: str, wait_time: int = 5) -> Optional[str]:
-        """保存页面"""
+        """保存页面 - 直接获取渲染后的HTML
+        
+        注意：此方法保存的是 Playwright 获取的渲染后HTML，
+        不包含 SingleFile 的完整资源嵌入功能。
+        如需完整保存，请使用 SingleFile 扩展手动操作。
+        """
         product_id = get_product_id_from_url(url)
         if not product_id:
             print(f"无法从URL提取商品ID: {url}")
@@ -210,19 +350,21 @@ class AutoCollector:
         try:
             page = self.context.new_page()
             print(f"正在访问: {url}")
-            # 使用 domcontentloaded 而不是 networkidle，避免超时
             page.goto(url, wait_until='domcontentloaded', timeout=60000)
             
             print(f"等待页面加载 ({wait_time}秒)...")
             time.sleep(wait_time)
             
-            print("正在保存页面...")
-            print("提示: 可以使用 SingleFile 扩展保存完整页面 (Ctrl+Shift+Y)")
-            print("SingleFile 保存位置: 浏览器下载目录")
+            # 滚动页面加载懒加载图片
+            print("滚动页面加载懒加载内容...")
+            for i in range(3):
+                page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                time.sleep(1)
+            page.evaluate('window.scrollTo(0, 0)')
             
+            print("正在保存页面...")
             html_content = page.content()
             
-            # 验证内容长度
             content_len = len(html_content)
             if content_len < 1000:
                 print(f"警告: 页面内容过短 ({content_len} 字节)")
