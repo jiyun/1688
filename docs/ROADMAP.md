@@ -1,8 +1,8 @@
 # 项目路线图
 
-## 当前版本: v0.4.2
+## 当前版本: v0.4.4
 
-数据库架构重构完成，优化查询性能和GUI体验。
+在线采集增强、代码清理优化。
 
 ---
 
@@ -11,6 +11,108 @@
 ### 目标
 
 建立综合数据看板，实现数据可视化展示与分析。
+
+### GUI框架迁移规划
+
+#### 背景
+
+CustomTkinter 在 Python 3.12+ 存在兼容性问题，需要评估替代方案。
+
+#### 替代方案对比
+
+| 框架 | 兼容性 | 美观度 | 学习成本 | 体积 | 与看板契合度 |
+|------|--------|--------|----------|------|--------------|
+| ttkbootstrap | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 小 | ⭐⭐⭐ |
+| PySide6 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ~50MB | ⭐⭐⭐ |
+| **Flet** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ~25MB | ⭐⭐⭐⭐⭐ |
+
+#### 推荐方案：Flet
+
+**核心优势：一套代码，桌面+Web 双端运行**
+
+```
+┌─────────────────────────────────────────┐
+│              Flet 应用代码               │
+├─────────────────────────────────────────┤
+│     ┌───────────┐    ┌───────────┐      │
+│     │  桌面应用  │    │  Web应用   │      │
+│     │ (Flutter) │    │ (FastAPI) │      │
+│     └───────────┘    └───────────┘      │
+│            ↓              ↓              │
+│     ┌─────────────────────────┐         │
+│     │      同一套 UI 代码      │         │
+│     └─────────────────────────┘         │
+└─────────────────────────────────────────┘
+```
+
+**Flet 特点：**
+- Flutter 渲染，界面现代美观
+- Python 原生，无需学习 Dart
+- 内置热重载，开发效率高
+- 桌面/Web 切换只需改一行代码
+- 代码复用率高达 80%+
+
+**示例代码：**
+```python
+import flet as ft
+
+def main(page: ft.Page):
+    page.title = "1688采集工具"
+    
+    def on_collect(e):
+        status.value = "采集中..."
+        page.update()
+    
+    btn = ft.ElevatedButton(
+        "开始采集",
+        icon=ft.icons.PLAY_ARROW,
+        on_click=on_collect,
+        style=ft.ButtonStyle(bgcolor=ft.colors.GREEN, color=ft.colors.WHITE)
+    )
+    
+    page.add(btn)
+
+# 桌面运行
+ft.app(target=main)
+
+# Web运行（只需改一行）
+# ft.app(target=main, view=ft.WEB_BROWSER)
+```
+
+#### 迁移评估
+
+| 当前组件 | Flet 对应 |
+|----------|-----------|
+| CTkButton | ft.ElevatedButton / ft.FilledButton |
+| CTkLabel | ft.Text |
+| CTkFrame | ft.Container / ft.Card |
+| CTkEntry | ft.TextField |
+| CTkTextbox | ft.TextField(multiline=True) |
+| CTkComboBox | ft.Dropdown |
+| CTkTabview | ft.Tabs |
+| CTkProgressBar | ft.ProgressBar |
+
+**预计改动量：** 400-600 行代码
+
+#### 迁移路线
+
+```
+v0.4.x (当前)
+    │
+    ├── ctk 兼容性问题出现
+    │
+v0.5.0
+    │
+    ├── 评估 Flet demo 分支
+    ├── 核心功能迁移
+    ├── 桌面端完整功能
+    │
+v0.6.0
+    │
+    ├── Web 端数据看板
+    ├── 远程监控功能
+    └── 代码复用 80%+
+```
 
 ### 技术方案对比
 
