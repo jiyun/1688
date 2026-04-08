@@ -216,3 +216,34 @@ def get_button_config(style_type='primary'):
         'border_width': BUTTON_CONF['border_width'],
         **style
     }
+
+import re
+
+def sanitize_filename(name: str, max_length: int = 100) -> str:
+    """清理文件名，移除或替换特殊字符
+    
+    Args:
+        name: 原始文件名
+        max_length: 最大长度限制
+    
+    Returns:
+        清理后的安全文件名
+    """
+    if not name:
+        return 'unnamed'
+    
+    invalid_chars = r'[<>:"/\\|?*\[\]【】{}]'
+    name = re.sub(invalid_chars, '_', name)
+    
+    name = re.sub(r'[\x00-\x1f\x7f]', '', name)
+    
+    name = re.sub(r'_+', '_', name)
+    name = name.strip('_').strip()
+    
+    if not name:
+        return 'unnamed'
+    
+    if len(name) > max_length:
+        name = name[:max_length]
+    
+    return name

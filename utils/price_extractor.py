@@ -19,13 +19,15 @@ class PriceExtractor:
             'main_price': None,
             'sku_prices': [],
             'consign_prices': [],
-            'ladder_prices': []
+            'ladder_prices': [],
+            'shipping_cost': 0
         }
         
         result['main_price'] = self._extract_main_price()
         result['sku_prices'] = self._extract_sku_prices()
         result['consign_prices'] = self._extract_consign_prices()
         result['ladder_prices'] = self._extract_ladder_prices()
+        result['shipping_cost'] = self._extract_shipping_cost()
         
         return result
     
@@ -158,6 +160,38 @@ class PriceExtractor:
                 })
         
         return ladder_prices
+    
+    def _extract_shipping_cost(self) -> float:
+        """提取运费"""
+        shipping_cost = 0.0
+        
+        shipping_div = self.soup.find('div', class_=lambda x: x and 'shipping' in str(x).lower())
+        if shipping_div:
+            price_match = re.search(r'[\d.]+', shipping_div.get_text())
+            if price_match:
+                shipping_cost = float(price_match.group())
+        
+        if shipping_cost == 0:
+            html_text = str(self.soup)
+            
+            patterns = [
+                r'"freight"\s*:\s*([\d.]+)',
+                r'"shippingFee"\s*:\s*([\d.]+)',
+                r'"postFee"\s*:\s*([\d.]+)',
+                r'运费[：:]\s*[￥¥]?\s*([\d.]+)',
+                r'快递[：:]\s*[￥¥]?\s*([\d.]+)',
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, html_text)
+                if match:
+                    try:
+                        shipping_cost = float(match.group(1))
+                        break
+                    except ValueError:
+                        continue
+        
+        return shipping_cost
     
     def get_price_summary(self) -> str:
         """获取价格摘要"""

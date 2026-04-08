@@ -5,6 +5,11 @@
 """
 
 import os
+import sys
+
+sys.dont_write_bytecode = True
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+
 import threading
 import time
 import re
@@ -73,7 +78,7 @@ class OnlineCollector:
         
         try:
             self.log("正在启动浏览器...")
-            self.collector = AutoCollector(headless=False)
+            self.collector = AutoCollector(headless=True)
             self.collector.start_browser()
             self.browser_started = True
             self.log("浏览器启动成功")
@@ -133,20 +138,32 @@ class OnlineCollector:
                     extract_color_images,
                     extract_main_images,
                     extract_detail_images,
+                    extract_detail_images_from_html,
                     extract_product_info,
                     extract_rate_info,
                     extract_video_info,
                     extract_attributes,
+                    extract_shop_info,
                 )
                 
                 sku_prices = extract_sku_prices(data)
                 color_images = extract_color_images(data)
                 main_images = extract_main_images(data)
-                detail_images = extract_detail_images(data)
+                
+                detail_html = data.get('_detailHtml', '')
+                html_content = data.get('_htmlContent', '')
+                
+                if detail_html:
+                    detail_images = extract_detail_images_from_html(detail_html)
+                elif html_content:
+                    detail_images = extract_detail_images_from_html(html_content)
+                else:
+                    detail_images = extract_detail_images(data)
                 product_info = extract_product_info(data)
                 rate_info = extract_rate_info(data)
                 video_info = extract_video_info(data)
                 attributes = extract_attributes(data)
+                shop_info = extract_shop_info(data)
                 
                 self.log(f"  SKU数量: {len(sku_prices)}")
                 self.log(f"  色卡数量: {len(color_images)}")
@@ -164,6 +181,7 @@ class OnlineCollector:
                     'rate_info': rate_info,
                     'video_info': video_info,
                     'attributes': attributes,
+                    'shop_info': shop_info,
                 }
             else:
                 self.log(f"数据采集失败: {product_id}")
@@ -173,6 +191,7 @@ class OnlineCollector:
             self.log(f"采集数据失败: {e}")
             import traceback
             traceback.print_exc()
+            
             return None
     
     def close_browser(self):

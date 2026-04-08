@@ -429,6 +429,21 @@ class ContextMenuCommands:
         """执行重采：同时执行数据与资源采集"""
         self._context_recollect_internal(mode='all')
     
+    def context_redownload_resources(self):
+        """重新下载资源：重新下载该商品的所有资源文件"""
+        file_path = self.get_selected_file_path()
+        if not file_path:
+            self.parent.log("请先选择一个文件", "warning")
+            return
+        
+        product_id = os.path.splitext(os.path.basename(file_path))[0]
+        self.parent.log(f"准备重新下载资源: {product_id}", "info")
+        
+        if hasattr(self.parent, '_download_product_resources'):
+            self.parent._download_product_resources(product_id, force=True)
+        else:
+            self.parent.log("下载功能不可用", "error")
+    
     def context_online_collect(self):
         """在线采集：直接从浏览器采集数据并保存到数据库"""
         file_path = self.get_selected_file_path()
@@ -512,11 +527,13 @@ class ContextMenuCommands:
         if color_images:
             for color_data in color_images:
                 try:
+                    from config import sanitize_filename
+                    safe_name = sanitize_filename(color_data['name'])
                     db.insert_resource(
                         product_id=product_id,
                         resource_type='color_card',
                         resource_url=color_data['imageUrl'],
-                        resource_name=color_data['name']
+                        resource_name=safe_name
                     )
                     saved_color_count += 1
                 except Exception as e:
@@ -619,14 +636,25 @@ class ContextMenuCommands:
                 
                 if process.returncode == 0:
                     self.parent.queue_manager.file_status[file_path] = "success"
-                    self.parent.log(f"{mode_name}完成", "success")
+                    self.parent.log(f"========== {mode_name}完成 ==========", "success")
+                    
+                    try:
+                        from utils.database import import_pending_data
+                        imported = import_pending_data()
+                        if imported > 0:
+                            self.parent.log(f"已导入 {imported} 条数据到数据库", "success")
+                    except Exception as e:
+                        self.parent.log(f"导入数据失败: {e}", "warning")
+                    
+                    if hasattr(self.parent, '_refresh_db_data'):
+                        self.parent.root.after(100, self.parent._refresh_db_data)
                 else:
                     self.parent.queue_manager.file_status[file_path] = "error"
-                    self.parent.log(f"{mode_name}失败", "error")
+                    self.parent.log(f"========== {mode_name}失败 ==========", "error")
                 
                 self.parent.queue_manager.update_queue_list()
             except Exception as e:
-                self.parent.log(f"{mode_name}失败: {e}", "error")
+                self.parent.log(f"========== {mode_name}异常: {e} ==========", "error")
         
         thread = threading.Thread(target=recollect_thread, daemon=True)
         thread.start()
@@ -908,6 +936,11 @@ class ContextMenuManager(ContextMenuCommands):
             command=self.context_online_collect
         )
         
+        self.context_menu.add_command(
+            label="重新下载资源",
+            command=self.context_redownload_resources
+        )
+        
         self.context_menu.add_separator()
         self.context_menu.add_command(
             label="访问原址 ©",
@@ -993,6 +1026,7 @@ class ContextMenuManager(ContextMenuCommands):
                     self.context_menu.entryconfig("图像优化", state=state)
                     self.context_menu.entryconfig("资源打包", state=state)
                     self.context_menu.entryconfig("重新采集", state=state)
+                    self.context_menu.entryconfig("重新下载资源", state=state)
                     
                     dsid = values[3] if len(values) > 3 else ""
                     edit_product_state = tk.NORMAL if dsid and str(dsid).strip() else tk.DISABLED

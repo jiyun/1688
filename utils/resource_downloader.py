@@ -50,8 +50,16 @@ class ResourceDownloader:
         return self.db.get_download_stats(product_id)
     
     def download_with_aria2c(self, resources: List[Dict], output_dir: str,
-                              progress_callback: Callable = None) -> bool:
-        """使用aria2c下载资源 - 直接传递URL，不生成down.txt"""
+                              progress_callback: Callable = None,
+                              force: bool = False) -> bool:
+        """使用aria2c下载资源 - 逐个下载
+        
+        Args:
+            resources: 资源列表
+            output_dir: 输出目录
+            progress_callback: 进度回调
+            force: 是否强制重新下载（忽略已存在的文件）
+        """
         if not self.aria2c_path:
             print("aria2c未找到")
             return False
@@ -61,70 +69,94 @@ class ResourceDownloader:
         
         os.makedirs(output_dir, exist_ok=True)
         
-        # 直接构建 aria2c 命令参数
-        cmd = [
-            self.aria2c_path,
-            '--console-log-level=warn',
-            '-d', output_dir,
-            '-x', '16',
-            '-s', '16',
-            '-k', '1M',
-            '--max-tries=3',
-            '--retry-wait=2',
-            '--timeout=60',
-            '--continue=true',
-            '--auto-file-renaming=false'
-        ]
+        success_count = 0
+        failed_count = 0
         
-        # 直接添加 URL 和输出文件名
         for r in resources:
             url = r['resource_url']
             filename = r.get('output_filename') or r.get('resource_name', 'file')
-            cmd.extend(['-o', filename, url])
-        
-        startupinfo = None
-        creationflags = 0
-        if sys.platform == 'win32':
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            creationflags = subprocess.CREATE_NO_WINDOW
-        
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600,
-                startupinfo=startupinfo,
-                creationflags=creationflags
-            )
+            filepath = os.path.join(output_dir, filename)
             
-            if result.returncode == 0:
-                for r in resources:
-                    filename = r.get('output_filename') or r.get('resource_name', 'file')
-                    filepath = os.path.join(output_dir, filename)
-                    if os.path.exists(filepath):
-                        file_size = os.path.getsize(filepath)
-                        self.db.mark_resource_downloaded(r['id'], file_size)
+            if not force and os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                if file_size > 0:
+                    self.db.mark_resource_downloaded(r['id'], file_size)
+                    success_count += 1
+                    continue
+            
+            if force and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
+            
+            self.db.mark_resource_pending(r['id'])
+            
+            cmd = [
+                self.aria2c_path,
+                '--console-log-level=warn',
+                '-d', output_dir,
+                '-o', filename,
+                '-x', '16',
+                '-s', '16',
+                '-k', '1M',
+                '--max-tries=3',
+                '--retry-wait=2',
+                '--timeout=60',
+                '--continue=true',
+                '--auto-file-renaming=false',
+                url
+            ]
+            
+            startupinfo = None
+            creationflags = 0
+            if sys.platform == 'win32':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+                creationflags = subprocess.CREATE_NO_WINDOW
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    startupinfo=startupinfo,
+                    creationflags=creationflags
+                )
                 
-                return True
-            else:
-                print(f"aria2c返回码: {result.returncode}")
-                print(f"aria2c stderr: {result.stderr}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            print("aria2c下载超时")
-            return False
-        except Exception as e:
-            print(f"下载失败: {e}")
-            return False
+                if result.returncode == 0 and os.path.exists(filepath):
+                    file_size = os.path.getsize(filepath)
+                    self.db.mark_resource_downloaded(r['id'], file_size)
+                    success_count += 1
+                else:
+                    print(f"下载失败: {filename}, returncode={result.returncode}")
+                    failed_count += 1
+                    
+            except subprocess.TimeoutExpired:
+                print(f"下载超时: {filename}")
+                failed_count += 1
+            except Exception as e:
+                print(f"下载异常: {filename} - {e}")
+                failed_count += 1
+        
+        print(f"下载完成: 成功 {success_count}, 失败 {failed_count}")
+        return failed_count == 0
     
     def download_product_resources(self, product_id: str, output_dir: str = None,
                                      resource_type: str = None,
-                                     progress_callback: Callable = None) -> Dict:
-        """下载指定商品的资源"""
+                                     progress_callback: Callable = None,
+                                     force: bool = False) -> Dict:
+        """下载指定商品的资源
+        
+        Args:
+            product_id: 商品ID
+            output_dir: 输出目录
+            resource_type: 资源类型过滤
+            progress_callback: 进度回调
+            force: 是否强制重新下载（忽略已存在的文件）
+        """
         if output_dir is None:
             product = self.db.get_product(product_id)
             if product and product.get('output_path'):
@@ -132,12 +164,15 @@ class ResourceDownloader:
             else:
                 output_dir = os.path.join(self.output_base_dir, product_id)
         
-        resources = self.get_pending_resources(product_id, resource_type)
+        if force:
+            resources = self.db.get_all_resources(product_id, resource_type)
+        else:
+            resources = self.get_pending_resources(product_id, resource_type)
         
         if not resources:
             return {'success': True, 'message': '没有待下载的资源', 'count': 0}
         
-        success = self.download_with_aria2c(resources, output_dir, progress_callback)
+        success = self.download_with_aria2c(resources, output_dir, progress_callback, force=force)
         
         return {
             'success': success,

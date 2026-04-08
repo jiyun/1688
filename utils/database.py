@@ -50,6 +50,8 @@ class Database:
     
     def _init_database(self):
         """初始化数据库表结构"""
+        self._migrate_sku_prices_table()
+        
         self.conn.execute('''
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY,
@@ -69,6 +71,8 @@ class Database:
                 ship_from VARCHAR,
                 sales_count INTEGER DEFAULT 0,
                 min_order INTEGER DEFAULT 1,
+                shipping_cost DOUBLE DEFAULT 0,
+                unit_price DOUBLE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -175,10 +179,36 @@ class Database:
             )
         ''')
         
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS attributes (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL,
+                fid VARCHAR,
+                attr_name VARCHAR,
+                attr_value VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS rate_info (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL UNIQUE,
+                good_rates INTEGER DEFAULT 0,
+                goods_grade DOUBLE,
+                impression_tags TEXT,
+                common_tags TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS products_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS resources_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shops_id_seq')
+        self.conn.execute('CREATE SEQUENCE IF NOT EXISTS attributes_id_seq')
+        self.conn.execute('CREATE SEQUENCE IF NOT EXISTS rate_info_id_seq')
         
         self._migrate_products_table()
         
@@ -192,6 +222,8 @@ class Database:
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_shop_id ON shops(shop_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_platform ON shops(platform)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_attributes_product_id ON attributes(product_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_rate_info_product_id ON rate_info(product_id)')
     
     def _migrate_products_table(self):
         """迁移 products 表，添加新字段"""
@@ -206,7 +238,8 @@ class Database:
                 'shop_id': 'VARCHAR',
                 'ship_from': 'VARCHAR',
                 'sales_count': 'INTEGER DEFAULT 0',
-                'min_order': 'INTEGER DEFAULT 1'
+                'min_order': 'INTEGER DEFAULT 1',
+                'ds_shop': 'VARCHAR'
             }
             
             for col_name, col_type in new_columns.items():
@@ -218,6 +251,86 @@ class Database:
                         log_warning(f"添加字段 {col_name} 失败: {e}")
         except Exception as e:
             log_warning(f"迁移检查失败: {e}")
+    
+    def _migrate_sku_prices_table(self):
+        """迁移 sku_prices 表，重建表结构"""
+        try:
+            print("[数据库迁移] 检查 sku_prices 表结构...")
+            result = self.conn.execute("SELECT table_name FROM information_schema.tables WHERE table_name = 'sku_prices'").fetchone()
+            if not result:
+                print("[数据库迁移] sku_prices 表不存在，将创建新表")
+                return
+            
+            columns = self.conn.execute("DESCRIBE sku_prices").fetchall()
+            existing_columns = {col[0] for col in columns}
+            print(f"[数据库迁移] sku_prices 现有字段: {existing_columns}")
+            
+            required_columns = {'sku_id', 'color', 'size', 'price', 'discount_price', 
+                              'can_book_count', 'sale_count', 'spec_id'}
+            
+            old_columns = {'sku_name', 'cost_price', 'original_price'}
+            has_old_columns = bool(existing_columns & old_columns)
+            
+            if not required_columns.issubset(existing_columns) or has_old_columns:
+                print("[数据库迁移] 检测到旧版 sku_prices 表结构，正在重建...")
+                
+                try:
+                    self.conn.execute('DROP TABLE IF EXISTS sku_prices_old')
+                    print("[数据库迁移] 步骤1: 删除旧的备份表")
+                except Exception as e:
+                    print(f"[数据库迁移] 步骤1失败: {e}")
+                
+                try:
+                    self.conn.execute('ALTER TABLE sku_prices RENAME TO sku_prices_old')
+                    print("[数据库迁移] 步骤2: 重命名旧表")
+                except Exception as e:
+                    print(f"[数据库迁移] 步骤2失败: {e}")
+                    raise
+                
+                try:
+                    self.conn.execute('''
+                        CREATE TABLE sku_prices (
+                            id INTEGER PRIMARY KEY,
+                            product_id VARCHAR NOT NULL,
+                            sku_id VARCHAR,
+                            color VARCHAR,
+                            size VARCHAR,
+                            price DOUBLE,
+                            discount_price DOUBLE,
+                            can_book_count INTEGER,
+                            sale_count INTEGER,
+                            spec_id VARCHAR,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    print("[数据库迁移] 步骤3: 创建新表")
+                except Exception as e:
+                    print(f"[数据库迁移] 步骤3失败: {e}")
+                    raise
+                
+                try:
+                    self.conn.execute('CREATE INDEX IF NOT EXISTS idx_sku_prices_product_id ON sku_prices(product_id)')
+                    self.conn.execute('CREATE INDEX IF NOT EXISTS idx_sku_prices_sku_id ON sku_prices(sku_id)')
+                    print("[数据库迁移] 步骤4: 创建索引")
+                except Exception as e:
+                    print(f"[数据库迁移] 步骤4失败: {e}")
+                
+                try:
+                    self.conn.execute('DROP TABLE sku_prices_old')
+                    print("[数据库迁移] 步骤5: 删除旧表备份")
+                except Exception as e:
+                    print(f"[数据库迁移] 步骤5失败: {e}")
+                
+                new_columns = self.conn.execute("DESCRIBE sku_prices").fetchall()
+                new_col_names = {col[0] for col in new_columns}
+                print(f"[数据库迁移] sku_prices 表结构已更新: {new_col_names}")
+            else:
+                print("[数据库迁移] sku_prices 表结构正确，无需迁移")
+        except Exception as e:
+            print(f"[数据库迁移] 迁移 sku_prices 表失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def close(self):
         """关闭数据库连接"""
@@ -422,22 +535,26 @@ class Database:
                        detail_images: List, videos: List) -> bool:
         """保存资源URL到数据库"""
         try:
+            from config import sanitize_filename
+            
             for idx, (url, name) in enumerate(main_images):
+                safe_name = sanitize_filename(name)
                 self.insert('resources', {
                     'product_id': product_id,
                     'resource_type': 'main_image',
                     'resource_url': url,
                     'resource_name': name,
-                    'output_filename': f'main_{name}.jpg'
+                    'output_filename': f'main_{safe_name}.jpg'
                 })
             
             for idx, (url, name) in enumerate(color_images):
+                safe_name = sanitize_filename(name)
                 self.insert('resources', {
                     'product_id': product_id,
                     'resource_type': 'color_image',
                     'resource_url': url,
                     'resource_name': name,
-                    'output_filename': f'color_{name}.jpg'
+                    'output_filename': f'color_{safe_name}.jpg'
                 })
             
             for idx, url in enumerate(detail_images):
@@ -482,11 +599,13 @@ class Database:
         """
         try:
             existing = self.query_one(
-                "SELECT id FROM resources WHERE product_id = ? AND resource_url = ?",
-                [product_id, resource_url]
+                "SELECT id, downloaded FROM resources WHERE product_id = ? AND resource_url = ? AND resource_type = ?",
+                [product_id, resource_url, resource_type]
             )
             
             if existing:
+                if existing.get('downloaded'):
+                    self.update('resources', {'downloaded': False, 'download_time': None, 'file_size': None}, 'id = ?', [existing['id']])
                 return True
             
             data = {
@@ -537,6 +656,28 @@ class Database:
             update_data['file_size'] = file_size
         
         self.update('resources', update_data, 'id = ?', [resource_id])
+    
+    def mark_resource_pending(self, resource_id: int):
+        """标记资源待下载（重置下载状态）"""
+        update_data = {'downloaded': False, 'download_time': None, 'file_size': None}
+        self.update('resources', update_data, 'id = ?', [resource_id])
+    
+    def get_all_resources(self, product_id: str = None, resource_type: str = None) -> List[Dict]:
+        """获取所有资源（包括已下载和待下载）"""
+        sql = "SELECT * FROM resources WHERE 1=1"
+        params = []
+        
+        if product_id:
+            sql += " AND product_id = ?"
+            params.append(product_id)
+        
+        if resource_type:
+            sql += " AND resource_type = ?"
+            params.append(resource_type)
+        
+        sql += " ORDER BY resource_type, created_at ASC"
+        
+        return self.query(sql, params if params else None)
     
     def get_download_stats(self, product_id: str = None) -> Dict:
         """获取下载统计"""
@@ -689,7 +830,7 @@ class Database:
     def get_sku_prices(self, product_id: str) -> List[Dict]:
         """获取商品的SKU价格和库存"""
         return self.query('''
-            SELECT id, product_id, sku_name, color, size, price, original_price, cost_price, created_at, updated_at
+            SELECT id, product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id, created_at, updated_at
             FROM sku_prices
             WHERE product_id = ?
             ORDER BY id
@@ -735,6 +876,79 @@ class Database:
     def get_shop(self, shop_id: str) -> Optional[Dict]:
         """获取店铺信息"""
         return self.query_one('SELECT * FROM shops WHERE shop_id = ?', [shop_id])
+    
+    def get_attributes(self, product_id: str) -> List[Dict]:
+        """获取商品属性"""
+        return self.query('SELECT * FROM attributes WHERE product_id = ?', [product_id])
+    
+    def insert_attribute(self, product_id: str, fid: str = None, attr_name: str = None, attr_value: str = None) -> bool:
+        """插入商品属性"""
+        try:
+            self.insert('attributes', {
+                'product_id': product_id,
+                'fid': fid,
+                'attr_name': attr_name,
+                'attr_value': attr_value
+            })
+            return True
+        except Exception as e:
+            log_warning(f"插入属性失败: {e}")
+            return False
+    
+    def clear_attributes(self, product_id: str) -> bool:
+        """清除商品属性"""
+        try:
+            self.conn.execute('DELETE FROM attributes WHERE product_id = ?', [product_id])
+            return True
+        except Exception as e:
+            log_warning(f"清除属性失败: {e}")
+            return False
+    
+    def save_rate_info(self, product_id: str, good_rates: int = 0, goods_grade: float = None,
+                       impression_tags: List = None, common_tags: List = None) -> bool:
+        """保存评价信息"""
+        try:
+            existing = self.query_one('SELECT * FROM rate_info WHERE product_id = ?', [product_id])
+            
+            tags_json = json.dumps(impression_tags or [], ensure_ascii=False)
+            common_json = json.dumps(common_tags or [], ensure_ascii=False)
+            
+            if existing:
+                self.update('rate_info', {
+                    'good_rates': good_rates,
+                    'goods_grade': goods_grade,
+                    'impression_tags': tags_json,
+                    'common_tags': common_json,
+                    'updated_at': datetime.now()
+                }, 'product_id = ?', [product_id])
+            else:
+                self.insert('rate_info', {
+                    'product_id': product_id,
+                    'good_rates': good_rates,
+                    'goods_grade': goods_grade,
+                    'impression_tags': tags_json,
+                    'common_tags': common_json
+                })
+            return True
+        except Exception as e:
+            log_warning(f"保存评价信息失败: {e}")
+            return False
+    
+    def get_rate_info(self, product_id: str) -> Optional[Dict]:
+        """获取评价信息"""
+        result = self.query_one('SELECT * FROM rate_info WHERE product_id = ?', [product_id])
+        if result:
+            if result.get('impression_tags'):
+                try:
+                    result['impression_tags'] = json.loads(result['impression_tags'])
+                except:
+                    pass
+            if result.get('common_tags'):
+                try:
+                    result['common_tags'] = json.loads(result['common_tags'])
+                except:
+                    pass
+        return result
     
     def get_all_shops(self) -> List[Dict]:
         """获取所有店铺"""
@@ -1134,22 +1348,54 @@ def import_pending_data():
             for sku in prices['sku_prices']:
                 color = sku.get('color', '')
                 size = sku.get('size', '')
+                
+                if '代发' in color or '代发' in size:
+                    continue
+                
                 sku_name = f"{color} {size}".strip() if color or size else sku.get('name', '')
-                db.insert('sku_prices', {
+                sku_id = sku.get('skuId', '') or sku.get('sku_id', '')
+                
+                existing = db.query_one(
+                    "SELECT * FROM sku_prices WHERE product_id = ? AND sku_id = ?",
+                    [product_id, sku_id]
+                ) if sku_id else None
+                
+                data = {
                     'product_id': product_id,
                     'sku_name': sku_name,
+                    'color': color,
+                    'size': size,
                     'price': sku.get('price', 0),
-                    'original_price': sku.get('original_price')
-                })
+                    'original_price': sku.get('original_price'),
+                    'discount_price': sku.get('discountPrice'),
+                    'can_book_count': sku.get('canBookCount'),
+                    'sale_count': sku.get('saleCount'),
+                    'spec_id': sku.get('specId', ''),
+                    'updated_at': datetime.now()
+                }
+                
+                if existing:
+                    del data['created_at']
+                    db.update('sku_prices', data, 'product_id = ? AND sku_id = ?', [product_id, sku_id])
+                else:
+                    data['created_at'] = datetime.now()
+                    db.insert('sku_prices', data)
         
         if prices.get('consign_prices'):
-            for cp in prices['consign_prices']:
-                db.insert('sku_prices', {
-                    'product_id': product_id,
-                    'sku_name': f"代发-{cp.get('type', 'single')}",
-                    'price': cp.get('price', 0),
-                    'original_price': None
-                })
+            pass
+        
+        if prices.get('shipping_cost'):
+            try:
+                shipping_cost = float(prices['shipping_cost'])
+                if shipping_cost > 0:
+                    existing_product = db.get_product(product_id)
+                    if existing_product:
+                        db.update('products', {
+                            'shipping_cost': shipping_cost,
+                            'updated_at': datetime.now()
+                        }, 'product_id = ?', [product_id])
+            except (ValueError, TypeError):
+                pass
         
         total_imported += 1
     

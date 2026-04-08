@@ -6,12 +6,17 @@
 包含阶梯价格生成器功能
 """
 
+import os
+import sys
+
+sys.dont_write_bytecode = True
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+
 import tkinter as tk
 from tkinter import ttk, filedialog
 import customtkinter as ctk
 import csv
 import json
-import os
 from typing import List, Dict, Any
 
 from gui.dialog import show_info, show_warning, show_error, ask_yes_no
@@ -183,15 +188,24 @@ class PricingToolGUI:
         create_button(control_frame, "从数据库加载SKU", self._load_sku_prices_from_db, 'primary', font=self.button_font).pack(side=tk.LEFT, padx=5)
         create_button(control_frame, "添加颜色", self._add_color_row, 'secondary', font=self.button_font).pack(side=tk.LEFT, padx=5)
         create_button(control_frame, "添加尺寸", self._add_size_column, 'secondary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(control_frame, "移除颜色", self._remove_color_row, 'warning', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(control_frame, "移除尺寸", self._remove_size_column, 'warning', font=self.button_font).pack(side=tk.LEFT, padx=5)
         create_button(control_frame, "清空矩阵", self._clear_matrix, 'danger', font=self.button_font).pack(side=tk.LEFT, padx=5)
         
-        shipping_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
-        shipping_frame.pack(side=tk.RIGHT, padx=10)
-        ctk.CTkLabel(shipping_frame, text="运费：", font=(self.font_name, self.font_size)).pack(side=tk.LEFT)
+        price_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
+        price_frame.pack(side=tk.RIGHT, padx=10)
+        
+        ctk.CTkLabel(price_frame, text="一口价：", font=(self.font_name, self.font_size)).pack(side=tk.LEFT)
+        self.unit_price_var = tk.StringVar(value="0.00")
+        unit_price_entry = ctk.CTkEntry(price_frame, textvariable=self.unit_price_var, width=80)
+        unit_price_entry.pack(side=tk.LEFT, padx=2)
+        ctk.CTkLabel(price_frame, text="元").pack(side=tk.LEFT, padx=(0, 15))
+        
+        ctk.CTkLabel(price_frame, text="运费：", font=(self.font_name, self.font_size)).pack(side=tk.LEFT)
         self.shipping_cost_var = tk.DoubleVar(value=self.shipping_cost)
-        shipping_entry = ctk.CTkEntry(shipping_frame, textvariable=self.shipping_cost_var, width=80)
+        shipping_entry = ctk.CTkEntry(price_frame, textvariable=self.shipping_cost_var, width=80)
         shipping_entry.pack(side=tk.LEFT, padx=2)
-        ctk.CTkLabel(shipping_frame, text="元").pack(side=tk.LEFT)
+        ctk.CTkLabel(price_frame, text="元").pack(side=tk.LEFT)
         shipping_entry.bind("<FocusOut>", lambda e: self._update_shipping_cost())
         
         matrix_container = ctk.CTkFrame(parent)
@@ -289,6 +303,18 @@ class PricingToolGUI:
         self.colors = []
         self.sizes = []
         self._init_matrix()
+    
+    def _remove_color_row(self):
+        """移除最后一个颜色行"""
+        if self.colors:
+            self.colors.pop()
+            self._init_matrix()
+    
+    def _remove_size_column(self):
+        """移除最后一个尺寸列"""
+        if self.sizes:
+            self.sizes.pop()
+            self._init_matrix()
     
     def _update_color_name(self, idx):
         """更新颜色名称"""
@@ -774,6 +800,7 @@ class PricingToolGUI:
         
         优先使用数据库中的 color 和 size 字段，
         如果不存在则从 sku_name 解析
+        过滤掉代发类型SKU
         """
         if not self.product_id:
             show_warning(self.root, "警告", "请先选择商品")
@@ -783,6 +810,24 @@ class PricingToolGUI:
             from utils.database import Database
             db = Database()
             sku_prices = db.get_sku_prices(self.product_id)
+            
+            product = db.get_product(self.product_id)
+            if product and product.get('shipping_cost'):
+                try:
+                    self.shipping_cost = float(product.get('shipping_cost', 0))
+                    if hasattr(self, 'shipping_cost_var'):
+                        self.shipping_cost_var.set(self.shipping_cost)
+                except:
+                    pass
+            
+            if product and product.get('unit_price'):
+                try:
+                    unit_price = float(product.get('unit_price', 0))
+                    if hasattr(self, 'unit_price_var'):
+                        self.unit_price_var.set(f"{unit_price:.2f}")
+                except:
+                    pass
+            
             db.close()
             
             if not sku_prices:
@@ -792,6 +837,7 @@ class PricingToolGUI:
             colors = []
             sizes = []
             price_matrix = {}
+            filtered_count = 0
             
             for sku in sku_prices:
                 sku_name = sku.get('sku_name', '')
@@ -820,6 +866,14 @@ class PricingToolGUI:
                 
                 if not size:
                     size = '默认规格'
+                
+                if '代发' in color or '代发' in size:
+                    filtered_count += 1
+                    continue
+                
+                if '默认规格' in color or '默认规格' in size:
+                    filtered_count += 1
+                    continue
                 
                 if color not in colors:
                     colors.append(color)
@@ -853,10 +907,11 @@ class PricingToolGUI:
             
             self._calculate_default_price()
             
-            show_info(self.root, "成功", 
-                f"已加载 {len(sku_prices)} 条SKU价格数据\n"
-                f"矩阵: {len(colors)} 行 × {len(sizes)} 列"
-            )
+            msg = f"已加载 {len(sku_prices)} 条SKU价格数据\n"
+            if filtered_count > 0:
+                msg += f"已过滤 {filtered_count} 条代发/默认规格\n"
+            msg += f"矩阵: {len(colors)} 行 × {len(sizes)} 列"
+            show_info(self.root, "成功", msg)
             
         except Exception as e:
             show_error(self.root, "错误", f"加载SKU价格失败: {e}")
@@ -949,8 +1004,13 @@ class PricingToolGUI:
         except ValueError:
             max_price = 0
         
-        if not target_sku or max_price <= 0:
-            show_warning(self.root, "警告", "请选择定价基准SKU并设置最高售价")
+        try:
+            unit_price = float(self.unit_price_var.get()) if hasattr(self, 'unit_price_var') else 0
+        except ValueError:
+            unit_price = 0
+        
+        if not target_sku or (max_price <= 0 and unit_price <= 0):
+            show_warning(self.root, "警告", "请选择定价基准SKU并设置最高售价或一口价")
             return
         
         target_parts = target_sku.split()
@@ -990,6 +1050,18 @@ class PricingToolGUI:
         
         shipping_cost = self.shipping_cost_var.get() if hasattr(self, 'shipping_cost_var') else 0
         
+        min_price = float('inf')
+        for i, color in enumerate(self.colors):
+            for j, size in enumerate(self.sizes):
+                price_key = (i, j)
+                if price_key in self.price_entries:
+                    try:
+                        cost = float(self.price_entries[price_key][0].get())
+                        if cost > 0 and cost < min_price:
+                            min_price = cost
+                    except ValueError:
+                        pass
+        
         for i, color in enumerate(self.colors):
             for j, size in enumerate(self.sizes):
                 price_key = (i, j)
@@ -1003,7 +1075,9 @@ class PricingToolGUI:
                 
                 cost_with_shipping = cost + shipping_cost
                 
-                if strategy == "multiplier":
+                if unit_price > 0:
+                    price = unit_price
+                elif strategy == "multiplier":
                     factor = max_price / target_cost
                     price = round(cost_with_shipping * factor, rounding)
                 else:
@@ -1134,6 +1208,26 @@ class PricingToolGUI:
             from utils.database import get_shared_db
             db = get_shared_db()
             db.save_selling_prices(self.product_id, results)
+            
+            try:
+                unit_price = float(self.unit_price_var.get()) if hasattr(self, 'unit_price_var') else 0
+            except ValueError:
+                unit_price = 0
+            
+            try:
+                shipping_cost = self.shipping_cost_var.get() if hasattr(self, 'shipping_cost_var') else 0
+            except:
+                shipping_cost = 0
+            
+            update_data = {}
+            if unit_price > 0:
+                update_data['unit_price'] = unit_price
+            if shipping_cost > 0:
+                update_data['shipping_cost'] = shipping_cost
+            
+            if update_data:
+                db.update_product(self.product_id, update_data)
+            
             show_info(self.root, "成功", f"已保存 {len(results)} 条价格数据到数据库")
         except Exception as e:
             show_error(self.root, "错误", f"保存失败：{str(e)}")

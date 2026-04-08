@@ -6,6 +6,10 @@
 
 import os
 import sys
+
+sys.dont_write_bytecode = True
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import ttk
@@ -121,9 +125,6 @@ class AlibabaScraperGUI:
         self.clear_queue_btn = create_button(self.button_frame, "清空队列", self.clear_queue, 'danger')
         self.clear_queue_btn.pack(side="left", padx=3)
         
-        self.pricing_btn = create_button(self.button_frame, "价格计算", self.open_pricing_tool, 'primary')
-        self.pricing_btn.pack(side="left", padx=3)
-        
         self.pause_btn = create_button(self.button_frame, "暂停 (P)", self.pause, 'warning', state="disabled")
         self.pause_btn.pack(side="right", padx=3)
         
@@ -236,6 +237,23 @@ class AlibabaScraperGUI:
                     self.log(f"  - {name}: 未安装")
             else:
                 self.log("扩展检查: 所有依赖已就绪")
+            
+            try:
+                from utils.database import get_shared_db
+                db = get_shared_db()
+                columns = db.conn.execute("DESCRIBE sku_prices").fetchall()
+                existing_columns = {col[0] for col in columns}
+                required_columns = {'sku_id', 'color', 'size', 'price', 'discount_price', 
+                                  'can_book_count', 'sale_count', 'spec_id'}
+                
+                if not required_columns.issubset(existing_columns):
+                    self.log("数据库: 检测到旧版 sku_prices 表结构")
+                    db._migrate_sku_prices_table()
+                    self.log("数据库: sku_prices 表结构已更新")
+                db.close()
+            except Exception as e:
+                self.log(f"数据库迁移检查: {e}")
+                
         except ImportError as e:
             self.log(f"扩展管理器不可用: {e}")
         except Exception as e:
@@ -325,6 +343,7 @@ class AlibabaScraperGUI:
         db_scrollbar.pack(side="right", fill="y")
         
         self.db_tree.bind('<Button-3>', self._show_db_context_menu)
+        self.db_tree.bind('<Double-1>', self._on_db_tree_double_click)
         
         self._db_sort_column = None
         self._db_sort_reverse = False
@@ -450,6 +469,44 @@ class AlibabaScraperGUI:
         )
         self.reinstall_btn.pack(side="left", padx=10)
         
+        online_collect_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
+        online_collect_frame.pack(pady=15)
+        
+        self.online_collect_btn = create_button(
+            online_collect_frame,
+            "在线采集",
+            self._show_online_collect_dialog,
+            'success',
+            width=150,
+            height=40
+        )
+        self.online_collect_btn.pack(side="left", padx=5)
+        
+        login_frame = ctk.CTkFrame(online_collect_frame, fg_color="transparent")
+        login_frame.pack(side="left", padx=10)
+        
+        ctk.CTkLabel(login_frame, text="登陆平台:", font=(self.available_font, self.font_size)).pack(side="left", padx=(0, 5))
+        
+        login_1688_btn = create_button(
+            login_frame,
+            "1688",
+            lambda: self._open_platform_login("1688"),
+            'primary',
+            width=60,
+            height=32
+        )
+        login_1688_btn.pack(side="left", padx=2)
+        
+        login_jd_btn = create_button(
+            login_frame,
+            "京东",
+            lambda: self._open_platform_login("jd"),
+            'primary',
+            width=60,
+            height=32
+        )
+        login_jd_btn.pack(side="left", padx=2)
+        
         self.update_status_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
         
         self.update_status_label = ctk.CTkLabel(
@@ -497,6 +554,252 @@ class AlibabaScraperGUI:
         """打开URL"""
         import webbrowser
         webbrowser.open(url)
+    
+    def _show_online_collect_dialog(self):
+        """显示在线采集对话框"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("在线采集")
+        dialog.geometry("900x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        
+        platform_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        platform_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(platform_frame, text="平台:", font=(self.available_font, self.font_size)).pack(side="left")
+        
+        platform_var = ctk.StringVar(value="1688")
+        
+        platform_1688 = ctk.CTkRadioButton(platform_frame, text="1688", variable=platform_var, value="1688")
+        platform_1688.pack(side="left", padx=15)
+        
+        platform_jd = ctk.CTkRadioButton(platform_frame, text="京东", variable=platform_var, value="jd")
+        platform_jd.pack(side="left", padx=5)
+        
+        input_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        input_frame.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(input_frame, text="URL或商品ID:", font=(self.available_font, self.font_size)).pack(anchor="w")
+        
+        input_var = ctk.StringVar()
+        input_entry = ctk.CTkEntry(input_frame, textvariable=input_var, width=400, height=35)
+        input_entry.pack(fill="x", pady=5)
+        input_entry.focus_set()
+        
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=15)
+        
+        def do_collect():
+            input_text = input_var.get().strip()
+            if not input_text:
+                return
+            
+            platform = platform_var.get()
+            
+            product_id = None
+            if input_text.isdigit():
+                product_id = input_text
+            else:
+                import re
+                if platform == "1688":
+                    match = re.search(r'offer/(\d+)\.html', input_text)
+                    if match:
+                        product_id = match.group(1)
+                elif platform == "jd":
+                    match = re.search(r'item/(\d+)\.html', input_text)
+                    if match:
+                        product_id = match.group(1)
+                    if not match:
+                        match = re.search(r'jd\.com/(\d+)', input_text)
+                        if match:
+                            product_id = match.group(1)
+            
+            if not product_id:
+                self.show_warning("提示", "无法识别商品ID，请检查输入")
+                return
+            
+            dialog.destroy()
+            
+            if platform == "1688":
+                url = f"https://detail.1688.com/offer/{product_id}.html"
+            else:
+                url = f"https://item.jd.com/{product_id}.html"
+            
+            self._start_online_collect(product_id, url, platform)
+        
+        def on_enter(event):
+            do_collect()
+        
+        input_entry.bind('<Return>', on_enter)
+        
+        cancel_btn = create_button(btn_frame, "取消", dialog.destroy, 'secondary', width=100)
+        cancel_btn.pack(side="right", padx=5)
+        
+        collect_btn = create_button(btn_frame, "开始采集", do_collect, 'success', width=100)
+        collect_btn.pack(side="right", padx=5)
+    
+    def _start_online_collect(self, product_id: str, url: str, platform: str):
+        """开始在线采集"""
+        import time
+        self.log(f"准备在线采集: {url}", "info")
+        
+        self._collect_start_time = time.time()
+        self._collect_product_id = product_id
+        
+        if hasattr(self, 'online_collect_btn') and self.online_collect_btn:
+            self.online_collect_btn.configure(state='disabled')
+        
+        def collect_thread():
+            try:
+                from gui.online_collector_gui import get_collector
+                
+                collector = get_collector(self.log)
+                
+                if not collector.browser_started:
+                    self.log("正在启动浏览器...")
+                    if not collector.start_browser():
+                        self.log("浏览器启动失败", "error")
+                        return
+                
+                self.log("正在采集数据...")
+                data = collector.collect_data_direct(product_id)
+                
+                if data:
+                    self.log("数据采集成功，正在保存到数据库...")
+                    self._save_online_collect_data(data)
+                    self.log("数据已保存到数据库", "success")
+                    
+                    self.root.after(0, self._refresh_db_data)
+                else:
+                    self.log("数据采集失败", "error")
+                    
+            except Exception as e:
+                self.log(f"在线采集异常: {e}", "error")
+                import traceback
+                traceback.print_exc()
+            finally:
+                self.root.after(0, self._on_online_collect_complete)
+        
+        thread = threading.Thread(target=collect_thread, daemon=True)
+        thread.start()
+    
+    def _on_online_collect_complete(self):
+        """在线采集完成后的回调"""
+        if hasattr(self, 'online_collect_btn') and self.online_collect_btn:
+            self.online_collect_btn.configure(state='normal')
+        
+        import time
+        elapsed_time = 0
+        product_id = getattr(self, '_collect_product_id', '')
+        
+        if hasattr(self, '_collect_start_time'):
+            elapsed_time = time.time() - self._collect_start_time
+        
+        result = self._show_continue_dialog(product_id, elapsed_time)
+        if result:
+            self._show_online_collect_dialog()
+    
+    def _show_continue_dialog(self, product_id: str = '', elapsed_time: float = 0) -> bool:
+        """显示是否继续采集的对话框"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("采集完成")
+        dialog.geometry("350x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        result = [False]
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        
+        if product_id:
+            info_text = f"商品 {product_id} 采集完成"
+            info_label = ctk.CTkLabel(main_frame, text=info_text, font=(self.available_font, self.font_size_large))
+            info_label.pack(pady=(5, 0))
+        
+        time_text = f"共耗时 {elapsed_time:.1f} 秒"
+        time_label = ctk.CTkLabel(main_frame, text=time_text, font=(self.available_font, self.font_size_large), text_color="gray")
+        time_label.pack(pady=(2, 5))
+        
+        question_label = ctk.CTkLabel(main_frame, text="是否继续采集？", font=(self.available_font, self.font_size_large))
+        question_label.pack(pady=5)
+        
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=5)
+        
+        def on_yes():
+            result[0] = True
+            dialog.destroy()
+        
+        def on_no():
+            result[0] = False
+            dialog.destroy()
+        
+        yes_btn = create_button(btn_frame, "是", on_yes, 'success', width=80)
+        yes_btn.pack(side="left", padx=20, expand=True)
+        
+        no_btn = create_button(btn_frame, "否", on_no, 'secondary', width=80)
+        no_btn.pack(side="right", padx=20, expand=True)
+        
+        dialog.wait_window()
+        return result[0]
+    
+    def _open_platform_login(self, platform: str):
+        """打开平台登录页面（正常模式，非无头模式）"""
+        try:
+            from utils.auto_collector import AutoCollector
+            
+            if platform == "1688":
+                url = "https://www.1688.com"
+                self.log("正在打开1688登录页面...")
+            else:
+                url = "https://www.jd.com"
+                self.log("正在打开京东登录页面...")
+            
+            def open_login_thread():
+                try:
+                    need_start = False
+                    if not hasattr(self, '_login_collector') or self._login_collector is None:
+                        need_start = True
+                    elif self._login_collector.driver is None:
+                        need_start = True
+                    else:
+                        try:
+                            self._login_collector.driver.current_url
+                        except:
+                            need_start = True
+                    
+                    if need_start:
+                        self._login_collector = AutoCollector(headless=False)
+                        self._login_collector.start_browser()
+                    
+                    self._login_collector.driver.get(url)
+                    self.log(f"已打开 {platform} 登录页面，请在浏览器中完成登录")
+                    
+                except Exception as e:
+                    self.log(f"打开登录页面失败: {e}", "error")
+                    self._login_collector = None
+            
+            thread = threading.Thread(target=open_login_thread, daemon=True)
+            thread.start()
+            
+        except Exception as e:
+            self.log(f"启动登录浏览器失败: {e}", "error")
     
     def _check_update(self):
         """检查更新"""
@@ -1030,6 +1333,20 @@ class AlibabaScraperGUI:
         webbrowser.open(url)
         self.log(f"已打开店铺页面: {url}")
     
+    def _on_db_tree_double_click(self, event):
+        """数据库树双击事件"""
+        item = self.db_tree.identify_row(event.y)
+        if not item:
+            return
+        
+        self.db_tree.selection_set(item)
+        values = self.db_tree.item(item, 'values')
+        if not values:
+            return
+        
+        product_id = values[1]
+        self._show_product_detail(product_id)
+    
     def _show_db_context_menu(self, event):
         """显示数据库右键菜单"""
         item = self.db_tree.identify_row(event.y)
@@ -1045,8 +1362,13 @@ class AlibabaScraperGUI:
         platform = values[0]
         product_id = values[1]
         shop_product_id = values[7]
+        output_path = values[8] if len(values) > 8 else None
         
         context_menu = tk.Menu(self.root, tearoff=0)
+        
+        context_menu.add_command(label="查看商品详情", command=lambda: self._show_product_detail(product_id))
+        context_menu.add_command(label="查看店铺信息", command=lambda: self._show_shop_info(product_id))
+        context_menu.add_separator()
         
         if platform == '1688':
             context_menu.add_command(label="访问原址", command=lambda: self._open_product_page(product_id))
@@ -1055,8 +1377,26 @@ class AlibabaScraperGUI:
         
         context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
         
+        if output_path and output_path != '-':
+            context_menu.add_command(label="打开资源目录", command=lambda: self._open_output_directory(output_path))
+        
         if shop_product_id and shop_product_id != '-':
             context_menu.add_command(label="访问DSID页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
+        
+        context_menu.add_separator()
+        
+        consign_url = f"https://detail.1688.com/offer/{product_id}.html?sk=consign&biz=qianniu&isNeedCloseWinport=y"
+        context_menu.add_command(label="铺货页面", command=lambda: self._copy_url_to_clipboard(consign_url, "铺货页面"))
+        
+        shop_new_url = f"https://item.upload.taobao.com/from1688/publish.htm?&sourceId={product_id}"
+        context_menu.add_command(label="店铺上新", command=lambda: self._copy_url_to_clipboard(shop_new_url, "店铺上新"))
+        
+        if shop_product_id and shop_product_id != '-':
+            edit_url = f"https://item.upload.taobao.com/sell/v2/publish.htm?itemId={shop_product_id}&fromAIPublish=true&newRouter=1&fromAICategory=true"
+            context_menu.add_command(label="编辑商品", command=lambda: self._copy_url_to_clipboard(edit_url, "编辑商品"))
+        
+        context_menu.add_separator()
+        context_menu.add_command(label="编辑DS店铺/DSID", command=lambda: self._edit_ds_shop_and_id(product_id, item, values))
         
         context_menu.add_separator()
         context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
@@ -1065,6 +1405,383 @@ class AlibabaScraperGUI:
         context_menu.add_command(label="删除记录", command=self._delete_db_record)
         
         context_menu.post(event.x_root, event.y_root)
+    
+    def _copy_url_to_clipboard(self, url: str, name: str):
+        """复制URL到剪贴板"""
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(url)
+            self.log(f"已复制{name}链接: {url}")
+        except Exception as e:
+            self.log(f"复制失败: {e}", "error")
+    
+    def _edit_ds_shop_and_id(self, product_id: str, item, values):
+        """编辑DS店铺与DSID"""
+        from utils.database import get_shared_db
+        
+        db = get_shared_db()
+        product = db.get_product(product_id)
+        
+        current_ds_shop = product.get('ds_shop', '') if product else ''
+        current_ds_id = product.get('shop_product_id', '') if product else ''
+        
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("编辑DS店铺与DSID")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        
+        label_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        label_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(label_frame, text="商品ID:").pack(side="left")
+        ctk.CTkLabel(label_frame, text=product_id, text_color="gray").pack(side="left", padx=(5, 0))
+        
+        ds_shop_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        ds_shop_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(ds_shop_frame, text="DS店铺:").pack(side="left")
+        ds_shop_entry = ctk.CTkEntry(ds_shop_frame, width=250)
+        ds_shop_entry.pack(side="left", padx=(5, 0))
+        ds_shop_entry.insert(0, current_ds_shop)
+        
+        ds_id_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        ds_id_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(ds_id_frame, text="DSID:").pack(side="left")
+        ds_id_entry = ctk.CTkEntry(ds_id_frame, width=250)
+        ds_id_entry.pack(side="left", padx=(5, 0))
+        ds_id_entry.insert(0, current_ds_id)
+        
+        error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
+        error_label.pack(fill="x", pady=(0, 5))
+        
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(5, 0))
+        
+        def save_ds_info():
+            new_ds_shop = ds_shop_entry.get().strip()
+            new_ds_id = ds_id_entry.get().strip()
+            
+            if new_ds_id and not new_ds_id.isdigit():
+                error_label.configure(text="DSID必须为纯数字")
+                return
+            
+            try:
+                db.update_product(product_id, {
+                    'ds_shop': new_ds_shop,
+                    'shop_product_id': new_ds_id if new_ds_id else None
+                })
+                
+                self.db_tree.set(item, column="shop_product_id", value=new_ds_id if new_ds_id else '-')
+                
+                self.log(f"已保存DS店铺/DSID: {product_id} -> 店铺:{new_ds_shop}, DSID:{new_ds_id}")
+            except Exception as e:
+                self.log(f"保存失败: {e}", "error")
+            
+            dialog.destroy()
+        
+        create_button(btn_frame, "保存", save_ds_info, 'success').pack(side="left", padx=5)
+        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=5)
+        
+        dialog.bind('<Return>', lambda e: save_ds_info())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+    
+    def _open_output_directory(self, output_path: str):
+        """打开输出目录"""
+        if output_path and os.path.exists(output_path):
+            import subprocess
+            subprocess.run(['explorer', output_path])
+        else:
+            self.show_info("提示", "输出目录不存在")
+    
+    def _show_product_detail(self, product_id: str):
+        """显示商品详情（products表完整记录）"""
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            product = db.get_product(product_id)
+            
+            if not product:
+                self.show_info("提示", "未找到商品记录")
+                return
+            
+            dialog = ctk.CTkToplevel(self.root)
+            dialog.title(f"商品详情 - {product_id}")
+            dialog.geometry("900x500")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            main_frame = ctk.CTkFrame(dialog)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            columns = ("字段", "值")
+            tree = ttk.Treeview(main_frame, columns=columns, show="headings", height=20)
+            
+            tree.heading("字段", text="字段")
+            tree.heading("值", text="值")
+            
+            tree.column("字段", width=150)
+            tree.column("值", width=700)
+            
+            field_names = {
+                'product_id': '商品ID',
+                'shop_product_id': 'DSID',
+                'title': '标题',
+                'description': '描述',
+                'product_url': '商品链接',
+                'product_code': '商品编码',
+                'shop_id': '店铺ID',
+                'status': '状态',
+                'platform': '平台',
+                'ship_from': '发货地',
+                'sales_count': '销量',
+                'min_order': '最小起订量',
+                'shipping_cost': '运费',
+                'unit_price': '一口价',
+                'output_path': '输出路径',
+                'resource_counts': '资源统计',
+                'cost_prices': '成本价格',
+                'selling_prices': '销售价格',
+                'created_at': '创建时间',
+                'updated_at': '更新时间'
+            }
+            
+            for key, label in field_names.items():
+                value = product.get(key, '')
+                if value is None:
+                    value = ''
+                if isinstance(value, str) and len(value) > 100:
+                    value = value[:100] + '...'
+                tree.insert("", "end", iid=key, values=(label, str(value)))
+            
+            for key, value in product.items():
+                if key not in field_names:
+                    if isinstance(value, str) and len(value) > 100:
+                        value = value[:100] + '...'
+                    tree.insert("", "end", iid=key, values=(key, str(value)))
+            
+            rate_info = db.get_rate_info(product_id)
+            if rate_info:
+                tree.insert("", "end", iid="_rate_sep", values=("─── 评价信息 ───", ""))
+                tree.insert("", "end", iid="good_rates", values=("好评数", rate_info.get('good_rates', 0)))
+                tree.insert("", "end", iid="goods_grade", values=("商品评分", rate_info.get('goods_grade', '-')))
+                
+                impression_tags = rate_info.get('impression_tags', [])
+                if impression_tags:
+                    tags_str = ', '.join([f"{t.get('name', '')}({t.get('count', 0)})" for t in impression_tags[:5]])
+                    tree.insert("", "end", iid="impression_tags", values=("印象标签", tags_str))
+                
+                common_tags = rate_info.get('common_tags', [])
+                if common_tags:
+                    tags_str = ', '.join([f"{t.get('name', '')}({t.get('count', 0)})" for t in common_tags[:5]])
+                    tree.insert("", "end", iid="common_tags", values=("常见标签", tags_str))
+            
+            def on_double_click(event):
+                selected = tree.selection()
+                if not selected:
+                    return
+                
+                item_id = selected[0]
+                item = tree.item(item_id)
+                field_label = item['values'][0]
+                value = item['values'][1]
+                
+                if item_id == 'description' or field_label == '描述':
+                    self._show_description_dialog(product_id, value)
+                else:
+                    dialog.clipboard_clear()
+                    dialog.clipboard_append(value)
+                    self.log(f"已复制: {value[:50]}...")
+            
+            tree.bind("<Double-1>", on_double_click)
+            
+            scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+            tree.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            btn_frame = ctk.CTkFrame(dialog)
+            btn_frame.pack(fill="x", pady=10)
+            
+            ctk.CTkLabel(btn_frame, text="双击行可复制值，描述字段双击查看属性", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
+            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            
+        except Exception as e:
+            self.log(f"获取商品详情失败: {e}", "error")
+            self.show_info("错误", f"获取商品详情失败: {e}")
+    
+    def _show_description_dialog(self, product_id: str, description: str):
+        """显示描述属性对话框"""
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            
+            attributes = db.get_attributes(product_id)
+            
+            dialog = ctk.CTkToplevel(self.root)
+            dialog.title(f"商品属性 - {product_id}")
+            dialog.geometry("600x400")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            main_frame = ctk.CTkFrame(dialog)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            columns = ("属性名", "属性值")
+            tree = ttk.Treeview(main_frame, columns=columns, show="headings", height=15)
+            
+            tree.heading("属性名", text="属性名")
+            tree.heading("属性值", text="属性值")
+            
+            tree.column("属性名", width=200)
+            tree.column("属性值", width=350)
+            
+            if attributes:
+                for attr in attributes:
+                    attr_name = attr.get('attr_name', '') or attr.get('name', '')
+                    attr_value = attr.get('attr_value', '') or attr.get('value', '')
+                    tree.insert("", "end", values=(attr_name, attr_value))
+            else:
+                if description:
+                    lines = description.split('\n')
+                    for line in lines:
+                        if ':' in line or '：' in line:
+                            sep = '：' if '：' in line else ':'
+                            parts = line.split(sep, 1)
+                            if len(parts) == 2:
+                                tree.insert("", "end", values=(parts[0].strip(), parts[1].strip()))
+                        elif line.strip():
+                            tree.insert("", "end", values=("", line.strip()))
+                
+                if not tree.get_children():
+                    tree.insert("", "end", values=("-", "无属性数据"))
+            
+            def copy_value(event):
+                selected = tree.selection()
+                if selected:
+                    item = tree.item(selected[0])
+                    value = f"{item['values'][0]}: {item['values'][1]}"
+                    dialog.clipboard_clear()
+                    dialog.clipboard_append(value)
+                    self.log(f"已复制: {value[:50]}...")
+            
+            tree.bind("<Double-1>", copy_value)
+            
+            scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+            tree.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            btn_frame = ctk.CTkFrame(dialog)
+            btn_frame.pack(fill="x", pady=10)
+            
+            ctk.CTkLabel(btn_frame, text="双击行可复制", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
+            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            
+        except Exception as e:
+            self.log(f"获取商品属性失败: {e}", "error")
+            self.show_info("错误", f"获取商品属性失败: {e}")
+    
+    def _show_shop_info(self, product_id: str):
+        """显示店铺信息（shops表记录）"""
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            product = db.get_product(product_id)
+            
+            if not product:
+                self.show_info("提示", "未找到商品记录")
+                return
+            
+            shop_id = product.get('shop_id', '')
+            if not shop_id:
+                self.show_info("提示", "该商品没有关联店铺信息")
+                return
+            
+            shop = db.get_shop(shop_id)
+            if not shop:
+                self.show_info("提示", "未找到店铺记录")
+                return
+            
+            dialog = ctk.CTkToplevel(self.root)
+            dialog.title(f"店铺信息 - {shop_id}")
+            dialog.geometry("800x400")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            main_frame = ctk.CTkFrame(dialog)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            columns = ("字段", "值")
+            tree = ttk.Treeview(main_frame, columns=columns, show="headings", height=15)
+            
+            tree.heading("字段", text="字段")
+            tree.heading("值", text="值")
+            
+            tree.column("字段", width=150)
+            tree.column("值", width=600)
+            
+            field_names = {
+                'shop_id': '店铺ID',
+                'shop_name': '店铺名称',
+                'shop_url': '店铺链接',
+                'platform': '平台',
+                'rating': '评分',
+                'sales': '销量',
+                'location': '地址',
+                'created_at': '创建时间',
+                'updated_at': '更新时间'
+            }
+            
+            for key, label in field_names.items():
+                value = shop.get(key, '')
+                if value is None:
+                    value = ''
+                if isinstance(value, str) and len(value) > 100:
+                    value = value[:100] + '...'
+                tree.insert("", "end", values=(label, str(value)))
+            
+            for key, value in shop.items():
+                if key not in field_names:
+                    if isinstance(value, str) and len(value) > 100:
+                        value = value[:100] + '...'
+                    tree.insert("", "end", values=(key, str(value)))
+            
+            def copy_value(event):
+                selected = tree.selection()
+                if selected:
+                    item = tree.item(selected[0])
+                    value = item['values'][1]
+                    dialog.clipboard_clear()
+                    dialog.clipboard_append(value)
+                    self.log(f"已复制: {value[:50]}...")
+            
+            tree.bind("<Double-1>", copy_value)
+            
+            scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+            tree.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            btn_frame = ctk.CTkFrame(dialog)
+            btn_frame.pack(fill="x", pady=10)
+            
+            ctk.CTkLabel(btn_frame, text="双击行可复制值", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
+            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            
+        except Exception as e:
+            self.log(f"获取店铺信息失败: {e}", "error")
+            self.show_info("错误", f"获取店铺信息失败: {e}")
     
     def _sort_db_column(self, col):
         """按列排序"""
@@ -1129,9 +1846,12 @@ class AlibabaScraperGUI:
             db = get_shared_db()
             resources = db.get_resources_by_type(product_id)
             
+            product = db.get_product(product_id)
+            output_path = product.get('output_path', '') if product else ''
+            
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"资源链接 - {product_id}")
-            dialog.geometry("900x600")
+            dialog.geometry("1100x650")
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -1141,7 +1861,6 @@ class AlibabaScraperGUI:
             notebook = ctk.CTkTabview(main_frame)
             notebook.pack(fill="both", expand=True)
             
-            # 资源类型中文映射 - 按顺序显示
             type_order = [
                 ('main_image', '主图'),
                 ('color_image', '色卡图'),
@@ -1154,18 +1873,20 @@ class AlibabaScraperGUI:
                 
                 tab = notebook.add(tab_name)
                 
-                columns = ("文件名", "URL", "状态", "大小", "下载时间")
+                columns = ("文件名", "URL", "状态", "分辨率", "大小", "下载时间")
                 tree = ttk.Treeview(tab, columns=columns, show="headings", height=15)
                 
                 tree.heading("文件名", text="文件名")
                 tree.heading("URL", text="URL")
                 tree.heading("状态", text="状态")
+                tree.heading("分辨率", text="分辨率")
                 tree.heading("大小", text="大小")
                 tree.heading("下载时间", text="下载时间")
                 
                 tree.column("文件名", width=150)
                 tree.column("URL", width=400)
                 tree.column("状态", width=80)
+                tree.column("分辨率", width=80)
                 tree.column("大小", width=100)
                 tree.column("下载时间", width=150)
                 
@@ -1175,16 +1896,42 @@ class AlibabaScraperGUI:
                     size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "-"
                     download_time = str(res.get('download_time', ''))[:19] if res.get('download_time') else "-"
                     
+                    resolution = "-"
+                    local_path = None
+                    if output_path and res.get('output_filename'):
+                        local_path = os.path.join(output_path, res.get('output_filename'))
+                    
+                    if local_path and os.path.exists(local_path):
+                        try:
+                            if res_type == 'video':
+                                try:
+                                    import cv2
+                                    cap = cv2.VideoCapture(local_path)
+                                    if cap.isOpened():
+                                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                                        resolution = f"{width}x{height}"
+                                        cap.release()
+                                except ImportError:
+                                    pass
+                            else:
+                                from PIL import Image
+                                with Image.open(local_path) as img:
+                                    resolution = f"{img.width}x{img.height}"
+                        except Exception:
+                            resolution = "-"
+                    
                     tree.insert("", "end", values=(
                         res.get('output_filename', ''),
                         res.get('resource_url', '')[:80] + '...' if len(res.get('resource_url', '')) > 80 else res.get('resource_url', ''),
                         status,
+                        resolution,
                         size_str,
                         download_time
                     ))
                 
                 if not res_list:
-                    tree.insert("", "end", values=("-", "无数据", "-", "-", "-"))
+                    tree.insert("", "end", values=("-", "无数据", "-", "-", "-", "-"))
                 
                 scrollbar = ttk.Scrollbar(tab, orient="vertical", command=tree.yview)
                 tree.configure(yscrollcommand=scrollbar.set)
@@ -1208,11 +1955,82 @@ class AlibabaScraperGUI:
             btn_frame = ctk.CTkFrame(main_frame)
             btn_frame.pack(fill="x", pady=10)
             
-            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy).pack(side="right", padx=5)
+            def check_resources():
+                self._check_resources_status(product_id, output_path)
+                self._show_resources_dialog(product_id)
+                dialog.destroy()
+            
+            def redownload_resources():
+                dialog.destroy()
+                self._download_product_resources(product_id, force=True)
+            
+            ctk.CTkButton(btn_frame, text="检查", command=check_resources, width=80).pack(side="left", padx=5)
+            ctk.CTkButton(btn_frame, text="重新下载", command=redownload_resources, width=80).pack(side="left", padx=5)
+            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
             
         except Exception as e:
             self.log(f"获取资源链接失败: {e}", "error")
             self.show_info("错误", f"获取资源链接失败: {e}")
+    
+    def _check_resources_status(self, product_id: str, output_path: str):
+        """检查资源状态并更新分辨率"""
+        try:
+            if not output_path or not os.path.exists(output_path):
+                self.log("输出路径不存在", "warning")
+                return
+            
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            resources = db.get_resources_by_type(product_id)
+            
+            has_cv2 = False
+            try:
+                import cv2
+                has_cv2 = True
+            except ImportError:
+                pass
+            
+            checked_count = 0
+            for res_type in ['main_image', 'color_image', 'detail_image', 'video']:
+                res_list = resources.get(res_type, [])
+                
+                for res in res_list:
+                    local_path = None
+                    if output_path and res.get('output_filename'):
+                        local_path = os.path.join(output_path, res.get('output_filename'))
+                    
+                    if local_path and os.path.exists(local_path):
+                        try:
+                            resolution = "-"
+                            file_size = os.path.getsize(local_path)
+                            
+                            if res_type == 'video':
+                                if has_cv2:
+                                    import cv2
+                                    cap = cv2.VideoCapture(local_path)
+                                    if cap.isOpened():
+                                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                                        resolution = f"{width}x{height}"
+                                        cap.release()
+                            else:
+                                from PIL import Image
+                                with Image.open(local_path) as img:
+                                    resolution = f"{img.width}x{img.height}"
+                            
+                            db.update('resources', {
+                                'file_size': file_size,
+                                'downloaded': True
+                            }, 'id = ?', [res['id']])
+                            
+                            checked_count += 1
+                        except Exception as e:
+                            self.log(f"检查资源失败 {res.get('output_filename')}: {e}", "warning")
+            
+            self.log(f"已检查 {checked_count} 个资源", "success")
+            
+        except Exception as e:
+            self.log(f"检查资源失败: {e}", "error")
     
     def _show_import_dialog(self):
         """显示导入对话框"""
@@ -1510,6 +2328,49 @@ class AlibabaScraperGUI:
         
         db = get_shared_db()
         
+        try:
+            columns = db.conn.execute("DESCRIBE sku_prices").fetchall()
+            existing_columns = {col[0] for col in columns}
+            required_columns = {'sku_id', 'color', 'size', 'price', 'discount_price', 
+                              'can_book_count', 'sale_count', 'spec_id'}
+            old_columns = {'sku_name', 'cost_price', 'original_price'}
+            has_old_columns = bool(existing_columns & old_columns)
+            
+            if not required_columns.issubset(existing_columns) or has_old_columns:
+                self.log("数据库: 开始迁移 sku_prices 表...")
+                
+                try:
+                    db.conn.execute('DROP INDEX IF EXISTS idx_sku_prices_product_id')
+                    db.conn.execute('DROP INDEX IF EXISTS idx_sku_prices_sku_id')
+                except Exception:
+                    pass
+                
+                db.conn.execute('DROP TABLE IF EXISTS sku_prices')
+                
+                db.conn.execute('''
+                    CREATE TABLE sku_prices (
+                        id INTEGER PRIMARY KEY,
+                        product_id VARCHAR NOT NULL,
+                        sku_id VARCHAR,
+                        color VARCHAR,
+                        size VARCHAR,
+                        price DOUBLE,
+                        discount_price DOUBLE,
+                        can_book_count INTEGER,
+                        sale_count INTEGER,
+                        spec_id VARCHAR,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                db.conn.execute('CREATE INDEX IF NOT EXISTS idx_sku_prices_product_id ON sku_prices(product_id)')
+                db.conn.execute('CREATE INDEX IF NOT EXISTS idx_sku_prices_sku_id ON sku_prices(sku_id)')
+                
+                self.log("数据库: sku_prices 表结构已更新")
+        except Exception as e:
+            self.log(f"数据库迁移失败: {e}")
+        
         product_id = data.get('product_id', '')
         
         product_info = data.get('product_info', {})
@@ -1518,6 +2379,9 @@ class AlibabaScraperGUI:
         main_images = data.get('main_images', [])
         detail_images = data.get('detail_images', [])
         video_info = data.get('video_info', {})
+        shop_info = data.get('shop_info', {})
+        attributes = data.get('attributes', [])
+        rate_info = data.get('rate_info', {})
         
         try:
             db.update_product(product_id, {
@@ -1525,6 +2389,56 @@ class AlibabaScraperGUI:
             })
         except Exception:
             pass
+        
+        saved_shop = False
+        if shop_info and shop_info.get('shop_id'):
+            try:
+                db.save_shop(
+                    shop_id=shop_info.get('shop_id'),
+                    shop_name=shop_info.get('shop_name'),
+                    shop_url=shop_info.get('shop_url'),
+                    shop_rating=shop_info.get('shop_rating'),
+                    shop_address=shop_info.get('shop_address'),
+                    platform='alibaba'
+                )
+                db.update_product(product_id, {'shop_id': shop_info.get('shop_id')})
+                saved_shop = True
+                self.log(f"已保存店铺信息: {shop_info.get('shop_name', shop_info.get('shop_id'))}")
+            except Exception as e:
+                self.log(f"保存店铺信息失败: {e}", "warning")
+        
+        saved_attr_count = 0
+        if attributes:
+            try:
+                db.clear_attributes(product_id)
+                for attr in attributes:
+                    try:
+                        db.insert_attribute(
+                            product_id=product_id,
+                            fid=attr.get('fid', ''),
+                            attr_name=attr.get('name', ''),
+                            attr_value=attr.get('value', '')
+                        )
+                        saved_attr_count += 1
+                    except Exception as e:
+                        self.log(f"保存属性失败: {e}", "warning")
+            except Exception as e:
+                self.log(f"保存属性失败: {e}", "warning")
+        
+        saved_rate = False
+        if rate_info:
+            try:
+                db.save_rate_info(
+                    product_id=product_id,
+                    good_rates=rate_info.get('goodRates', 0),
+                    goods_grade=rate_info.get('goodsGrade'),
+                    impression_tags=rate_info.get('impressionTags', []),
+                    common_tags=rate_info.get('commonTags', [])
+                )
+                saved_rate = True
+                self.log(f"已保存评价信息")
+            except Exception as e:
+                self.log(f"保存评价信息失败: {e}", "warning")
         
         saved_sku_count = 0
         if sku_prices:
@@ -1552,12 +2466,13 @@ class AlibabaScraperGUI:
         if main_images:
             for idx, img_url in enumerate(main_images):
                 try:
+                    from config import FILE_NAMING
                     db.insert_resource(
                         product_id=product_id,
                         resource_type='main_image',
                         resource_url=img_url,
                         resource_name=f'main_{idx+1}',
-                        output_filename=f'main_{idx+1}.jpg'
+                        output_filename=f'{FILE_NAMING["main_image_prefix"]}{idx+1}.jpg'
                     )
                     saved_main_count += 1
                 except Exception as e:
@@ -1567,12 +2482,14 @@ class AlibabaScraperGUI:
         if color_images:
             for color_data in color_images:
                 try:
+                    from config import FILE_NAMING, sanitize_filename
+                    safe_name = sanitize_filename(color_data['name'])
                     db.insert_resource(
                         product_id=product_id,
                         resource_type='color_image',
                         resource_url=color_data['imageUrl'],
                         resource_name=color_data['name'],
-                        output_filename=f'color_{color_data["name"]}.jpg'
+                        output_filename=f'{FILE_NAMING["color_option_prefix"]}{safe_name}.jpg'
                     )
                     saved_color_count += 1
                 except Exception as e:
@@ -1582,14 +2499,17 @@ class AlibabaScraperGUI:
         if detail_images:
             for idx, img_url in enumerate(detail_images):
                 try:
-                    db.insert_resource(
+                    from config import FILE_NAMING
+                    filename = f'{FILE_NAMING["detail_image_prefix"]}{idx+1}.jpg'
+                    result = db.insert_resource(
                         product_id=product_id,
                         resource_type='detail_image',
                         resource_url=img_url,
                         resource_name=f'detail_{idx+1}',
-                        output_filename=f'detail_{idx+1}.jpg'
+                        output_filename=filename
                     )
-                    saved_detail_count += 1
+                    if result:
+                        saved_detail_count += 1
                 except Exception as e:
                     self.log(f"保存详情图失败: {e}", "warning")
         
@@ -1612,6 +2532,80 @@ class AlibabaScraperGUI:
         self.log(f"已保存 {saved_color_count} 条色卡图")
         self.log(f"已保存 {saved_detail_count} 条详情图")
         self.log(f"已保存 {saved_video_count} 条视频")
+        self.log(f"已保存 {saved_attr_count} 条属性")
+        
+        db.close()
+        
+        total_resources = saved_main_count + saved_color_count + saved_detail_count + saved_video_count
+        if total_resources > 0:
+            self.log("开始下载资源...")
+            self._download_product_resources(product_id)
+    
+    def _download_product_resources(self, product_id: str, force: bool = False):
+        """下载商品资源
+        
+        Args:
+            product_id: 商品ID
+            force: 是否强制重新下载（忽略已存在的文件）
+        """
+        try:
+            from utils.resource_downloader import ResourceDownloader, get_aria2c_path
+            from utils.database import get_shared_db
+            
+            aria2c_path = get_aria2c_path()
+            if not aria2c_path:
+                self.log("aria2c 未找到，尝试自动下载...")
+                try:
+                    from utils.tool_downloader import ensure_aria2c
+                    aria2c_path = ensure_aria2c()
+                    if not aria2c_path:
+                        self.log("aria2c 下载失败，请手动下载 aria2c.exe 放到 tools 目录", "error")
+                        return
+                    self.log(f"aria2c 已下载: {aria2c_path}", "success")
+                except Exception as e:
+                    self.log(f"aria2c 下载失败: {e}", "error")
+                    return
+            
+            db = get_shared_db()
+            product = db.get_product(product_id)
+            
+            if not product:
+                self.log("未找到商品记录", "error")
+                db.close()
+                return
+            
+            output_path = product.get('output_path')
+            if not output_path:
+                project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                output_path = os.path.join(project_dir, 'products', 'upload', product_id)
+                db.update_product(product_id, {'output_path': output_path})
+            
+            if not os.path.exists(output_path):
+                os.makedirs(output_path, exist_ok=True)
+            
+            db.close()
+            
+            downloader = ResourceDownloader()
+            
+            if force:
+                self.log(f"强制重新下载资源到: {output_path}")
+            else:
+                self.log(f"正在下载资源到: {output_path}")
+            
+            result = downloader.download_product_resources(product_id, output_path, force=force)
+            
+            if result.get('success'):
+                downloaded = result.get('count', 0)
+                self.log(f"资源下载完成: {downloaded} 个文件", "success")
+            else:
+                self.log(f"资源下载完成，部分文件可能失败", "warning")
+            
+        except ImportError as e:
+            self.log(f"资源下载器不可用: {e}", "warning")
+        except Exception as e:
+            self.log(f"下载资源失败: {e}", "error")
+            import traceback
+            traceback.print_exc()
     
     def _delete_db_record(self):
         """删除选中的数据库记录"""
@@ -2676,6 +3670,10 @@ class AlibabaScraperGUI:
     def context_recollect(self):
         """右键菜单：重新采集"""
         self.context_menu_commands.context_recollect()
+    
+    def context_redownload_resources(self):
+        """右键菜单：重新下载资源"""
+        self.context_menu_commands.context_redownload_resources()
     
     def context_visit_url(self):
         """右键菜单：访问原址"""

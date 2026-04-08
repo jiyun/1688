@@ -291,32 +291,37 @@ class AlibabaParser(BaseParser):
         
         seen_urls = set()
         
-        # 从 HTML 标签提取
+        detail_div = self.soup.find('div', id='detail')
+        if detail_div:
+            img_tags = detail_div.find_all('img')
+            for img in img_tags:
+                usemap = img.get('usemap', '')
+                if usemap and usemap.startswith('#_sdmap'):
+                    src = img.get('src', '')
+                    if src and src.startswith('http'):
+                        if src not in seen_urls:
+                            seen_urls.add(src)
+                            detail_images.append(src)
+        
         sf_imgs = self.soup.find_all('img', attrs={'data-sf-original-src': True})
         for img in sf_imgs:
             url = img.get('data-sf-original-src', '')
             if url and 'alicdn.com' in url:
-                # 排除 imgextra 域名的图片（UI图标）
                 if 'imgextra' in url:
                     continue
                 
-                # 排除 _sum.jpg 后缀（缩略图）
                 if '_sum.jpg' in url:
                     continue
                 
-                # 排除 .webp 后缀（主图）
                 if '.webp' in url:
                     continue
                 
-                # 排除评论区用户头像（!!0-0-cib.jpg 后缀）
                 if '!!0-0-cib' in url:
                     continue
                 
-                # 排除缩略图后缀
                 if any(suffix in url for suffix in ['_88x88q90', '_120x120', '_60x60', '_100x100']):
                     continue
                 
-                # 排除父元素class包含 ant-image/v-image-wrap/label-image-wrap 的图片
                 parent = img.parent
                 if parent:
                     parent_class = parent.get('class', [])
@@ -325,19 +330,15 @@ class AlibabaParser(BaseParser):
                         if 'ant-image' in parent_class_str or 'v-image-wrap' in parent_class_str or 'label-image-wrap' in parent_class_str:
                             continue
                 
-                # 排除重复
                 if url in seen_urls:
                     continue
                 
-                # 只保留 cbu/ibank 域名的图片
                 if '/img/ibank/' in url:
                     seen_urls.add(url)
                     detail_images.append(url)
         
-        # 过滤掉占位图和空链接
         detail_images = [url for url in detail_images if url and 'lazyload.png' not in url and len(url) > 50]
         
-        # 应用WebP格式
         if self.webp_support:
             detail_images = [self._apply_webp_format(url) for url in detail_images]
         

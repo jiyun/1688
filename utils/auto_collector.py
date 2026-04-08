@@ -14,6 +14,7 @@ import shutil
 import glob
 from datetime import datetime
 from typing import List, Optional
+from utils.extension_manager import find_chrome_executable, find_edge_executable
 
 try:
     from selenium import webdriver
@@ -76,7 +77,7 @@ class AutoCollector:
     
     def __init__(self, output_dir: str = 'products', headless: bool = False, browser_type: str = 'chrome'):
         if not os.path.isabs(output_dir):
-            output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), output_dir)
+            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), output_dir)
         self.output_dir = output_dir
         self.headless = headless
         self.browser_type = browser_type
@@ -160,9 +161,24 @@ class AutoCollector:
         
         if self.browser_type == 'edge':
             print("使用 Edge 浏览器...")
+            edge_path = find_edge_executable()
+            if edge_path:
+                print(f"找到 Edge: {edge_path}")
+                options.binary_location = edge_path
             self.driver = webdriver.Edge(options=options)
         else:
-            print("使用 Chrome 浏览器...")
+            chrome_path = find_chrome_executable()
+            edge_path = find_edge_executable()
+            
+            if chrome_path:
+                print(f"使用 Chrome 浏览器: {chrome_path}")
+                options.binary_location = chrome_path
+            elif edge_path:
+                print(f"Chrome 未找到，使用 Edge 浏览器: {edge_path}")
+                options.binary_location = edge_path
+            else:
+                print("使用 Chrome 浏览器...")
+            
             chromedriver_path = os.path.abspath(os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
                 'tools', 'chromedriver-win64', 'chromedriver.exe'
@@ -359,8 +375,9 @@ class AutoCollector:
                     data = json.loads(result)
                     print("成功提取 window.context 数据")
                     return data
-                except json.JSONDecodeError:
-                    print("JSON 解析失败，尝试使用 demjson3...")
+                except json.JSONDecodeError as e:
+                    print(f"JSON 解析失败: {e}")
+                    print(f"数据长度: {len(result)} 字符")
                     try:
                         import demjson3
                         data = demjson3.decode(result)
@@ -369,12 +386,31 @@ class AutoCollector:
                     except ImportError:
                         print("请安装 demjson3: pip install demjson3")
                         return None
+                    except Exception as e2:
+                        print(f"demjson3 解析也失败: {e2}")
+                        return None
             else:
                 print("页面中未找到 window.context 数据")
+                print("尝试查找其他数据源...")
+                
+                js_script2 = """
+                if (typeof window.__INITIAL_STATE__ !== 'undefined') {
+                    return JSON.stringify(window.__INITIAL_STATE__);
+                }
+                return null;
+                """
+                result2 = self.driver.execute_script(js_script2)
+                if result2:
+                    print("找到 window.__INITIAL_STATE__")
+                    import json
+                    return json.loads(result2)
+                
                 return None
                 
         except Exception as e:
             print(f"提取页面数据失败: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def collect_data(self, url: str, output_dir: str = None) -> Optional[dict]:
@@ -396,25 +432,52 @@ class AutoCollector:
             time.sleep(5)
             
             print("滚动页面加载懒加载内容...")
+            scroll_height = self.driver.execute_script("return document.body.scrollHeight;")
+            scroll_step = 500
+            current_position = 0
+            while current_position < scroll_height:
+                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
+                time.sleep(0.3)
+                current_position += scroll_step
+                scroll_height = self.driver.execute_script("return document.body.scrollHeight;")
+            
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(1)
+            time.sleep(2)
+            
+            try:
+                detail_div = self.driver.find_element(By.ID, "detail")
+                if detail_div:
+                    self.driver.execute_script("arguments[0].scrollIntoView();", detail_div)
+                    time.sleep(2)
+            except:
+                pass
+            
             self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(1)
             
             print("提取页面数据...")
             data = self.extract_page_data()
+            
+            print("提取页面HTML...")
+            html_content = self.driver.page_source
+            
+            detail_html = ""
+            if data:
+                try:
+                    detail_url = data.get('result', {}).get('data', {}).get('description', {}).get('fields', {}).get('detailUrl', '')
+                    if detail_url:
+                        self.driver.get(detail_url)
+                        time.sleep(2)
+                        detail_html = self.driver.page_source
+                except:
+                    pass
             
             if data:
                 data['_productId'] = product_id
                 data['_url'] = url
                 data['_collectTime'] = datetime.now().isoformat()
-                
-                if output_dir:
-                    os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'{product_id}_raw.json')
-                    import json
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-                    print(f"原始数据已保存: {output_file}")
+                data['_htmlContent'] = html_content
+                data['_detailHtml'] = detail_html
                 
                 return data
             else:
