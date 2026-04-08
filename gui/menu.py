@@ -430,13 +430,12 @@ class ContextMenuCommands:
         self._context_recollect_internal(mode='all')
     
     def context_online_collect(self):
-        """在线采集：使用浏览器访问页面采集最新数据"""
+        """在线采集：直接从浏览器采集数据并保存到数据库"""
         file_path = self.get_selected_file_path()
         if not file_path:
             self.parent.log("请先选择一个文件", "warning")
             return
         
-        # 从文件名提取商品ID
         product_id = os.path.splitext(os.path.basename(file_path))[0]
         url = f"https://detail.1688.com/offer/{product_id}.html"
         
@@ -444,55 +443,87 @@ class ContextMenuCommands:
         
         def collect_thread():
             try:
-                auto_collector_path = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), 
-                    "..", "utils", "auto_collector.py"
-                )
+                from gui.online_collector_gui import get_collector
                 
-                if not os.path.exists(auto_collector_path):
-                    self.parent.log(f"采集器不存在: {auto_collector_path}", "error")
-                    return
+                collector = get_collector(self.parent.log)
                 
-                self.parent.log(f"启动采集器...", "info")
+                if not collector.browser_started:
+                    self.parent.log("正在启动浏览器...")
+                    if not collector.start_browser():
+                        self.parent.log("浏览器启动失败", "error")
+                        return
                 
-                cmd = ["python", auto_collector_path, url]
+                self.parent.log("正在采集数据...")
+                data = collector.collect_data_direct(product_id)
                 
-                env = os.environ.copy()
-                env['NO_COLOR'] = '1'
-                
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding='gbk',
-                    errors='ignore',
-                    bufsize=1,
-                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
-                    env=env
-                )
-                
-                while True:
-                    line = process.stdout.readline()
-                    if not line and process.poll() is not None:
-                        break
-                    if line:
-                        line = line.strip()
-                        if line:
-                            self.parent.log(line, "info")
-                
-                process.wait()
-                
-                if process.returncode == 0:
-                    self.parent.log("在线采集完成", "success")
+                if data:
+                    self.parent.log("数据采集成功，正在保存到数据库...")
+                    self._save_collected_data_to_db(data)
+                    self.parent.log("数据已保存到数据库", "success")
                 else:
-                    self.parent.log("在线采集失败", "error")
+                    self.parent.log("数据采集失败", "error")
                     
             except Exception as e:
                 self.parent.log(f"在线采集异常: {e}", "error")
+                import traceback
+                traceback.print_exc()
         
         thread = threading.Thread(target=collect_thread, daemon=True)
         thread.start()
+    
+    def _save_collected_data_to_db(self, data):
+        """将采集的数据保存到数据库"""
+        from utils.database import get_shared_db
+        
+        db = get_shared_db()
+        
+        product_id = data.get('product_id', '')
+        
+        product_info = data.get('product_info', {})
+        sku_prices = data.get('sku_prices', [])
+        color_images = data.get('color_images', [])
+        
+        try:
+            db.update_product(product_id, {
+                'title': product_info.get('subject', ''),
+            })
+        except Exception:
+            pass
+        
+        saved_sku_count = 0
+        if sku_prices:
+            for sku_data in sku_prices:
+                try:
+                    sku_id = sku_data['skuId']
+                    color = sku_data['color']
+                    size = sku_data['size']
+                    price = float(sku_data['price']) if sku_data['price'] else None
+                    discount_price = float(sku_data['discountPrice']) if sku_data['discountPrice'] else None
+                    can_book_count = int(sku_data['canBookCount']) if sku_data['canBookCount'] else None
+                    sale_count = int(sku_data['saleCount']) if sku_data['saleCount'] else None
+                    spec_id = sku_data['specId']
+                    
+                    db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
+                    saved_sku_count += 1
+                except Exception as e:
+                    self.parent.log(f"保存SKU价格失败: {e}", "warning")
+        
+        saved_color_count = 0
+        if color_images:
+            for color_data in color_images:
+                try:
+                    db.insert_resource(
+                        product_id=product_id,
+                        resource_type='color_card',
+                        resource_url=color_data['imageUrl'],
+                        resource_name=color_data['name']
+                    )
+                    saved_color_count += 1
+                except Exception as e:
+                    self.parent.log(f"保存色卡图失败: {e}", "warning")
+        
+        self.parent.log(f"已保存 {saved_sku_count} 条SKU价格")
+        self.parent.log(f"已保存 {saved_color_count} 条色卡图")
     
     def _context_recollect_internal(self, mode='all'):
         """内部重采方法
@@ -600,7 +631,12 @@ class ContextMenuCommands:
         thread = threading.Thread(target=recollect_thread, daemon=True)
         thread.start()
     
-    def context_visit_url(self):
+    def context_visit_url(self, event=None):
+        """访问原址 - 使用内嵌浏览器或外部浏览器
+        
+        Args:
+            event: 鼠标事件，用于检测Shift键状态
+        """
         file_path = self.get_selected_file_path()
         if not file_path:
             return
@@ -630,14 +666,49 @@ class ContextMenuCommands:
             url = f"https://detail.1688.com/offer/{product_id}.html"
         
         if url:
-            try:
-                webbrowser.open(url)
-                self.parent.log(f"已打开: {url}")
-            except Exception as e:
-                self.parent.log(f"打开浏览器失败: {e}", "error")
-                self.parent.show_info("错误", f"无法打开浏览器: {e}")
+            use_external = False
+            
+            if event and hasattr(event, 'state'):
+                if event.state & 0x1:
+                    use_external = True
+            
+            if use_external:
+                try:
+                    webbrowser.open(url)
+                    self.parent.log(f"已在外部浏览器打开: {url}")
+                except Exception as e:
+                    self.parent.log(f"打开浏览器失败: {e}", "error")
+            else:
+                self._open_in_embedded_browser(url)
         else:
             self.parent.show_info("提示", "无法获取有效的URL")
+    
+    def _open_in_embedded_browser(self, url):
+        """使用内嵌浏览器打开URL"""
+        try:
+            from gui.online_collector_gui import get_collector
+            
+            collector = get_collector(self.parent.log)
+            
+            if not collector.browser_started:
+                self.parent.log("正在启动内嵌浏览器...")
+                if not collector.start_browser():
+                    self.parent.log("内嵌浏览器启动失败，使用外部浏览器", "warning")
+                    import webbrowser
+                    webbrowser.open(url)
+                    return
+            
+            collector.collector.driver.get(url)
+            self.parent.log(f"已在内嵌浏览器打开: {url}")
+            
+        except ImportError:
+            self.parent.log("内嵌浏览器模块不可用，使用外部浏览器", "warning")
+            import webbrowser
+            webbrowser.open(url)
+        except Exception as e:
+            self.parent.log(f"内嵌浏览器打开失败: {e}，使用外部浏览器", "warning")
+            import webbrowser
+            webbrowser.open(url)
     
     def _get_product_id(self):
         file_path = self.get_selected_file_path()

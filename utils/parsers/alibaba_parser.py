@@ -276,47 +276,63 @@ class AlibabaParser(BaseParser):
         return color_options
     
     def get_detail_images(self) -> List[str]:
-        """获取详情图链接"""
+        """获取详情图链接
+        
+        从 HTML 标签提取，
+        排除 imgextra 域名的图片（UI图标等无效图片）
+        排除重复URL
+        排除 _sum.jpg 后缀的缩略图
+        排除 .webp 后缀（主图）
+        排除父元素class包含 ant-image/v-image-wrap/label-image-wrap 的图片（主图/色卡图）
+        排除评论区用户头像（!!0-0-cib.jpg 后缀）
+        排除缩略图（_88x88q90 等后缀）
+        """
         detail_images = []
         
-        # 方法1: 从 data-lazyload-src 属性提取
-        lazyload_imgs = self.soup.find_all('img', attrs={'data-lazyload-src': True})
-        for img in lazyload_imgs:
-            url = img.get('data-lazyload-src', '')
-            if url and 'alicdn.com' in url:
-                url = self._normalize_url(url)
-                if url not in detail_images:
-                    detail_images.append(url)
+        seen_urls = set()
         
-        # 方法2: 从 data-sf-original-src 属性提取
+        # 从 HTML 标签提取
         sf_imgs = self.soup.find_all('img', attrs={'data-sf-original-src': True})
         for img in sf_imgs:
             url = img.get('data-sf-original-src', '')
             if url and 'alicdn.com' in url:
-                url = self._normalize_url(url)
-                if url not in detail_images:
+                # 排除 imgextra 域名的图片（UI图标）
+                if 'imgextra' in url:
+                    continue
+                
+                # 排除 _sum.jpg 后缀（缩略图）
+                if '_sum.jpg' in url:
+                    continue
+                
+                # 排除 .webp 后缀（主图）
+                if '.webp' in url:
+                    continue
+                
+                # 排除评论区用户头像（!!0-0-cib.jpg 后缀）
+                if '!!0-0-cib' in url:
+                    continue
+                
+                # 排除缩略图后缀
+                if any(suffix in url for suffix in ['_88x88q90', '_120x120', '_60x60', '_100x100']):
+                    continue
+                
+                # 排除父元素class包含 ant-image/v-image-wrap/label-image-wrap 的图片
+                parent = img.parent
+                if parent:
+                    parent_class = parent.get('class', [])
+                    if isinstance(parent_class, list):
+                        parent_class_str = ' '.join(parent_class)
+                        if 'ant-image' in parent_class_str or 'v-image-wrap' in parent_class_str or 'label-image-wrap' in parent_class_str:
+                            continue
+                
+                # 排除重复
+                if url in seen_urls:
+                    continue
+                
+                # 只保留 cbu/ibank 域名的图片
+                if '/img/ibank/' in url:
+                    seen_urls.add(url)
                     detail_images.append(url)
-        
-        # 方法3: 从普通 img 标签提取
-        all_imgs = self.soup.find_all('img')
-        for img in all_imgs:
-            url = img.get('src', '') or img.get('data-src', '')
-            if url and 'alicdn.com' in url and 'lazyload.png' not in url:
-                url = self._normalize_url(url)
-                if url not in detail_images:
-                    detail_images.append(url)
-        
-        # 方法4: 从背景图片URL提取
-        style_elements = self.soup.find_all(style=True)
-        for elem in style_elements:
-            style = elem.get('style', '')
-            if 'alicdn.com' in style and 'imgextra' in style:
-                import re
-                matches = re.findall(r'url\(["\']?(https?://[^"\']+)["\']?\)', style)
-                for match in matches:
-                    url = self._normalize_url(match)
-                    if url not in detail_images:
-                        detail_images.append(url)
         
         # 过滤掉占位图和空链接
         detail_images = [url for url in detail_images if url and 'lazyload.png' not in url and len(url) > 50]
@@ -326,6 +342,64 @@ class AlibabaParser(BaseParser):
             detail_images = [self._apply_webp_format(url) for url in detail_images]
         
         return detail_images
+    
+    def _extract_detail_images_from_context(self) -> Optional[List[str]]:
+        """从 window.context 提取详情图
+        
+        Returns:
+            详情图URL列表，如果提取失败返回None
+        """
+        try:
+            html_content = str(self.soup)
+            
+            start_marker = 'window.context=(function(b,d){'
+            end_marker = '})(window.contextPath,'
+            
+            start_idx = html_content.find(start_marker)
+            if start_idx == -1:
+                return None
+            
+            json_start = html_content.find(end_marker, start_idx)
+            if json_start == -1:
+                return None
+            
+            json_start += len(end_marker)
+            
+            brace_count = 0
+            json_end = json_start
+            
+            for i in range(json_start, len(html_content)):
+                char = html_content[i]
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+            
+            json_str = html_content[json_start:json_end]
+            
+            try:
+                import json
+                data = json.loads(json_str)
+            except json.JSONDecodeError:
+                try:
+                    import demjson3
+                    data = demjson3.decode(json_str)
+                except ImportError:
+                    return None
+            
+            gallery = data.get('result', {}).get('data', {}).get('gallery', {}).get('fields', {})
+            offer_img_list = gallery.get('offerImgList', [])
+            
+            if offer_img_list:
+                return offer_img_list
+            
+            return None
+            
+        except Exception as e:
+            return None
     
     def get_videos(self) -> List[str]:
         """获取视频链接"""
@@ -751,3 +825,123 @@ class AlibabaParser(BaseParser):
                 return min_amount
         
         return 1
+    
+    def get_plugin_data(self) -> Dict:
+        """获取1688采购助手插件数据
+        
+        Returns:
+            包含类目、上架时间、成交数据等的字典
+        """
+        data = {}
+        
+        try:
+            html_str = str(self.soup)
+            
+            # 使用正则表达式提取数据
+            patterns = {
+                'category': r'类目<span class=goods-operation-items>([^<]+)',
+                'category_path': r'goods-operation-tooltip>([^<]+)</div></span>',
+                'listing_date': r'上架时间<span>([^<]+)</span>',
+                'monthly_sales': r'月成交<span>([^<]+)</span>',
+                'monthly_dropship': r'月代销<span>([^<]+)</span>',
+                'yearly_sales_pieces': r'年成交件数<span>([^<]+)</span>',
+                'yearly_sales_orders': r'年成交笔数<span>([^<]+)</span>',
+                'review_count': r'评论数<span>([^<]+)</span>',
+                'positive_rate': r'好评率<span>([^<]+)</span>',
+                'pickup_rate': r'揽收率<span>([^<]+)</span>',
+            }
+            
+            for key, pattern in patterns.items():
+                match = re.search(pattern, html_str)
+                if match:
+                    data[key] = match.group(1).strip()
+        
+        except Exception as e:
+            pass
+        
+        return data
+    
+    def get_aoxia_data(self) -> Dict:
+        """获取遨虾数据（需要登录后才能看到）
+        
+        Returns:
+            包含近4周采购量、功能亮点等的字典
+        """
+        data = {}
+        
+        try:
+            sales_label = self.soup.find('span', class_='alphashop-pkg-od-banner-salesLabel')
+            if sales_label and '近4周采购量' in sales_label.get_text():
+                value_span = sales_label.find_next_sibling('span', class_='alphashop-pkg-od-banner-salesValue')
+                if value_span:
+                    data['four_week_purchases'] = value_span.get_text(strip=True)
+            
+            feature_title = self.soup.find('span', class_='alphashop-pkg-od-banner-featureTitle')
+            if feature_title and '供应商亮点' in feature_title.get_text():
+                tags = self.soup.find_all('span', class_='alphashop-pkg-od-banner-tagText')
+                if tags:
+                    data['supplier_highlights'] = [tag.get_text(strip=True) for tag in tags]
+            
+            feature_cards = self.soup.find_all('div', class_='alphashop-pkg-od-banner-featureCard')
+            for card in feature_cards:
+                title_elem = card.find('span', class_='alphashop-pkg-od-banner-featureTitle')
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    
+                    if '功能亮点' in title:
+                        tags = card.find_all('span', class_='alphashop-pkg-od-banner-tagText')
+                        if tags:
+                            data['feature_highlights'] = [tag.get_text(strip=True) for tag in tags]
+        
+        except Exception as e:
+            pass
+        
+        return data
+    
+    def get_trend_data(self) -> Dict:
+        """获取商品成交趋势数据
+        
+        Returns:
+            包含年销量、近30天销量、代发订单数、复购率、揽收率等的字典
+        """
+        data = {}
+        
+        try:
+            sale_items = self.soup.find_all('div', class_='sale-item')
+            for item in sale_items:
+                cont = item.find('span', class_='cont')
+                title = item.find('span', class_='title')
+                
+                if cont and title:
+                    value = cont.get_text(strip=True)
+                    title_text = title.get_text(strip=True)
+                    
+                    if '年销量' in title_text:
+                        data['yearly_sales'] = value
+                    elif '近30天销量' in title_text:
+                        data['last_30_days_sales'] = value
+                    elif '30天代发订单数' in title_text:
+                        data['last_30_days_dropship'] = value
+                    elif '复购率' in title_text:
+                        data['repurchase_rate'] = value
+                    elif '48小时揽收率' in title_text:
+                        data['pickup_rate_48h'] = value
+            
+            update_time = self.soup.find('div', class_='update-time')
+            if update_time:
+                spans = update_time.find_all('span')
+                for span in spans:
+                    text = span.get_text(strip=True)
+                    if '最早上架时间' in text:
+                        match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                        if match:
+                            data['first_listing_date'] = match.group(1)
+                    elif '最新发布时间' in text:
+                        match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                        if match:
+                            data['latest_publish_date'] = match.group(1)
+        
+        except Exception as e:
+            pass
+        
+        return data

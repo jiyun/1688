@@ -10,6 +10,7 @@ import tkinter as tk
 import customtkinter as ctk
 from tkinter import ttk
 import multiprocessing
+import threading
 
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
@@ -214,6 +215,31 @@ class AlibabaScraperGUI:
         self.log("3. 选中文件后可移除或清空队列")
         self.log("4. 日志窗口显示执行过程和结果")
         self.log("-----------------------------------")
+        
+        self._check_extensions()
+    
+    def _check_extensions(self):
+        """检查扩展依赖"""
+        try:
+            from utils.extension_manager import ExtensionManager, check_dependencies
+            manager = ExtensionManager()
+            status = manager.get_status()
+            
+            missing = []
+            for name, installed in status.items():
+                if not installed:
+                    missing.append(name)
+            
+            if missing:
+                self.log(f"扩展检查: 缺少 {len(missing)} 个组件")
+                for name in missing:
+                    self.log(f"  - {name}: 未安装")
+            else:
+                self.log("扩展检查: 所有依赖已就绪")
+        except ImportError as e:
+            self.log(f"扩展管理器不可用: {e}")
+        except Exception as e:
+            self.log(f"扩展检查失败: {e}")
     
     def _init_db_tab(self):
         """初始化数据库选项卡"""
@@ -263,27 +289,31 @@ class AlibabaScraperGUI:
         self.db_tree_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
         self.db_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        db_columns = ("product_id", "shop_product_id", "title", "shop_name", "ship_from", "resource_counts", "sku_prices", "output_path", "status", "created_at")
+        db_columns = ("platform", "product_id", "title", "ship_from", "resource_counts", "sku_prices", "shop_name", "shop_product_id", "price_matrix", "output_path", "status", "created_at")
         self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
         
-        self.db_tree.heading("product_id", text="商品ID")
-        self.db_tree.heading("shop_product_id", text="DSID")
-        self.db_tree.heading("title", text="商品标题")
-        self.db_tree.heading("shop_name", text="店铺")
-        self.db_tree.heading("ship_from", text="发货地")
-        self.db_tree.heading("resource_counts", text="资源")
-        self.db_tree.heading("sku_prices", text="SKU")
+        self.db_tree.heading("platform", text="平台", command=lambda: self._sort_db_column("platform"))
+        self.db_tree.heading("product_id", text="商品ID", command=lambda: self._sort_db_column("product_id"))
+        self.db_tree.heading("title", text="商品标题", command=lambda: self._sort_db_column("title"))
+        self.db_tree.heading("ship_from", text="发货地", command=lambda: self._sort_db_column("ship_from"))
+        self.db_tree.heading("resource_counts", text="资源", command=lambda: self._sort_db_column("resource_counts"))
+        self.db_tree.heading("sku_prices", text="SKU", command=lambda: self._sort_db_column("sku_prices"))
+        self.db_tree.heading("shop_name", text="DS店铺", command=lambda: self._sort_db_column("shop_name"))
+        self.db_tree.heading("shop_product_id", text="DSID", command=lambda: self._sort_db_column("shop_product_id"))
+        self.db_tree.heading("price_matrix", text="DS价格矩阵", command=lambda: self._sort_db_column("price_matrix"))
         self.db_tree.heading("output_path", text="输出路径")
-        self.db_tree.heading("status", text="状态")
-        self.db_tree.heading("created_at", text="创建时间")
+        self.db_tree.heading("status", text="状态", command=lambda: self._sort_db_column("status"))
+        self.db_tree.heading("created_at", text="创建时间", command=lambda: self._sort_db_column("created_at"))
         
+        self.db_tree.column("platform", width=60, anchor="center")
         self.db_tree.column("product_id", width=105, anchor="center")
-        self.db_tree.column("shop_product_id", width=85, anchor="center")
-        self.db_tree.column("title", width=180, anchor="w")
-        self.db_tree.column("shop_name", width=90, anchor="w")
-        self.db_tree.column("ship_from", width=70, anchor="center")
-        self.db_tree.column("resource_counts", width=50, anchor="center")
+        self.db_tree.column("title", width=200, anchor="w")
+        self.db_tree.column("ship_from", width=60, anchor="center")
+        self.db_tree.column("resource_counts", width=45, anchor="center")
         self.db_tree.column("sku_prices", width=40, anchor="center")
+        self.db_tree.column("shop_name", width=80, anchor="w")
+        self.db_tree.column("shop_product_id", width=85, anchor="center")
+        self.db_tree.column("price_matrix", width=80, anchor="center")
         self.db_tree.column("output_path", width=150, anchor="w")
         self.db_tree.column("status", width=50, anchor="center")
         self.db_tree.column("created_at", width=120, anchor="center")
@@ -294,7 +324,10 @@ class AlibabaScraperGUI:
         self.db_tree.pack(side="left", fill="both", expand=True)
         db_scrollbar.pack(side="right", fill="y")
         
-        self.db_tree.bind('<Double-Button-1>', self._db_tree_double_click)
+        self.db_tree.bind('<Button-3>', self._show_db_context_menu)
+        
+        self._db_sort_column = None
+        self._db_sort_reverse = False
         
         self.db_btn_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
         self.db_btn_frame.pack(fill="x", pady=5)
@@ -338,14 +371,8 @@ class AlibabaScraperGUI:
         self.db_refresh_btn = create_button(self.db_btn_frame, "刷新", self._refresh_db_data, 'secondary', width=60)
         self.db_refresh_btn.pack(side="left", padx=5)
         
-        self.db_price_btn = create_button(self.db_btn_frame, "价格计算", self._open_pricing_for_selected, 'primary', width=70)
-        self.db_price_btn.pack(side="left", padx=5)
-        
         self.db_import_btn = create_button(self.db_btn_frame, "导入", self._show_import_dialog, 'success', width=60)
         self.db_import_btn.pack(side="left", padx=5)
-        
-        self.db_delete_btn = create_button(self.db_btn_frame, "删除选中", self._delete_db_record, 'danger', width=70)
-        self.db_delete_btn.pack(side="left", padx=5)
         
         self.db_close_btn = create_button(self.db_btn_frame, "关闭数据库", self._close_db_tab, 'secondary', width=80)
         self.db_close_btn.pack(side="right", padx=5)
@@ -619,6 +646,7 @@ class AlibabaScraperGUI:
             self.db_welcome_frame.pack_forget()
             self.db_content_frame.pack(fill="both", expand=True)
             self._refresh_db_data()
+            self.root.state("zoomed")
     
     def _close_db_tab(self):
         """关闭数据库选项卡，返回处理队列"""
@@ -653,10 +681,16 @@ class AlibabaScraperGUI:
                         output_path = '...' + output_path[-15:]
                     
                     title = product.get('title', '') or ''
-                    if len(title) > 18:
-                        title = title[:18] + '...'
+                    if len(title) > 20:
+                        title = title[:20] + '...'
                     
                     product_id = product.get('product_id', '')
+                    
+                    platform = product.get('platform', 'alibaba')
+                    if platform == 'alibaba':
+                        platform = '1688'
+                    elif platform == 'jd':
+                        platform = '京东'
                     
                     sku_prices_count = db.count_sku_prices(product_id)
                     sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
@@ -670,9 +704,25 @@ class AlibabaScraperGUI:
                     if shop_id:
                         shop = db.get_shop(shop_id)
                         if shop:
-                            shop_name = shop.get('shop_name', '')[:10]
+                            shop_name = shop.get('shop_name', '')[:8]
                     
                     ship_from = product.get('ship_from', '') or '-'
+                    
+                    shop_product_id = product.get('shop_product_id', '') or '-'
+                    
+                    price_matrix = product.get('selling_prices', '')
+                    if price_matrix:
+                        try:
+                            import json
+                            prices_data = json.loads(price_matrix)
+                            if isinstance(prices_data, list) and len(prices_data) > 0:
+                                price_matrix = f"{len(prices_data)}条"
+                            else:
+                                price_matrix = '-'
+                        except:
+                            price_matrix = '-'
+                    else:
+                        price_matrix = '-'
                     
                     status = product.get('status', '') or '-'
                     if status == 'pending':
@@ -681,13 +731,15 @@ class AlibabaScraperGUI:
                         status = '完成'
                     
                     self.db_tree.insert("", "end", values=(
+                        platform,
                         product_id,
-                        product.get('shop_product_id', ''),
                         title,
-                        shop_name,
                         ship_from,
                         resource_counts_str,
                         sku_prices_str,
+                        shop_name,
+                        shop_product_id,
+                        price_matrix,
                         output_path,
                         status,
                         str(product.get('created_at', ''))[:16]
@@ -741,10 +793,17 @@ class AlibabaScraperGUI:
                     output_path = '...' + output_path[-15:]
                 
                 title = product.get('title', '') or ''
-                if len(title) > 18:
-                    title = title[:18] + '...'
+                if len(title) > 20:
+                    title = title[:20] + '...'
                 
                 product_id = product.get('product_id', '')
+                
+                platform = product.get('platform', 'alibaba')
+                if platform == 'alibaba':
+                    platform = '1688'
+                elif platform == 'jd':
+                    platform = '京东'
+                
                 sku_prices_count = db.count_sku_prices(product_id)
                 sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
                 
@@ -757,9 +816,25 @@ class AlibabaScraperGUI:
                 if shop_id:
                     shop = db.get_shop(shop_id)
                     if shop:
-                        shop_name = shop.get('shop_name', '')[:10]
+                        shop_name = shop.get('shop_name', '')[:8]
                 
                 ship_from = product.get('ship_from', '') or '-'
+                
+                shop_product_id = product.get('shop_product_id', '') or '-'
+                
+                price_matrix = product.get('selling_prices', '')
+                if price_matrix:
+                    try:
+                        import json
+                        prices_data = json.loads(price_matrix)
+                        if isinstance(prices_data, list) and len(prices_data) > 0:
+                            price_matrix = f"{len(prices_data)}条"
+                        else:
+                            price_matrix = '-'
+                    except:
+                        price_matrix = '-'
+                else:
+                    price_matrix = '-'
                 
                 status = product.get('status', '') or '-'
                 if status == 'pending':
@@ -768,13 +843,15 @@ class AlibabaScraperGUI:
                     status = '完成'
                 
                 self.db_tree.insert("", "end", values=(
+                    platform,
                     product_id,
-                    product.get('shop_product_id', ''),
                     title,
-                    shop_name,
                     ship_from,
                     resource_counts_str,
                     sku_prices_str,
+                    shop_name,
+                    shop_product_id,
+                    price_matrix,
                     output_path,
                     status,
                     str(product.get('created_at', ''))[:16]
@@ -828,10 +905,17 @@ class AlibabaScraperGUI:
                     output_path = '...' + output_path[-15:]
                 
                 title = product.get('title', '') or ''
-                if len(title) > 18:
-                    title = title[:18] + '...'
+                if len(title) > 20:
+                    title = title[:20] + '...'
                 
                 product_id = product.get('product_id', '')
+                
+                product_platform = product.get('platform', 'alibaba')
+                if product_platform == 'alibaba':
+                    product_platform = '1688'
+                elif product_platform == 'jd':
+                    product_platform = '京东'
+                
                 sku_prices_count = db.count_sku_prices(product_id)
                 sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
                 
@@ -844,9 +928,25 @@ class AlibabaScraperGUI:
                 if shop_id:
                     shop = db.get_shop(shop_id)
                     if shop:
-                        shop_name = shop.get('shop_name', '')[:10]
+                        shop_name = shop.get('shop_name', '')[:8]
                 
                 ship_from_val = product.get('ship_from', '') or '-'
+                
+                shop_product_id = product.get('shop_product_id', '') or '-'
+                
+                price_matrix = product.get('selling_prices', '')
+                if price_matrix:
+                    try:
+                        import json
+                        prices_data = json.loads(price_matrix)
+                        if isinstance(prices_data, list) and len(prices_data) > 0:
+                            price_matrix = f"{len(prices_data)}条"
+                        else:
+                            price_matrix = '-'
+                    except:
+                        price_matrix = '-'
+                else:
+                    price_matrix = '-'
                 
                 status_val = product.get('status', '') or '-'
                 if status_val == 'pending':
@@ -855,13 +955,15 @@ class AlibabaScraperGUI:
                     status_val = '完成'
                 
                 self.db_tree.insert("", "end", values=(
+                    product_platform,
                     product_id,
-                    product.get('shop_product_id', ''),
                     title,
-                    shop_name,
                     ship_from_val,
                     resource_counts_str,
                     sku_prices_str,
+                    shop_name,
+                    shop_product_id,
+                    price_matrix,
                     output_path,
                     status_val,
                     str(product.get('created_at', ''))[:16]
@@ -928,30 +1030,97 @@ class AlibabaScraperGUI:
         webbrowser.open(url)
         self.log(f"已打开店铺页面: {url}")
     
-    def _db_tree_double_click(self, event):
-        """双击数据库记录"""
-        region = self.db_tree.identify("region", event.x, event.y)
-        if region != "cell":
-            return
-        
-        column = self.db_tree.identify_column(event.x)
+    def _show_db_context_menu(self, event):
+        """显示数据库右键菜单"""
         item = self.db_tree.identify_row(event.y)
-        
         if not item:
             return
+        
+        self.db_tree.selection_set(item)
         
         values = self.db_tree.item(item, 'values')
         if not values:
             return
         
-        product_id = values[0]
+        platform = values[0]
+        product_id = values[1]
+        shop_product_id = values[7]
         
-        if column == "#1":
-            self._open_product_page(product_id)
-        elif column == "#2":
-            self._open_shop_page(product_id)
-        elif column == "#6":
-            self._show_resources_dialog(product_id)
+        context_menu = tk.Menu(self.root, tearoff=0)
+        
+        if platform == '1688':
+            context_menu.add_command(label="访问原址", command=lambda: self._open_product_page(product_id))
+        elif platform == '京东':
+            context_menu.add_command(label="访问原址", command=lambda: webbrowser.open(f"https://item.jd.com/{product_id}.html"))
+        
+        context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
+        
+        if shop_product_id and shop_product_id != '-':
+            context_menu.add_command(label="访问DSID页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
+        
+        context_menu.add_separator()
+        context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
+        context_menu.add_command(label="在线采集", command=lambda: self._db_online_collect_for_item(product_id))
+        context_menu.add_separator()
+        context_menu.add_command(label="删除记录", command=self._delete_db_record)
+        
+        context_menu.post(event.x_root, event.y_root)
+    
+    def _sort_db_column(self, col):
+        """按列排序"""
+        items = [(self.db_tree.set(item, col), item) for item in self.db_tree.get_children('')]
+        
+        if self._db_sort_column == col:
+            self._db_sort_reverse = not self._db_sort_reverse
+        else:
+            self._db_sort_column = col
+            self._db_sort_reverse = False
+        
+        try:
+            items.sort(key=lambda x: float(x[0].replace('-', '0').replace('条', '')), reverse=self._db_sort_reverse)
+        except ValueError:
+            items.sort(key=lambda x: x[0], reverse=self._db_sort_reverse)
+        
+        for index, (val, item) in enumerate(items):
+            self.db_tree.move(item, '', index)
+    
+    def _db_online_collect_for_item(self, product_id: str):
+        """对指定商品进行在线采集"""
+        url = f"https://detail.1688.com/offer/{product_id}.html"
+        
+        self.log(f"准备在线采集: {url}", "info")
+        
+        def collect_thread():
+            try:
+                from gui.online_collector_gui import get_collector
+                
+                collector = get_collector(self.log)
+                
+                if not collector.browser_started:
+                    self.log("正在启动浏览器...")
+                    if not collector.start_browser():
+                        self.log("浏览器启动失败", "error")
+                        return
+                
+                self.log("正在采集数据...")
+                data = collector.collect_data_direct(product_id)
+                
+                if data:
+                    self.log("数据采集成功，正在保存到数据库...")
+                    self._save_online_collect_data(data)
+                    self.log("数据已保存到数据库", "success")
+                    
+                    self.root.after(0, self._refresh_db_data)
+                else:
+                    self.log("数据采集失败", "error")
+                    
+            except Exception as e:
+                self.log(f"在线采集异常: {e}", "error")
+                import traceback
+                traceback.print_exc()
+        
+        thread = threading.Thread(target=collect_thread, daemon=True)
+        thread.start()
     
     def _show_resources_dialog(self, product_id: str):
         """显示资源链接对话框"""
@@ -1335,18 +1504,114 @@ class AlibabaScraperGUI:
         
         return result
     
-    def _open_pricing_for_selected(self):
-        """为选中的数据库记录打开价格计算工具"""
-        selected_items = self.db_tree.selection()
-        if not selected_items:
-            self.show_info("提示", "请先选择一条记录")
-            return
+    def _save_online_collect_data(self, data):
+        """保存在线采集的数据到数据库"""
+        from utils.database import get_shared_db
         
-        item = selected_items[0]
-        values = self.db_tree.item(item, 'values')
-        if values:
-            product_id = values[0]
-            self.open_pricing_tool(product_id)
+        db = get_shared_db()
+        
+        product_id = data.get('product_id', '')
+        
+        product_info = data.get('product_info', {})
+        sku_prices = data.get('sku_prices', [])
+        color_images = data.get('color_images', [])
+        main_images = data.get('main_images', [])
+        detail_images = data.get('detail_images', [])
+        video_info = data.get('video_info', {})
+        
+        try:
+            db.update_product(product_id, {
+                'title': product_info.get('subject', ''),
+            })
+        except Exception:
+            pass
+        
+        saved_sku_count = 0
+        if sku_prices:
+            for sku_data in sku_prices:
+                try:
+                    color = sku_data.get('color', '')
+                    size = sku_data.get('size', '')
+                    
+                    if '代发' in color or '代发' in size:
+                        continue
+                    
+                    sku_id = sku_data['skuId']
+                    price = float(sku_data['price']) if sku_data['price'] else None
+                    discount_price = float(sku_data['discountPrice']) if sku_data['discountPrice'] else None
+                    can_book_count = int(sku_data['canBookCount']) if sku_data['canBookCount'] else None
+                    sale_count = int(sku_data['saleCount']) if sku_data['saleCount'] else None
+                    spec_id = sku_data['specId']
+                    
+                    db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
+                    saved_sku_count += 1
+                except Exception as e:
+                    self.log(f"保存SKU价格失败: {e}", "warning")
+        
+        saved_main_count = 0
+        if main_images:
+            for idx, img_url in enumerate(main_images):
+                try:
+                    db.insert_resource(
+                        product_id=product_id,
+                        resource_type='main_image',
+                        resource_url=img_url,
+                        resource_name=f'main_{idx+1}',
+                        output_filename=f'main_{idx+1}.jpg'
+                    )
+                    saved_main_count += 1
+                except Exception as e:
+                    self.log(f"保存主图失败: {e}", "warning")
+        
+        saved_color_count = 0
+        if color_images:
+            for color_data in color_images:
+                try:
+                    db.insert_resource(
+                        product_id=product_id,
+                        resource_type='color_image',
+                        resource_url=color_data['imageUrl'],
+                        resource_name=color_data['name'],
+                        output_filename=f'color_{color_data["name"]}.jpg'
+                    )
+                    saved_color_count += 1
+                except Exception as e:
+                    self.log(f"保存色卡图失败: {e}", "warning")
+        
+        saved_detail_count = 0
+        if detail_images:
+            for idx, img_url in enumerate(detail_images):
+                try:
+                    db.insert_resource(
+                        product_id=product_id,
+                        resource_type='detail_image',
+                        resource_url=img_url,
+                        resource_name=f'detail_{idx+1}',
+                        output_filename=f'detail_{idx+1}.jpg'
+                    )
+                    saved_detail_count += 1
+                except Exception as e:
+                    self.log(f"保存详情图失败: {e}", "warning")
+        
+        saved_video_count = 0
+        if video_info and video_info.get('videoUrl'):
+            try:
+                db.insert_resource(
+                    product_id=product_id,
+                    resource_type='video',
+                    resource_url=video_info['videoUrl'],
+                    resource_name=video_info.get('title', 'video_1'),
+                    output_filename='video_1.mp4'
+                )
+                saved_video_count += 1
+            except Exception as e:
+                self.log(f"保存视频失败: {e}", "warning")
+        
+        self.log(f"已保存 {saved_sku_count} 条SKU价格")
+        self.log(f"已保存 {saved_main_count} 条主图")
+        self.log(f"已保存 {saved_color_count} 条色卡图")
+        self.log(f"已保存 {saved_detail_count} 条详情图")
+        self.log(f"已保存 {saved_video_count} 条视频")
     
     def _delete_db_record(self):
         """删除选中的数据库记录"""
@@ -1360,7 +1625,7 @@ class AlibabaScraperGUI:
         if not values:
             return
         
-        product_id = values[0]
+        product_id = values[1]
         
         confirm = self.ask_yes_no("确认删除", f"确定要删除商品 {product_id} 的记录吗？\n\n此操作不可撤销！")
         if not confirm:
@@ -2522,6 +2787,38 @@ class AlibabaScraperGUI:
             result = self.ask_yes_no("发现新版本", message)
             if result:
                 self._start_download_update(version_info)
+    
+    def open_online_collector(self):
+        """在线采集 - 直接打开选中商品的原始页面"""
+        try:
+            from gui.online_collector_gui import start_online_collect, get_product_id_from_filename
+            import re
+            
+            selected_items = self.queue_tree.selection()
+            
+            if not selected_items:
+                self.show_info("提示", "请先选择一个商品文件")
+                return
+            
+            item = selected_items[0]
+            values = self.queue_tree.item(item, 'values')
+            
+            product_id = None
+            if values and len(values) > 2:
+                display_name = values[2]
+                product_id = get_product_id_from_filename(display_name)
+            
+            if not product_id:
+                self.show_info("提示", "无法从选中文件获取商品ID")
+                return
+            
+            self.log(f"在线采集: 商品ID {product_id}")
+            start_online_collect(self.log, product_id=product_id)
+            
+        except ImportError as e:
+            self.log(f"无法加载在线采集模块: {e}")
+        except Exception as e:
+            self.log(f"在线采集失败: {e}")
 
 
 def main():

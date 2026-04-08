@@ -151,17 +151,17 @@ class PricingToolGUI:
         notebook = ttk.Notebook(main_frame)
         notebook.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        cost_frame = ctk.CTkFrame(notebook, fg_color="transparent")
-        notebook.add(cost_frame, text="成本配置")
-        self._create_cost_config_tab(cost_frame)
-        
-        sku_frame = ctk.CTkFrame(notebook, fg_color="transparent")
-        notebook.add(sku_frame, text="SKU配置")
-        self._create_sku_config_tab(sku_frame)
+        matrix_frame = ctk.CTkFrame(notebook, fg_color="transparent")
+        notebook.add(matrix_frame, text="价格矩阵")
+        self._create_price_matrix_tab(matrix_frame)
         
         strategy_result_frame = ctk.CTkFrame(notebook, fg_color="transparent")
         notebook.add(strategy_result_frame, text="定价策略与结果")
         self._create_strategy_result_tab(strategy_result_frame)
+        
+        cost_frame = ctk.CTkFrame(notebook, fg_color="transparent")
+        notebook.add(cost_frame, text="高级成本配置")
+        self._create_cost_config_tab(cost_frame)
         
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(fill=tk.X, pady=10)
@@ -174,6 +174,166 @@ class PricingToolGUI:
         
         export_btn = create_button(button_frame, "导出结果", self._export_results, 'secondary', font=self.button_font)
         export_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def _create_price_matrix_tab(self, parent):
+        """创建价格矩阵选项卡"""
+        control_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        control_frame.pack(fill=tk.X, pady=5)
+        
+        create_button(control_frame, "从数据库加载SKU", self._load_sku_prices_from_db, 'primary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(control_frame, "添加颜色", self._add_color_row, 'secondary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(control_frame, "添加尺寸", self._add_size_column, 'secondary', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        create_button(control_frame, "清空矩阵", self._clear_matrix, 'danger', font=self.button_font).pack(side=tk.LEFT, padx=5)
+        
+        shipping_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
+        shipping_frame.pack(side=tk.RIGHT, padx=10)
+        ctk.CTkLabel(shipping_frame, text="运费：", font=(self.font_name, self.font_size)).pack(side=tk.LEFT)
+        self.shipping_cost_var = tk.DoubleVar(value=self.shipping_cost)
+        shipping_entry = ctk.CTkEntry(shipping_frame, textvariable=self.shipping_cost_var, width=80)
+        shipping_entry.pack(side=tk.LEFT, padx=2)
+        ctk.CTkLabel(shipping_frame, text="元").pack(side=tk.LEFT)
+        shipping_entry.bind("<FocusOut>", lambda e: self._update_shipping_cost())
+        
+        matrix_container = ctk.CTkFrame(parent)
+        matrix_container.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.matrix_canvas = tk.Canvas(matrix_container, highlightthickness=0)
+        matrix_scrollbar_h = ctk.CTkScrollbar(matrix_container, orientation="horizontal", command=self.matrix_canvas.xview)
+        matrix_scrollbar_v = ctk.CTkScrollbar(matrix_container, orientation="vertical", command=self.matrix_canvas.yview)
+        
+        self.matrix_frame = ctk.CTkFrame(self.matrix_canvas, fg_color="transparent")
+        
+        self.matrix_frame.bind("<Configure>", lambda e: self.matrix_canvas.configure(scrollregion=self.matrix_canvas.bbox("all")))
+        self.matrix_canvas.create_window((0, 0), window=self.matrix_frame, anchor="nw")
+        self.matrix_canvas.configure(xscrollcommand=matrix_scrollbar_h.set, yscrollcommand=matrix_scrollbar_v.set)
+        
+        self.matrix_canvas.grid(row=0, column=0, sticky="nsew")
+        matrix_scrollbar_v.grid(row=0, column=1, sticky="ns")
+        matrix_scrollbar_h.grid(row=1, column=0, sticky="ew")
+        
+        matrix_container.grid_rowconfigure(0, weight=1)
+        matrix_container.grid_columnconfigure(0, weight=1)
+        
+        self.matrix_canvas.bind("<MouseWheel>", lambda e: self.matrix_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self.matrix_canvas.bind("<Shift-MouseWheel>", lambda e: self.matrix_canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
+        
+        self.colors = []
+        self.sizes = []
+        self.price_entries = {}
+        self.color_name_entries = {}
+        self.size_name_entries = {}
+        
+        self._init_matrix()
+    
+    def _init_matrix(self):
+        """初始化矩阵表格"""
+        for widget in self.matrix_frame.winfo_children():
+            widget.destroy()
+        
+        self.price_entries = {}
+        
+        header_frame = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+        header_frame.grid(row=0, column=0, padx=2, pady=2)
+        ctk.CTkLabel(header_frame, text="颜色\\尺寸", font=(self.font_name, self.font_size, "bold"), width=100).pack()
+        
+        for j, size in enumerate(self.sizes):
+            col_frame = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+            col_frame.grid(row=0, column=j+1, padx=2, pady=2)
+            
+            size_var = tk.StringVar(value=size)
+            size_entry = ctk.CTkEntry(col_frame, textvariable=size_var, width=80)
+            size_entry.pack()
+            self.size_name_entries[j] = (size_var, size_entry)
+            size_entry.bind("<FocusOut>", lambda e, idx=j: self._update_size_name(idx))
+        
+        add_size_btn = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+        add_size_btn.grid(row=0, column=len(self.sizes)+1, padx=2, pady=2)
+        
+        for i, color in enumerate(self.colors):
+            row_frame = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+            row_frame.grid(row=i+1, column=0, padx=2, pady=2)
+            
+            color_var = tk.StringVar(value=color)
+            color_entry = ctk.CTkEntry(row_frame, textvariable=color_var, width=100)
+            color_entry.pack()
+            self.color_name_entries[i] = (color_var, color_entry)
+            color_entry.bind("<FocusOut>", lambda e, idx=i: self._update_color_name(idx))
+            
+            for j, size in enumerate(self.sizes):
+                cell_frame = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+                cell_frame.grid(row=i+1, column=j+1, padx=2, pady=2)
+                
+                price_key = (i, j)
+                price_var = tk.StringVar(value="0.00")
+                price_entry = ctk.CTkEntry(cell_frame, textvariable=price_var, width=80)
+                price_entry.pack()
+                self.price_entries[price_key] = (price_var, price_entry)
+        
+        add_row_btn = ctk.CTkFrame(self.matrix_frame, fg_color="transparent")
+        add_row_btn.grid(row=len(self.colors)+1, column=0, padx=2, pady=2)
+    
+    def _add_color_row(self):
+        """添加颜色行"""
+        new_color = f"颜色{len(self.colors)+1}"
+        self.colors.append(new_color)
+        self._init_matrix()
+    
+    def _add_size_column(self):
+        """添加尺寸列"""
+        new_size = f"尺寸{len(self.sizes)+1}"
+        self.sizes.append(new_size)
+        self._init_matrix()
+    
+    def _clear_matrix(self):
+        """清空矩阵"""
+        self.colors = []
+        self.sizes = []
+        self._init_matrix()
+    
+    def _update_color_name(self, idx):
+        """更新颜色名称"""
+        if idx in self.color_name_entries:
+            new_name = self.color_name_entries[idx][0].get()
+            if idx < len(self.colors):
+                self.colors[idx] = new_name
+    
+    def _update_size_name(self, idx):
+        """更新尺寸名称"""
+        if idx in self.size_name_entries:
+            new_name = self.size_name_entries[idx][0].get()
+            if idx < len(self.sizes):
+                self.sizes[idx] = new_name
+    
+    def _get_matrix_data(self):
+        """获取矩阵数据"""
+        data = []
+        for i, color in enumerate(self.colors):
+            for j, size in enumerate(self.sizes):
+                price_key = (i, j)
+                if price_key in self.price_entries:
+                    try:
+                        price = float(self.price_entries[price_key][0].get())
+                    except ValueError:
+                        price = 0.0
+                    data.append({
+                        'color': color,
+                        'size': size,
+                        'cost': price
+                    })
+        return data
+    
+    def _set_matrix_data(self, colors, sizes, price_matrix):
+        """设置矩阵数据"""
+        self.colors = colors
+        self.sizes = sizes
+        self._init_matrix()
+        
+        for i, color in enumerate(colors):
+            for j, size in enumerate(sizes):
+                price_key = (i, j)
+                if price_key in self.price_entries:
+                    price = price_matrix.get(color, {}).get(size, 0)
+                    self.price_entries[price_key][0].set(f"{price:.2f}")
     
     
     def _create_cost_config_tab(self, parent):
@@ -610,7 +770,7 @@ class PricingToolGUI:
         show_info(self.root, "成功", f"已自动生成 {len(self.sku_configs)} 个SKU配置")
     
     def _load_sku_prices_from_db(self):
-        """从数据库加载SKU价格数据并自动生成配置
+        """从数据库加载SKU价格数据并填充矩阵
         
         优先使用数据库中的 color 和 size 字段，
         如果不存在则从 sku_name 解析
@@ -674,38 +834,8 @@ class PricingToolGUI:
                 show_warning(self.root, "警告", "无法解析SKU名称格式，请手动配置")
                 return
             
-            # 找到最低价格作为基准
-            min_price = float('inf')
-            for color in colors:
-                for size in sizes:
-                    price = price_matrix.get(color, {}).get(size, 0)
-                    if price > 0 and price < min_price:
-                        min_price = price
+            self._set_matrix_data(colors, sizes, price_matrix)
             
-            if min_price == float('inf'):
-                min_price = 0
-            
-            # 生成本体配置（每个颜色）
-            self.bases = []
-            for color in colors:
-                base_cost = price_matrix.get(color, {}).get(sizes[0], min_price)
-                self.bases.append({"name": color, "cost": base_cost})
-            
-            # 生成附件配置（每个规格相对于基准价格的差价）
-            self.attachments = []
-            for i, size in enumerate(sizes):
-                if i == 0:
-                    # 第一个规格是基准，附件成本为0
-                    self.attachments.append({"name": size, "cost": 0.0, "stackable": False})
-                else:
-                    # 其他规格的差价
-                    base_color = colors[0] if colors else None
-                    base_price = price_matrix.get(base_color, {}).get(sizes[0], min_price)
-                    size_price = price_matrix.get(base_color, {}).get(size, base_price)
-                    diff = size_price - base_price
-                    self.attachments.append({"name": size, "cost": diff, "stackable": False})
-            
-            # 生成SKU配置
             self.sku_configs = []
             for color in colors:
                 for size in sizes:
@@ -715,18 +845,17 @@ class PricingToolGUI:
                         "attachments": [size]
                     })
             
-            # 更新界面
-            self._update_bases_list()
-            self._update_attachments_list()
-            self._update_sku_list()
             self._update_target_sku_combobox()
             
-            # 自动计算默认售价
+            if self.sku_configs:
+                self.target_sku = self.sku_configs[0]["name"]
+                self.target_sku_var.set(self.target_sku)
+            
             self._calculate_default_price()
             
             show_info(self.root, "成功", 
                 f"已加载 {len(sku_prices)} 条SKU价格数据\n"
-                f"生成 {len(self.bases)} 个本体，{len(self.attachments)} 个附件，{len(self.sku_configs)} 个SKU配置"
+                f"矩阵: {len(colors)} 行 × {len(sizes)} 列"
             )
             
         except Exception as e:
@@ -809,8 +938,9 @@ class PricingToolGUI:
         self._update_target_sku_combobox()
     
     def _calculate_prices(self):
-        if not self.sku_configs:
-            show_warning(self.root, "警告", "请先配置SKU")
+        """计算价格 - 使用矩阵数据"""
+        if not self.colors or not self.sizes:
+            show_warning(self.root, "警告", "请先配置价格矩阵")
             return
         
         target_sku = self.target_sku_var.get()
@@ -823,17 +953,28 @@ class PricingToolGUI:
             show_warning(self.root, "警告", "请选择定价基准SKU并设置最高售价")
             return
         
-        target_sku_config = None
-        for sku in self.sku_configs:
-            if sku["name"] == target_sku:
-                target_sku_config = sku
-                break
-        
-        if not target_sku_config:
-            show_warning(self.root, "警告", "找不到目标SKU配置")
+        target_parts = target_sku.split()
+        if len(target_parts) >= 2:
+            target_color = target_parts[0]
+            target_size = target_parts[1]
+        else:
+            show_warning(self.root, "警告", "无效的目标SKU格式")
             return
         
-        target_cost = self._calculate_sku_cost(target_sku_config)
+        target_cost = 0
+        for i, color in enumerate(self.colors):
+            if color == target_color:
+                for j, size in enumerate(self.sizes):
+                    if size == target_size:
+                        price_key = (i, j)
+                        if price_key in self.price_entries:
+                            try:
+                                target_cost = float(self.price_entries[price_key][0].get())
+                            except ValueError:
+                                target_cost = 0
+                        break
+                break
+        
         if target_cost <= 0:
             show_warning(self.root, "警告", "目标SKU成本无效")
             return
@@ -847,32 +988,43 @@ class PricingToolGUI:
         total_cost = 0
         total_profit = 0
         
-        for sku in self.sku_configs:
-            cost = self._calculate_sku_cost(sku)
-            
-            if strategy == "multiplier":
-                factor = max_price / target_cost
-                price = round(cost * factor, rounding)
-            else:
-                fixed_profit = max_price - target_cost
-                price = round(cost + fixed_profit, rounding)
-            
-            profit = price - cost
-            profit_rate = (profit / cost) * 100 if cost > 0 else 0
-            
-            attachments_str = " + ".join(sku["attachments"]) if sku["attachments"] else "无附件"
-            sku_display_name = f"{sku['name']}: {sku['base_name']} + {attachments_str}"
-            
-            self.result_tree.insert("", "end", values=(
-                sku_display_name,
-                f"{cost:.{rounding}f}",
-                f"{price:.{rounding}f}",
-                f"{profit:.{rounding}f}",
-                f"{profit_rate:.2f}"
-            ))
-            
-            total_cost += cost
-            total_profit += profit
+        shipping_cost = self.shipping_cost_var.get() if hasattr(self, 'shipping_cost_var') else 0
+        
+        for i, color in enumerate(self.colors):
+            for j, size in enumerate(self.sizes):
+                price_key = (i, j)
+                if price_key not in self.price_entries:
+                    continue
+                
+                try:
+                    cost = float(self.price_entries[price_key][0].get())
+                except ValueError:
+                    cost = 0
+                
+                cost_with_shipping = cost + shipping_cost
+                
+                if strategy == "multiplier":
+                    factor = max_price / target_cost
+                    price = round(cost_with_shipping * factor, rounding)
+                else:
+                    fixed_profit = max_price - target_cost
+                    price = round(cost_with_shipping + fixed_profit, rounding)
+                
+                profit = price - cost_with_shipping
+                profit_rate = (profit / cost_with_shipping) * 100 if cost_with_shipping > 0 else 0
+                
+                sku_name = f"{color} {size}"
+                
+                self.result_tree.insert("", "end", values=(
+                    sku_name,
+                    f"{cost_with_shipping:.{rounding}f}",
+                    f"{price:.{rounding}f}",
+                    f"{profit:.{rounding}f}",
+                    f"{profit_rate:.2f}"
+                ))
+                
+                total_cost += cost_with_shipping
+                total_profit += profit
         
         avg_profit_rate = (total_profit / total_cost) * 100 if total_cost > 0 else 0
         self.total_cost_var.set(f"总生产成本：{total_cost:.{rounding}f} 元")
@@ -880,11 +1032,10 @@ class PricingToolGUI:
     
     def _calculate_default_price(self):
         """计算默认售价：成本 + 成本*比例% + 运费"""
-        if not self.sku_configs:
-            show_warning(self.root, "警告", "请先配置SKU")
+        if not self.colors or not self.sizes:
+            show_warning(self.root, "警告", "请先配置价格矩阵")
             return
         
-        # 获取默认比例，不允许负值
         try:
             ratio = float(self.default_ratio_var.get())
             if ratio < 0:
@@ -894,37 +1045,44 @@ class PricingToolGUI:
             show_warning(self.root, "警告", "请输入有效的默认比例")
             return
         
-        # 获取基准 SKU
         target_sku = self.target_sku_var.get()
         if not target_sku:
-            # 如果没有选择基准 SKU，使用第一个 SKU
-            if self.sku_configs:
-                target_sku = self.sku_configs[0]["name"]
+            if self.colors and self.sizes:
+                target_sku = f"{self.colors[0]} {self.sizes[0]}"
                 self.target_sku_var.set(target_sku)
             else:
-                show_warning(self.root, "警告", "请先配置SKU")
+                show_warning(self.root, "警告", "请先配置价格矩阵")
                 return
         
-        # 计算基准 SKU 的成本
-        target_sku_config = None
-        for sku in self.sku_configs:
-            if sku["name"] == target_sku:
-                target_sku_config = sku
-                break
-        
-        if not target_sku_config:
-            show_warning(self.root, "警告", "找不到目标SKU配置")
+        target_parts = target_sku.split()
+        if len(target_parts) < 2:
+            show_warning(self.root, "警告", "无效的目标SKU格式")
             return
         
-        target_cost = self._calculate_sku_cost(target_sku_config)
+        target_color = target_parts[0]
+        target_size = target_parts[1]
+        
+        target_cost = 0
+        for i, color in enumerate(self.colors):
+            if color == target_color:
+                for j, size in enumerate(self.sizes):
+                    if size == target_size:
+                        price_key = (i, j)
+                        if price_key in self.price_entries:
+                            try:
+                                target_cost = float(self.price_entries[price_key][0].get())
+                            except ValueError:
+                                target_cost = 0
+                        break
+                break
+        
         if target_cost <= 0:
             show_warning(self.root, "警告", "目标SKU成本无效")
             return
         
-        # 计算默认售价：成本 + 成本*比例% + 运费
-        default_price = target_cost + target_cost * (ratio / 100) + self.shipping_cost
+        shipping_cost = self.shipping_cost_var.get() if hasattr(self, 'shipping_cost_var') else 0
+        default_price = target_cost + target_cost * (ratio / 100) + shipping_cost
         
-        # 设置到目标售价输入框
         self.max_price_var.set(f"{default_price:.2f}")
     
     def _validate_ratio(self, event):
@@ -949,7 +1107,8 @@ class PricingToolGUI:
                     cost += attachment["cost"]
                     break
         
-        cost += self.shipping_cost
+        shipping_cost = self.shipping_cost_var.get() if hasattr(self, 'shipping_cost_var') else self.shipping_cost
+        cost += shipping_cost
         
         return cost
     

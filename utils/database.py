@@ -108,11 +108,14 @@ class Database:
             CREATE TABLE IF NOT EXISTS sku_prices (
                 id INTEGER PRIMARY KEY,
                 product_id VARCHAR NOT NULL,
-                sku_name VARCHAR,
                 sku_id VARCHAR,
+                color VARCHAR,
+                size VARCHAR,
                 price DOUBLE,
-                original_price DOUBLE,
-                stock INTEGER,
+                discount_price DOUBLE,
+                can_book_count INTEGER,
+                sale_count INTEGER,
+                spec_id VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -460,6 +463,52 @@ class Database:
             print(f"保存资源失败: {e}")
             return False
     
+    def insert_resource(self, product_id: str, resource_type: str, resource_url: str,
+                        resource_name: str = None, output_filename: str = None,
+                        downloaded: bool = False, file_size: int = None) -> bool:
+        """插入单个资源记录
+        
+        Args:
+            product_id: 商品ID
+            resource_type: 资源类型 (main_image, color_image, detail_image, video)
+            resource_url: 资源URL
+            resource_name: 资源名称
+            output_filename: 输出文件名
+            downloaded: 是否已下载
+            file_size: 文件大小
+            
+        Returns:
+            是否成功
+        """
+        try:
+            existing = self.query_one(
+                "SELECT id FROM resources WHERE product_id = ? AND resource_url = ?",
+                [product_id, resource_url]
+            )
+            
+            if existing:
+                return True
+            
+            data = {
+                'product_id': product_id,
+                'resource_type': resource_type,
+                'resource_url': resource_url,
+                'resource_name': resource_name,
+                'output_filename': output_filename,
+                'downloaded': downloaded,
+            }
+            
+            if downloaded:
+                data['download_time'] = datetime.now()
+            if file_size:
+                data['file_size'] = file_size
+            
+            self.insert('resources', data)
+            return True
+        except Exception as e:
+            print(f"插入资源失败: {e}")
+            return False
+    
     def get_pending_resources(self, product_id: str = None, resource_type: str = None, 
                                limit: int = None) -> List[Dict]:
         """获取待下载资源"""
@@ -727,6 +776,103 @@ class Database:
             update_data['status'] = 'pending'
             self.insert('products', update_data)
         
+        return True
+    
+    def update_product(self, product_id: str, data: Dict) -> bool:
+        """更新商品信息
+        
+        Args:
+            product_id: 商品ID
+            data: 要更新的数据字典
+            
+        Returns:
+            是否成功
+        """
+        existing = self.get_product(product_id)
+        
+        update_data = {'updated_at': datetime.now()}
+        update_data.update(data)
+        
+        if existing:
+            self.update('products', update_data, 'product_id = ?', [product_id])
+        else:
+            update_data['product_id'] = product_id
+            update_data['status'] = 'pending'
+            self.insert('products', update_data)
+        
+        return True
+    
+    def insert_sku_price(self, product_id: str, sku_id: str, color: str, size: str,
+                         price: float = None, discount_price: float = None,
+                         can_book_count: int = None, sale_count: int = None,
+                         spec_id: str = None) -> bool:
+        """插入或更新SKU价格
+        
+        Args:
+            product_id: 商品ID
+            sku_id: SKU ID
+            color: 颜色
+            size: 尺码
+            price: 价格
+            discount_price: 折扣价
+            can_book_count: 库存
+            sale_count: 销量
+            spec_id: 规格ID
+            
+        Returns:
+            是否成功
+        """
+        existing = self.query_one(
+            "SELECT * FROM sku_prices WHERE product_id = ? AND sku_id = ?",
+            [product_id, sku_id]
+        )
+        
+        data = {
+            'product_id': product_id,
+            'sku_id': sku_id,
+            'color': color,
+            'size': size,
+            'price': price,
+            'discount_price': discount_price,
+            'can_book_count': can_book_count,
+            'sale_count': sale_count,
+            'spec_id': spec_id,
+            'created_at': datetime.now()
+        }
+        
+        if existing:
+            del data['created_at']
+            data['updated_at'] = datetime.now()
+            self.update('sku_prices', data, 'product_id = ? AND sku_id = ?', [product_id, sku_id])
+        else:
+            self.insert('sku_prices', data)
+        
+        return True
+    
+    def get_sku_prices(self, product_id: str) -> List[Dict]:
+        """获取商品的所有SKU价格
+        
+        Args:
+            product_id: 商品ID
+            
+        Returns:
+            SKU价格列表
+        """
+        return self.query(
+            "SELECT * FROM sku_prices WHERE product_id = ? ORDER BY color, size",
+            [product_id]
+        )
+    
+    def delete_sku_prices(self, product_id: str) -> bool:
+        """删除商品的所有SKU价格
+        
+        Args:
+            product_id: 商品ID
+            
+        Returns:
+            是否成功
+        """
+        self.execute("DELETE FROM sku_prices WHERE product_id = ?", [product_id])
         return True
     
     def get_statistics(self) -> Dict:
