@@ -1438,7 +1438,7 @@ class AlibabaScraperGUI:
         context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
         
         if output_path and output_path != '-':
-            context_menu.add_command(label="打开资源目录", command=lambda: self._open_output_directory(output_path))
+            context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(output_path))
         
         if shop_product_id and shop_product_id != '-':
             context_menu.add_command(label="访问DSID页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
