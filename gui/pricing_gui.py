@@ -885,7 +885,11 @@ class PricingToolGUI:
                 price_matrix[color][size] = price
             
             if not colors or not sizes:
-                show_warning(self.root, "警告", "无法解析SKU名称格式，请手动配置")
+                debug_info = f"SKU总数: {len(sku_prices)}\n过滤: {filtered_count}\n颜色数: {len(colors)}\n尺码数: {len(sizes)}"
+                if sku_prices:
+                    sample = sku_prices[0]
+                    debug_info += f"\n\n示例SKU:\n  sku_name: {sample.get('sku_name', 'N/A')}\n  color: {sample.get('color', 'N/A')}\n  size: {sample.get('size', 'N/A')}"
+                show_warning(self.root, "警告", f"无法解析SKU名称格式，请手动配置\n\n{debug_info}")
                 return
             
             self._set_matrix_data(colors, sizes, price_matrix)
