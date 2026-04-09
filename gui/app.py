@@ -1435,7 +1435,7 @@ class AlibabaScraperGUI:
         dialog.title("编辑DS店铺与DSID")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("400x250")
+        dialog.geometry("420x280")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1444,35 +1444,25 @@ class AlibabaScraperGUI:
         dialog.geometry(f"+{x}+{y}")
         
         main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
         
-        label_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        label_frame.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         
-        ctk.CTkLabel(label_frame, text="商品ID:").pack(side="left")
-        ctk.CTkLabel(label_frame, text=product_id, text_color="gray").pack(side="left", padx=(5, 0))
-        
-        ds_shop_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        ds_shop_frame.pack(fill="x", pady=(0, 10))
-        
-        ctk.CTkLabel(ds_shop_frame, text="DS店铺:").pack(side="left")
-        ds_shop_entry = ctk.CTkEntry(ds_shop_frame, width=250)
-        ds_shop_entry.pack(side="left", padx=(5, 0))
+        ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
+        ds_shop_entry = ctk.CTkEntry(main_frame, width=350)
+        ds_shop_entry.pack(fill="x", pady=(0, 10))
         ds_shop_entry.insert(0, current_ds_shop)
         
-        ds_id_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        ds_id_frame.pack(fill="x", pady=(0, 10))
-        
-        ctk.CTkLabel(ds_id_frame, text="DSID:").pack(side="left")
-        ds_id_entry = ctk.CTkEntry(ds_id_frame, width=250)
-        ds_id_entry.pack(side="left", padx=(5, 0))
+        ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
+        ds_id_entry = ctk.CTkEntry(main_frame, width=350)
+        ds_id_entry.pack(fill="x", pady=(0, 10))
         ds_id_entry.insert(0, current_ds_id)
         
         error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
-        error_label.pack(fill="x", pady=(0, 5))
+        error_label.pack(anchor="w")
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(5, 0))
+        btn_frame.pack(fill="x", pady=(15, 0))
         
         def save_ds_info():
             new_ds_shop = ds_shop_entry.get().strip()
@@ -1496,8 +1486,8 @@ class AlibabaScraperGUI:
             
             dialog.destroy()
         
-        create_button(btn_frame, "保存", save_ds_info, 'success').pack(side="left", padx=5)
-        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=5)
+        create_button(btn_frame, "保存", save_ds_info, 'success').pack(side="left", padx=10)
+        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=10)
         
         dialog.bind('<Return>', lambda e: save_ds_info())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
