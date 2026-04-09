@@ -1434,7 +1434,7 @@ class AlibabaScraperGUI:
         dialog.title("编辑DS店铺")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("400x360")
+        dialog.geometry("500x360")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1447,7 +1447,7 @@ class AlibabaScraperGUI:
         
         ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
-        entry = ctk.CTkEntry(main_frame, width=350)
+        entry = ctk.CTkEntry(main_frame, width=250)
         entry.pack(fill="x", pady=(5, 15))
         entry.insert(0, current_ds_shop)
         
@@ -1479,7 +1479,7 @@ class AlibabaScraperGUI:
         dialog.title("编辑DSID")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("400x360")
+        dialog.geometry("500x360")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1492,7 +1492,7 @@ class AlibabaScraperGUI:
         
         ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
-        entry = ctk.CTkEntry(main_frame, width=350)
+        entry = ctk.CTkEntry(main_frame, width=250)
         entry.pack(fill="x", pady=(5, 10))
         entry.insert(0, current_dsid)
         
