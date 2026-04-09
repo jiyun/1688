@@ -1422,7 +1422,7 @@ class AlibabaScraperGUI:
         platform = values[0]
         product_id = values[1]
         shop_product_id = values[7]
-        output_path = values[8] if len(values) > 8 else None
+        output_path = values[9] if len(values) > 9 else None
         
         context_menu = tk.Menu(self.root, tearoff=0)
         
@@ -1436,12 +1436,10 @@ class AlibabaScraperGUI:
             context_menu.add_command(label="访问原址", command=lambda: webbrowser.open(f"https://item.jd.com/{product_id}.html"))
         
         context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
-        
-        if output_path and output_path != '-':
-            context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(output_path))
+        context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(output_path))
         
         if shop_product_id and shop_product_id != '-':
-            context_menu.add_command(label="访问DSID页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
+            context_menu.add_command(label="访问店铺商品页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
         
         context_menu.add_separator()
         
@@ -1474,11 +1472,17 @@ class AlibabaScraperGUI:
     
     def _open_output_directory(self, output_path: str):
         """打开输出目录"""
-        if output_path and os.path.exists(output_path):
+        if output_path and output_path != '-' and os.path.exists(output_path):
             import subprocess
             subprocess.run(['explorer', output_path])
         else:
-            self.show_info("提示", "输出目录不存在")
+            # 尝试默认路径
+            default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'products', 'upload')
+            if os.path.exists(default_path):
+                import subprocess
+                subprocess.run(['explorer', default_path])
+            else:
+                self.show_info("提示", "输出目录不存在")
     
     def _show_product_detail(self, product_id: str):
         """显示商品详情（products表完整记录）"""
