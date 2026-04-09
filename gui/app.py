@@ -1356,15 +1356,15 @@ class AlibabaScraperGUI:
         # 检查是否双击了可编辑列
         col_index = int(column.replace('#', '')) - 1
         if col_index == 6:  # shop_name (DS店铺)
-            self._inline_edit_cell(item, product_id, 'ds_shop', values[6], column)
+            self._inline_edit_cell(item, product_id, 'ds_shop', 'shop_name', values[6], column)
             return
         elif col_index == 7:  # shop_product_id (DSID)
-            self._inline_edit_cell(item, product_id, 'shop_product_id', values[7], column, is_dsid=True)
+            self._inline_edit_cell(item, product_id, 'shop_product_id', 'shop_product_id', values[7], column, is_dsid=True)
             return
         
         self._show_product_detail(product_id)
     
-    def _inline_edit_cell(self, item, product_id: str, field: str, current_value: str, column, is_dsid: bool = False):
+    def _inline_edit_cell(self, item, product_id: str, db_field: str, tree_column: str, current_value: str, column, is_dsid: bool = False):
         """内联编辑单元格"""
         import tkinter as tk
         from utils.database import get_shared_db
@@ -1392,9 +1392,9 @@ class AlibabaScraperGUI:
                 return
             
             try:
-                db.update_product(product_id, {field: new_value if new_value else None})
-                self.db_tree.set(item, column=field, value=new_value if new_value else '-')
-                self.log(f"已保存: {product_id} -> {field}: {new_value}")
+                db.update_product(product_id, {db_field: new_value if new_value else None})
+                self.db_tree.set(item, column=tree_column, value=new_value if new_value else '-')
+                self.log(f"已保存: {product_id} -> {db_field}: {new_value}")
             except Exception as e:
                 self.log(f"保存失败: {e}", "error")
             
