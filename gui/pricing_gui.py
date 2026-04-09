@@ -841,7 +841,7 @@ class PricingToolGUI:
             
             for sku in sku_prices:
                 sku_name = sku.get('sku_name', '')
-                price = sku.get('price', 0)
+                price = sku.get('price') or sku.get('discount_price', 0)
                 
                 color = sku.get('color', '')
                 size = sku.get('size', '')
@@ -868,10 +868,6 @@ class PricingToolGUI:
                     size = '默认规格'
                 
                 if '代发' in color or '代发' in size:
-                    filtered_count += 1
-                    continue
-                
-                if '默认规格' in color or '默认规格' in size:
                     filtered_count += 1
                     continue
                 
