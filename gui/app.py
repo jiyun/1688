@@ -1448,7 +1448,7 @@ class AlibabaScraperGUI:
         ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
         entry = ctk.CTkEntry(main_frame, width=250)
-        entry.pack(fill="x", pady=(5, 15))
+        entry.pack(anchor="w", pady=(5, 15))
         entry.insert(0, current_ds_shop)
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -1493,7 +1493,7 @@ class AlibabaScraperGUI:
         ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
         entry = ctk.CTkEntry(main_frame, width=250)
-        entry.pack(fill="x", pady=(5, 10))
+        entry.pack(anchor="w", pady=(5, 10))
         entry.insert(0, current_dsid)
         
         error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
