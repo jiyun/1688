@@ -1424,17 +1424,19 @@ class AlibabaScraperGUI:
     
     def _edit_ds_shop(self, product_id: str, item):
         """编辑DS店铺"""
+        import tkinter as tk
+        from tkinter import ttk
         from utils.database import get_shared_db
         
         db = get_shared_db()
         product = db.get_product(product_id)
         current_ds_shop = product.get('ds_shop', '') if product else ''
         
-        dialog = ctk.CTkToplevel(self.root)
+        dialog = tk.Toplevel(self.root)
         dialog.title("编辑DS店铺")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("500x450")
+        dialog.geometry("400x200")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1442,17 +1444,17 @@ class AlibabaScraperGUI:
         y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
         
-        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill="both", expand=True)
         
-        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
-        ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
-        entry = ctk.CTkEntry(main_frame, width=250)
+        ttk.Label(main_frame, text=f"商品ID: {product_id}", foreground="gray").pack(anchor="w", pady=(0, 15))
+        ttk.Label(main_frame, text="DS店铺:").pack(anchor="w")
+        entry = ttk.Entry(main_frame, width=40)
         entry.pack(anchor="w", pady=(5, 15))
         entry.insert(0, current_ds_shop)
         
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x")
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill="x", pady=(10, 0))
         
         def save():
             try:
@@ -1462,24 +1464,26 @@ class AlibabaScraperGUI:
                 self.log(f"保存失败: {e}", "error")
             dialog.destroy()
         
-        create_button(btn_frame, "保存", save, 'success').pack(side="left", padx=10)
-        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=10)
+        ttk.Button(btn_frame, text="保存", command=save).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side="left", padx=5)
         dialog.bind('<Return>', lambda e: save())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
     
     def _edit_dsid(self, product_id: str, item):
         """编辑DSID"""
+        import tkinter as tk
+        from tkinter import ttk
         from utils.database import get_shared_db
         
         db = get_shared_db()
         product = db.get_product(product_id)
         current_dsid = product.get('shop_product_id', '') if product else ''
         
-        dialog = ctk.CTkToplevel(self.root)
+        dialog = tk.Toplevel(self.root)
         dialog.title("编辑DSID")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("500x450")
+        dialog.geometry("400x220")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1487,19 +1491,19 @@ class AlibabaScraperGUI:
         y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
         
-        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill="both", expand=True)
         
-        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
-        ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
-        entry = ctk.CTkEntry(main_frame, width=250)
+        ttk.Label(main_frame, text=f"商品ID: {product_id}", foreground="gray").pack(anchor="w", pady=(0, 15))
+        ttk.Label(main_frame, text="DSID:").pack(anchor="w")
+        entry = ttk.Entry(main_frame, width=40)
         entry.pack(anchor="w", pady=(5, 10))
         entry.insert(0, current_dsid)
         
-        error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
+        error_label = ttk.Label(main_frame, text="", foreground="red")
         error_label.pack(anchor="w")
         
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill="x", pady=(10, 0))
         
         def save():
@@ -1515,8 +1519,8 @@ class AlibabaScraperGUI:
                 self.log(f"保存失败: {e}", "error")
             dialog.destroy()
         
-        create_button(btn_frame, "保存", save, 'success').pack(side="left", padx=10)
-        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=10)
+        ttk.Button(btn_frame, text="保存", command=save).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side="left", padx=5)
         dialog.bind('<Return>', lambda e: save())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
     
