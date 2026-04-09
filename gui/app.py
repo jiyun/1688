@@ -1435,7 +1435,7 @@ class AlibabaScraperGUI:
         dialog.title("编辑DS店铺与DSID")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("450x320")
+        dialog.geometry("500x450")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
