@@ -430,26 +430,19 @@ class AlibabaScraper:
     
     def process_images(self, image_path=None, with_animated=False, output_webp=False, convert_main=False, convert_color=False):
         """处理图片"""
-        # 导入图片处理模块
-        import utils.image_utils
         import utils.image_processor
         
-        # 设置全局变量
-        utils.image_utils.WITH_ANIMATED = with_animated
-        utils.image_utils.OUTPUT_WEBP = output_webp
-        utils.image_utils.CONVERT_MAIN = convert_main
-        utils.image_utils.CONVERT_COLOR = convert_color
+        utils.image_processor.WITH_ANIMATED = with_animated
+        utils.image_processor.OUTPUT_WEBP = output_webp
+        utils.image_processor.CONVERT_MAIN = convert_main
+        utils.image_processor.CONVERT_COLOR = convert_color
         
-        # 如果提供了图片路径，直接处理单张图片
         if image_path:
             utils.image_processor.process_single_image(image_path)
         else:
-            # 运行图片处理
             utils.image_processor.enlarge_main_images()
             utils.image_processor.process_regular_detail_images()
             utils.image_processor.enlarge_color_card_images()
-            
-            # 显示最终汇总报告
             utils.image_processor.reporter.show_final_summary()
         
         return True

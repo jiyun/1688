@@ -438,7 +438,7 @@ def _process_single_detail_worker(args):
     file_path, width, height, total_count = args
     try:
         with Image.open(file_path) as img:
-            if utils.image_utils.OUTPUT_WEBP:
+            if OUTPUT_WEBP:
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
                 webp_path = os.path.join(_process_detail_current_dir, f"{name}.webp")
@@ -479,7 +479,7 @@ def _split_with_custom_index(merged_image, target_width, total_height, output_di
     max_single_height = target_width * 2
     
     if total_height <= max_single_height:
-        if utils.image_utils.OUTPUT_WEBP:
+        if OUTPUT_WEBP:
             save_path = os.path.join(output_dir, f"{output_prefix}{start_index}.webp")
             merged_image.save(save_path, format="WebP", quality=jpeg_quality)
         else:
@@ -511,7 +511,7 @@ def _split_with_custom_index(merged_image, target_width, total_height, output_di
         
         current_index = start_index + i
         
-        if utils.image_utils.OUTPUT_WEBP:
+        if OUTPUT_WEBP:
             保存路径 = os.path.join(output_dir, f"{output_prefix}{current_index}.webp")
             切割图片.save(保存路径, format="WebP", quality=jpeg_quality)
         else:
@@ -745,7 +745,7 @@ def enlarge_main_images():
                     continue
                 new_name = f"E_{name}{ext}"
                 output_path = os.path.join(current_dir, new_name)
-                if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_MAIN:
+                if OUTPUT_WEBP and CONVERT_MAIN:
                     webp_path = os.path.join(current_dir, f"E_{name}.webp")
                     if width < main_image_target_size or height < main_image_target_size:
                         img_resized = img.resize((main_image_target_size, main_image_target_size), Image.LANCZOS)
@@ -856,7 +856,7 @@ def enlarge_color_card_images():
                 base_name = os.path.basename(file_path)
                 name, ext = os.path.splitext(base_name)
                 
-                if utils.image_utils.OUTPUT_WEBP and utils.image_utils.CONVERT_COLOR:
+                if OUTPUT_WEBP and CONVERT_COLOR:
                     new_file_name = f"new_{name}.webp"
                     new_file_path = os.path.join(current_dir, new_file_name)
                     if width >= detail_min_width:
