@@ -157,8 +157,10 @@ class ResourceDownloader:
             progress_callback: 进度回调
             force: 是否强制重新下载（忽略已存在的文件）
         """
+        product = self.db.get_product(product_id)
+        platform = product.get('platform', '1688') if product else '1688'
+        
         if output_dir is None:
-            product = self.db.get_product(product_id)
             if product and product.get('output_path'):
                 output_dir = product['output_path']
             else:
@@ -170,15 +172,48 @@ class ResourceDownloader:
             resources = self.get_pending_resources(product_id, resource_type)
         
         if not resources:
+            self._create_url_shortcut(product_id, platform, output_dir)
             return {'success': True, 'message': '没有待下载的资源', 'count': 0}
         
         success = self.download_with_aria2c(resources, output_dir, progress_callback, force=force)
+        
+        if success:
+            self._create_url_shortcut(product_id, platform, output_dir)
         
         return {
             'success': success,
             'message': '下载完成' if success else '下载失败',
             'count': len(resources)
         }
+    
+    def _create_url_shortcut(self, product_id: str, platform: str, output_dir: str):
+        """创建URL快捷方式文件"""
+        try:
+            if platform == '京东':
+                url = f"https://item.jd.com/{product_id}.html"
+            else:
+                url = f"https://detail.1688.com/offer/{product_id}.html"
+            
+            url_file = os.path.join(output_dir, '#URL.url')
+            
+            if os.path.exists(url_file):
+                return
+            
+            os.makedirs(output_dir, exist_ok=True)
+            
+            content = f"""[DEFAULT]
+BASEURL={url}
+[InternetShortcut]
+URL={url}
+IconIndex=41
+IconFile=C:\\WINDOWS\\system32\\shell32.dll
+"""
+            
+            with open(url_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+                
+        except Exception as e:
+            print(f"创建URL快捷方式失败: {e}")
     
     def download_all_pending(self, progress_callback: Callable = None) -> Dict:
         """下载所有待下载资源"""
