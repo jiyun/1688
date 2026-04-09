@@ -1342,6 +1342,7 @@ class AlibabaScraperGUI:
     def _on_db_tree_double_click(self, event):
         """数据库树双击事件"""
         item = self.db_tree.identify_row(event.y)
+        column = self.db_tree.identify_column(event.x)
         if not item:
             return
         
@@ -1351,7 +1352,60 @@ class AlibabaScraperGUI:
             return
         
         product_id = values[1]
+        
+        # 检查是否双击了可编辑列
+        col_index = int(column.replace('#', '')) - 1
+        if col_index == 6:  # shop_name (DS店铺)
+            self._inline_edit_cell(item, product_id, 'ds_shop', values[6], column)
+            return
+        elif col_index == 7:  # shop_product_id (DSID)
+            self._inline_edit_cell(item, product_id, 'shop_product_id', values[7], column, is_dsid=True)
+            return
+        
         self._show_product_detail(product_id)
+    
+    def _inline_edit_cell(self, item, product_id: str, field: str, current_value: str, column, is_dsid: bool = False):
+        """内联编辑单元格"""
+        import tkinter as tk
+        from utils.database import get_shared_db
+        
+        if current_value == '-':
+            current_value = ''
+        
+        # 获取单元格位置
+        x, y, width, height = self.db_tree.bbox(item, column)
+        
+        # 创建编辑框
+        entry = tk.Entry(self.db_tree)
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.insert(0, current_value)
+        entry.focus_set()
+        entry.select_range(0, tk.END)
+        
+        db = get_shared_db()
+        
+        def save(event=None):
+            new_value = entry.get().strip()
+            
+            if is_dsid and new_value and not new_value.isdigit():
+                self.log("DSID必须为纯数字", "error")
+                return
+            
+            try:
+                db.update_product(product_id, {field: new_value if new_value else None})
+                self.db_tree.set(item, column=field, value=new_value if new_value else '-')
+                self.log(f"已保存: {product_id} -> {field}: {new_value}")
+            except Exception as e:
+                self.log(f"保存失败: {e}", "error")
+            
+            entry.destroy()
+        
+        def cancel(event=None):
+            entry.destroy()
+        
+        entry.bind('<Return>', save)
+        entry.bind('<Escape>', cancel)
+        entry.bind('<FocusOut>', save)
     
     def _show_db_context_menu(self, event):
         """显示数据库右键菜单"""
@@ -1402,10 +1456,6 @@ class AlibabaScraperGUI:
             context_menu.add_command(label="编辑商品", command=lambda: self._copy_url_to_clipboard(edit_url, "编辑商品"))
         
         context_menu.add_separator()
-        context_menu.add_command(label="编辑DS店铺", command=lambda: self._edit_ds_shop(product_id, item))
-        context_menu.add_command(label="编辑DSID", command=lambda: self._edit_dsid(product_id, item))
-        
-        context_menu.add_separator()
         context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
         context_menu.add_command(label="在线采集", command=lambda: self._db_online_collect_for_item(product_id))
         context_menu.add_separator()
@@ -1421,108 +1471,6 @@ class AlibabaScraperGUI:
             self.log(f"已复制{name}链接: {url}")
         except Exception as e:
             self.log(f"复制失败: {e}", "error")
-    
-    def _edit_ds_shop(self, product_id: str, item):
-        """编辑DS店铺"""
-        import tkinter as tk
-        from tkinter import ttk
-        from utils.database import get_shared_db
-        
-        db = get_shared_db()
-        product = db.get_product(product_id)
-        current_ds_shop = product.get('ds_shop', '') if product else ''
-        
-        dialog = tk.Toplevel(self.root)
-        dialog.title("编辑DS店铺")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.geometry("400x200")
-        dialog.resizable(False, False)
-        
-        dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
-        dialog.geometry(f"+{x}+{y}")
-        
-        main_frame = ttk.Frame(dialog, padding=20)
-        main_frame.pack(fill="both", expand=True)
-        
-        ttk.Label(main_frame, text=f"商品ID: {product_id}", foreground="gray").pack(anchor="w", pady=(0, 15))
-        ttk.Label(main_frame, text="DS店铺:").pack(anchor="w")
-        entry = ttk.Entry(main_frame, width=40)
-        entry.pack(anchor="w", pady=(5, 15))
-        entry.insert(0, current_ds_shop)
-        
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        
-        def save():
-            try:
-                db.update_product(product_id, {'ds_shop': entry.get().strip()})
-                self.log(f"已保存DS店铺: {product_id} -> {entry.get().strip()}")
-            except Exception as e:
-                self.log(f"保存失败: {e}", "error")
-            dialog.destroy()
-        
-        ttk.Button(btn_frame, text="保存", command=save).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side="left", padx=5)
-        dialog.bind('<Return>', lambda e: save())
-        dialog.bind('<Escape>', lambda e: dialog.destroy())
-    
-    def _edit_dsid(self, product_id: str, item):
-        """编辑DSID"""
-        import tkinter as tk
-        from tkinter import ttk
-        from utils.database import get_shared_db
-        
-        db = get_shared_db()
-        product = db.get_product(product_id)
-        current_dsid = product.get('shop_product_id', '') if product else ''
-        
-        dialog = tk.Toplevel(self.root)
-        dialog.title("编辑DSID")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.geometry("400x220")
-        dialog.resizable(False, False)
-        
-        dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
-        dialog.geometry(f"+{x}+{y}")
-        
-        main_frame = ttk.Frame(dialog, padding=20)
-        main_frame.pack(fill="both", expand=True)
-        
-        ttk.Label(main_frame, text=f"商品ID: {product_id}", foreground="gray").pack(anchor="w", pady=(0, 15))
-        ttk.Label(main_frame, text="DSID:").pack(anchor="w")
-        entry = ttk.Entry(main_frame, width=40)
-        entry.pack(anchor="w", pady=(5, 10))
-        entry.insert(0, current_dsid)
-        
-        error_label = ttk.Label(main_frame, text="", foreground="red")
-        error_label.pack(anchor="w")
-        
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        
-        def save():
-            new_dsid = entry.get().strip()
-            if new_dsid and not new_dsid.isdigit():
-                error_label.configure(text="DSID必须为纯数字")
-                return
-            try:
-                db.update_product(product_id, {'shop_product_id': new_dsid if new_dsid else None})
-                self.db_tree.set(item, column="shop_product_id", value=new_dsid if new_dsid else '-')
-                self.log(f"已保存DSID: {product_id} -> {new_dsid}")
-            except Exception as e:
-                self.log(f"保存失败: {e}", "error")
-            dialog.destroy()
-        
-        ttk.Button(btn_frame, text="保存", command=save).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side="left", padx=5)
-        dialog.bind('<Return>', lambda e: save())
-        dialog.bind('<Escape>', lambda e: dialog.destroy())
     
     def _open_output_directory(self, output_path: str):
         """打开输出目录"""
