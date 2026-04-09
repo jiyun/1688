@@ -239,18 +239,24 @@ class AlibabaScraperGUI:
                 self.log("扩展检查: 所有依赖已就绪")
             
             try:
-                from utils.database import get_shared_db
-                db = get_shared_db()
-                columns = db.conn.execute("DESCRIBE sku_prices").fetchall()
-                existing_columns = {col[0] for col in columns}
-                required_columns = {'sku_id', 'color', 'size', 'price', 'discount_price', 
-                                  'can_book_count', 'sale_count', 'spec_id'}
-                
-                if not required_columns.issubset(existing_columns):
-                    self.log("数据库: 检测到旧版 sku_prices 表结构")
-                    db._migrate_sku_prices_table()
-                    self.log("数据库: sku_prices 表结构已更新")
-                db.close()
+                from utils.database import get_shared_db, HAS_DUCKDB
+                if not HAS_DUCKDB:
+                    self.log("数据库: DuckDB未安装，跳过迁移检查")
+                else:
+                    db = get_shared_db()
+                    if db is None:
+                        self.log("数据库: 无法获取数据库连接")
+                    else:
+                        columns = db.conn.execute("DESCRIBE sku_prices").fetchall()
+                        existing_columns = {col[0] for col in columns}
+                        required_columns = {'sku_id', 'color', 'size', 'price', 'discount_price', 
+                                          'can_book_count', 'sale_count', 'spec_id'}
+                        
+                        if not required_columns.issubset(existing_columns):
+                            self.log("数据库: 检测到旧版 sku_prices 表结构")
+                            db._migrate_sku_prices_table()
+                            self.log("数据库: sku_prices 表结构已更新")
+                        db.close()
             except Exception as e:
                 self.log(f"数据库迁移检查: {e}")
                 

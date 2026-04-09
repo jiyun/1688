@@ -23,9 +23,10 @@ except ImportError:
 try:
     import duckdb
     HAS_DUCKDB = True
-except ImportError:
+except ImportError as e:
     HAS_DUCKDB = False
-    print("警告: DuckDB未安装，请运行: pip install duckdb")
+    print(f"警告: DuckDB未安装或导入失败: {e}")
+    print("请运行: pip install duckdb")
 
 
 class Database:
