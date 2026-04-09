@@ -1444,25 +1444,25 @@ class AlibabaScraperGUI:
         dialog.geometry(f"+{x}+{y}")
         
         main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
+        main_frame.pack(fill="both", expand=True, padx=30, pady=25)
         
-        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 20))
+        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 20))
         
-        ctk.CTkLabel(main_frame, text="DS店铺:").grid(row=1, column=0, sticky="w", pady=5)
-        ds_shop_entry = ctk.CTkEntry(main_frame, width=300)
-        ds_shop_entry.grid(row=1, column=1, sticky="ew", pady=5, padx=(10, 0))
+        ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
+        ds_shop_entry = ctk.CTkEntry(main_frame, width=400)
+        ds_shop_entry.pack(fill="x", pady=(5, 15))
         ds_shop_entry.insert(0, current_ds_shop)
         
-        ctk.CTkLabel(main_frame, text="DSID:").grid(row=2, column=0, sticky="w", pady=5)
-        ds_id_entry = ctk.CTkEntry(main_frame, width=300)
-        ds_id_entry.grid(row=2, column=1, sticky="ew", pady=5, padx=(10, 0))
+        ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
+        ds_id_entry = ctk.CTkEntry(main_frame, width=400)
+        ds_id_entry.pack(fill="x", pady=(5, 15))
         ds_id_entry.insert(0, current_ds_id)
         
         error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
-        error_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=10)
+        error_label.pack(anchor="w", pady=(0, 10))
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.grid(row=4, column=0, columnspan=2, pady=15)
+        btn_frame.pack(fill="x", pady=(15, 0))
         
         def save_ds_info():
             new_ds_shop = ds_shop_entry.get().strip()
@@ -1488,8 +1488,6 @@ class AlibabaScraperGUI:
         
         create_button(btn_frame, "保存", save_ds_info, 'success').pack(side="left", padx=15)
         create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=15)
-        
-        main_frame.columnconfigure(1, weight=1)
         
         dialog.bind('<Return>', lambda e: save_ds_info())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
