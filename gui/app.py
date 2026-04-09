@@ -1402,7 +1402,8 @@ class AlibabaScraperGUI:
             context_menu.add_command(label="编辑商品", command=lambda: self._copy_url_to_clipboard(edit_url, "编辑商品"))
         
         context_menu.add_separator()
-        context_menu.add_command(label="编辑DS店铺/DSID", command=lambda: self._edit_ds_shop_and_id(product_id, item, values))
+        context_menu.add_command(label="编辑DS店铺", command=lambda: self._edit_ds_shop(product_id, item))
+        context_menu.add_command(label="编辑DSID", command=lambda: self._edit_dsid(product_id, item))
         
         context_menu.add_separator()
         context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
@@ -1421,21 +1422,19 @@ class AlibabaScraperGUI:
         except Exception as e:
             self.log(f"复制失败: {e}", "error")
     
-    def _edit_ds_shop_and_id(self, product_id: str, item, values):
-        """编辑DS店铺与DSID"""
+    def _edit_ds_shop(self, product_id: str, item):
+        """编辑DS店铺"""
         from utils.database import get_shared_db
         
         db = get_shared_db()
         product = db.get_product(product_id)
-        
         current_ds_shop = product.get('ds_shop', '') if product else ''
-        current_ds_id = product.get('shop_product_id', '') if product else ''
         
         dialog = ctk.CTkToplevel(self.root)
-        dialog.title("编辑DS店铺与DSID")
+        dialog.title("编辑DS店铺")
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.geometry("500x450")
+        dialog.geometry("400x180")
         dialog.resizable(False, False)
         
         dialog.update_idletasks()
@@ -1444,52 +1443,81 @@ class AlibabaScraperGUI:
         dialog.geometry(f"+{x}+{y}")
         
         main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=30, pady=25)
+        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
         
-        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 20))
-        
+        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
         ctk.CTkLabel(main_frame, text="DS店铺:").pack(anchor="w")
-        ds_shop_entry = ctk.CTkEntry(main_frame, width=400)
-        ds_shop_entry.pack(fill="x", pady=(5, 15))
-        ds_shop_entry.insert(0, current_ds_shop)
-        
-        ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
-        ds_id_entry = ctk.CTkEntry(main_frame, width=400)
-        ds_id_entry.pack(fill="x", pady=(5, 15))
-        ds_id_entry.insert(0, current_ds_id)
-        
-        error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
-        error_label.pack(anchor="w", pady=(0, 10))
+        entry = ctk.CTkEntry(main_frame, width=350)
+        entry.pack(fill="x", pady=(5, 15))
+        entry.insert(0, current_ds_shop)
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(15, 0))
+        btn_frame.pack(fill="x")
         
-        def save_ds_info():
-            new_ds_shop = ds_shop_entry.get().strip()
-            new_ds_id = ds_id_entry.get().strip()
-            
-            if new_ds_id and not new_ds_id.isdigit():
-                error_label.configure(text="DSID必须为纯数字")
-                return
-            
+        def save():
             try:
-                db.update_product(product_id, {
-                    'ds_shop': new_ds_shop,
-                    'shop_product_id': new_ds_id if new_ds_id else None
-                })
-                
-                self.db_tree.set(item, column="shop_product_id", value=new_ds_id if new_ds_id else '-')
-                
-                self.log(f"已保存DS店铺/DSID: {product_id} -> 店铺:{new_ds_shop}, DSID:{new_ds_id}")
+                db.update_product(product_id, {'ds_shop': entry.get().strip()})
+                self.log(f"已保存DS店铺: {product_id} -> {entry.get().strip()}")
             except Exception as e:
                 self.log(f"保存失败: {e}", "error")
-            
             dialog.destroy()
         
-        create_button(btn_frame, "保存", save_ds_info, 'success').pack(side="left", padx=15)
-        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=15)
+        create_button(btn_frame, "保存", save, 'success').pack(side="left", padx=10)
+        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=10)
+        dialog.bind('<Return>', lambda e: save())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+    
+    def _edit_dsid(self, product_id: str, item):
+        """编辑DSID"""
+        from utils.database import get_shared_db
         
-        dialog.bind('<Return>', lambda e: save_ds_info())
+        db = get_shared_db()
+        product = db.get_product(product_id)
+        current_dsid = product.get('shop_product_id', '') if product else ''
+        
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("编辑DSID")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=25, pady=20)
+        
+        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", text_color="gray").pack(anchor="w", pady=(0, 15))
+        ctk.CTkLabel(main_frame, text="DSID:").pack(anchor="w")
+        entry = ctk.CTkEntry(main_frame, width=350)
+        entry.pack(fill="x", pady=(5, 10))
+        entry.insert(0, current_dsid)
+        
+        error_label = ctk.CTkLabel(main_frame, text="", text_color="red")
+        error_label.pack(anchor="w")
+        
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(10, 0))
+        
+        def save():
+            new_dsid = entry.get().strip()
+            if new_dsid and not new_dsid.isdigit():
+                error_label.configure(text="DSID必须为纯数字")
+                return
+            try:
+                db.update_product(product_id, {'shop_product_id': new_dsid if new_dsid else None})
+                self.db_tree.set(item, column="shop_product_id", value=new_dsid if new_dsid else '-')
+                self.log(f"已保存DSID: {product_id} -> {new_dsid}")
+            except Exception as e:
+                self.log(f"保存失败: {e}", "error")
+            dialog.destroy()
+        
+        create_button(btn_frame, "保存", save, 'success').pack(side="left", padx=10)
+        create_button(btn_frame, "取消", dialog.destroy, 'secondary').pack(side="left", padx=10)
+        dialog.bind('<Return>', lambda e: save())
         dialog.bind('<Escape>', lambda e: dialog.destroy())
     
     def _open_output_directory(self, output_path: str):
