@@ -146,7 +146,14 @@
 │   ├── utils.py        # GUI工具函数
 │   ├── dnd.py          # 拖放功能
 │   ├── pricing_gui.py  # 价格计算工具
-│   └── tiered_price_generator.py # 阶梯价格生成器
+│   ├── tiered_price_generator.py # 阶梯价格生成器
+│   └── image_editor/   # 图片编辑器模块
+│       ├── __init__.py
+│       ├── editor_window.py  # 编辑器主窗口
+│       ├── editor_canvas.py  # 画布组件
+│       ├── image_block.py    # 图片块数据模型
+│       ├── tools.py          # 工具类
+│       └── history.py        # 历史记录管理
 ├── utils/              # 工具模块
 │   ├── parser.py       # HTML解析兼容层
 │   ├── database.py     # DuckDB数据库模块
@@ -158,6 +165,7 @@
 │   ├── image_processor.py # 图像处理流程
 │   ├── price_extractor.py # 价格提取器
 │   ├── resource_downloader.py # 资源下载器
+│   ├── video_generator.py   # 视频生成器
 │   ├── launcher.py     # 启动器
 │   ├── logger.py       # 日志模块
 │   ├── updater.py      # 版本检测升级模块
@@ -166,6 +174,8 @@
 │       ├── base_parser.py   # 解析器基类
 │       ├── alibaba_parser.py # 1688解析器
 │       └── jd_parser.py     # 京东解析器
+├── docs/               # 文档目录
+│   └── image_editor_plan.md # 图片编辑器规划文档
 ├── version.json        # 版本配置文件
 ├── ROADMAP.md          # 项目路线图
 ├── LICENSE             # 许可证文件
@@ -194,6 +204,14 @@
 - **utils/price_extractor.py**：价格提取器，从HTML中提取SKU价格信息
 - **utils/version.py**：版本信息模块，管理当前版本号和版本信息
 - **utils/updater.py**：版本检测升级模块，支持自动检测更新、GitHub/Gitee双源切换、下载更新包
+- **utils/video_generator.py**：视频生成器，将详情图生成为瀑布流滚动视频
+- **gui/image_editor/**：图片编辑器模块，提供可视化图片编辑功能
+  - **editor_window.py**：编辑器主窗口，包含详情图、主图、色卡、视频四个选项卡
+  - **editor_canvas.py**：画布组件，支持块模式和列模式编辑
+  - **image_block.py**：图片块数据模型，支持单图块和组合块
+  - **tools.py**：工具类，包含比例转换、智能布局拼接等功能
+  - **history.py**：历史记录管理，支持撤销/重做操作
+- **docs/**：文档目录，包含项目规划文档
 
 ## 性能说明
 
