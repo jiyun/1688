@@ -43,9 +43,18 @@ psutil>=5.9.0
 #   或通过 conda install ffmpeg 安装
 #   如果未安装，视频生成会尝试使用 moviepy
 #
-# Chrome浏览器 - 在线采集功能（必要）
-#   目前仅支持 Chrome，Edge 尚未完成适配
+# Chrome浏览器 - 在线采集功能（推荐）
+#   推荐使用 Chrome 浏览器
 #
-# 1688-extension - 1688助手浏览器扩展（可选）
-#   自动下载到 tools/1688-extension/ 目录
-#   用于在线采集时自动保存页面
+# Edge浏览器 - 在线采集功能（已适配）
+#   已完成适配，可作为备选
+#
+# chromedriver - Chrome WebDriver（自动下载）
+#   首次使用在线采集时自动下载
+#
+# msedgedriver - Edge WebDriver（自动下载）
+#   首次使用 Edge 浏览器时自动下载
+#
+# 1688-extension - 1688助手浏览器扩展（自动下载）
+#   首次使用在线采集时自动下载
+#   官方下载页: https://chajian.1688.com/

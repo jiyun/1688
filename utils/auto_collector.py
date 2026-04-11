@@ -174,18 +174,21 @@ class AutoCollector:
             
             try:
                 from selenium.webdriver.edge.service import Service as EdgeService
-                edgedriver_path = os.path.abspath(os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)),
-                    'tools', 'msedgedriver.exe'
-                ))
-                if os.path.exists(edgedriver_path):
-                    print(f"使用本地 msedgedriver: {edgedriver_path}")
+                from utils.tool_downloader import ensure_msedgedriver, get_msedgedriver_path
+                
+                edgedriver_path = get_msedgedriver_path()
+                if not edgedriver_path:
+                    print("msedgedriver 未找到，尝试自动下载...")
+                    edgedriver_path = ensure_msedgedriver()
+                
+                if edgedriver_path:
+                    print(f"使用 msedgedriver: {edgedriver_path}")
                     self.driver = webdriver.Edge(options=options, service=EdgeService(executable_path=edgedriver_path))
                 else:
+                    print("msedgedriver 下载失败，使用系统默认")
                     self.driver = webdriver.Edge(options=options)
             except Exception as e:
                 print(f"Edge WebDriver 初始化失败: {e}")
-                print("提示: Edge 适配尚未完全完成，建议使用 Chrome 浏览器")
                 raise
         else:
             chrome_path = find_chrome_executable()
@@ -197,10 +200,19 @@ class AutoCollector:
                 edge_path = find_edge_executable()
                 if edge_path:
                     print(f"Chrome 未找到，尝试使用 Edge 浏览器: {edge_path}")
-                    print("警告: Edge 适配尚未完全完成，建议安装 Chrome 浏览器")
                     options.binary_location = edge_path
                     try:
-                        self.driver = webdriver.Edge(options=options)
+                        from selenium.webdriver.edge.service import Service as EdgeService
+                        from utils.tool_downloader import ensure_msedgedriver, get_msedgedriver_path
+                        
+                        edgedriver_path = get_msedgedriver_path()
+                        if not edgedriver_path:
+                            edgedriver_path = ensure_msedgedriver()
+                        
+                        if edgedriver_path:
+                            self.driver = webdriver.Edge(options=options, service=EdgeService(executable_path=edgedriver_path))
+                        else:
+                            self.driver = webdriver.Edge(options=options)
                         self.driver.implicitly_wait(10)
                         print(f"浏览器启动成功，下载目录: {self.output_dir}")
                         return
@@ -210,12 +222,15 @@ class AutoCollector:
                 else:
                     print("使用 Chrome 浏览器...")
             
-            chromedriver_path = os.path.abspath(os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'tools', 'chromedriver-win64', 'chromedriver.exe'
-            ))
-            if os.path.exists(chromedriver_path):
-                print(f"使用本地 chromedriver: {chromedriver_path}")
+            from utils.tool_downloader import ensure_chromedriver, get_chromedriver_path
+            
+            chromedriver_path = get_chromedriver_path()
+            if not chromedriver_path:
+                print("chromedriver 未找到，尝试自动下载...")
+                chromedriver_path = ensure_chromedriver()
+            
+            if chromedriver_path:
+                print(f"使用 chromedriver: {chromedriver_path}")
                 from selenium.webdriver.chrome.service import Service as ChromeService
                 self.driver = webdriver.Chrome(
                     options=options,

@@ -37,7 +37,8 @@
 - **操作系统**：Windows
 - **Python版本**：Python 3.11+
 - **浏览器要求**：
-  - **Chrome浏览器**（在线采集功能必要）：目前仅支持 Chrome，Edge 尚未完成适配
+  - **Chrome浏览器**（推荐）：在线采集功能推荐使用 Chrome
+  - **Edge浏览器**（已适配）：已完成适配，可作为备选
 - **外部工具**：
   - [aria2c](https://github.com/aria2/aria2/releases)（必要，用于批量下载）
   - [ffmpeg](https://ffmpeg.org/download.html)（可选，用于视频生成）

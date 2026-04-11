@@ -19,6 +19,29 @@ TOOLS_CONFIG = {
             ],
             'filename': 'aria2c.exe'
         }
+    },
+    'chromedriver': {
+        'windows': {
+            'urls': [
+                ('https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.165/win64/chromedriver-win64.zip', 'zip', 'chromedriver-win64'),
+            ],
+            'fallback_urls': [
+                'https://ghproxy.com/https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.165/win64/chromedriver-win64.zip',
+            ],
+            'filename': 'chromedriver.exe',
+            'extract_subdir': 'chromedriver-win64'
+        }
+    },
+    'msedgedriver': {
+        'windows': {
+            'urls': [
+                ('https://msedgedriver.azureedge.net/134.0.3124.95/edgedriver_win64.zip', 'zip', None),
+            ],
+            'fallback_urls': [
+                'https://ghproxy.com/https://msedgedriver.azureedge.net/134.0.3124.95/edgedriver_win64.zip',
+            ],
+            'filename': 'msedgedriver.exe'
+        }
     }
 }
 
@@ -44,9 +67,10 @@ OPTIONAL_PACKAGES = {
 EXTENSION_CONFIG = {
     '1688-extension': {
         'urls': [
-            'https://github.com/jiyun/1688/raw/main/tools/1688-extension.zip',
+            'https://1688smartassistant.oss-cn-beijing.aliyuncs.com/1688-extension.zip',
         ],
         'fallback_urls': [
+            'https://github.com/jiyun/1688/raw/main/tools/1688-extension.zip',
             'https://ghproxy.com/https://github.com/jiyun/1688/raw/main/tools/1688-extension.zip',
         ],
         'extract_dir': '1688-extension'
@@ -102,16 +126,20 @@ def download_file(url, dest_path, show_progress=True):
             os.remove(dest_path)
         return False
 
-def find_aria2c_in_zip(zip_path):
-    """在ZIP文件中查找aria2c.exe"""
+def find_file_in_zip(zip_path, target_filename):
+    """在ZIP文件中查找指定文件"""
     try:
         with zipfile.ZipFile(zip_path, 'r') as zf:
             for name in zf.namelist():
-                if name.endswith('aria2c.exe'):
+                if name.endswith(target_filename):
                     return name
     except Exception as e:
         print(f"读取ZIP文件失败: {e}")
     return None
+
+def find_aria2c_in_zip(zip_path):
+    """在ZIP文件中查找aria2c.exe"""
+    return find_file_in_zip(zip_path, 'aria2c.exe')
 
 def extract_from_zip(zip_path, extract_file, dest_path):
     """从ZIP文件中提取单个文件"""
@@ -131,7 +159,13 @@ def check_tool_exists(tool_name):
     config = TOOLS_CONFIG.get(tool_name, {})
     platform_config = config.get('windows', {})
     filename = platform_config.get('filename', f'{tool_name}.exe')
-    tool_path = os.path.join(tools_dir, filename)
+    extract_subdir = platform_config.get('extract_subdir')
+    
+    if extract_subdir:
+        tool_path = os.path.join(tools_dir, extract_subdir, filename)
+    else:
+        tool_path = os.path.join(tools_dir, filename)
+    
     return os.path.exists(tool_path), tool_path
 
 def download_tool(tool_name, use_fallback=True):
@@ -150,7 +184,14 @@ def download_tool(tool_name, use_fallback=True):
         return None
     
     filename = platform_config.get('filename', f'{tool_name}.exe')
-    dest_path = os.path.join(tools_dir, filename)
+    extract_subdir = platform_config.get('extract_subdir')
+    
+    if extract_subdir:
+        dest_dir = os.path.join(tools_dir, extract_subdir)
+        dest_path = os.path.join(dest_dir, filename)
+    else:
+        dest_dir = tools_dir
+        dest_path = os.path.join(tools_dir, filename)
     
     if os.path.exists(dest_path):
         print(f"{tool_name} 已存在: {dest_path}")
@@ -166,17 +207,20 @@ def download_tool(tool_name, use_fallback=True):
         elif url_type == 'zip':
             zip_path = os.path.join(tools_dir, f'{tool_name}.zip')
             if download_file(url, zip_path):
-                extract_file = find_aria2c_in_zip(zip_path)
+                extract_file = find_file_in_zip(zip_path, filename)
                 if extract_file:
+                    os.makedirs(dest_dir, exist_ok=True)
                     if extract_from_zip(zip_path, extract_file, dest_path):
                         os.remove(zip_path)
                         print(f"下载完成: {dest_path}")
                         return dest_path
                     else:
-                        os.remove(zip_path)
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
                 else:
-                    print("ZIP文件中未找到aria2c.exe")
-                    os.remove(zip_path)
+                    print(f"ZIP文件中未找到 {filename}")
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
     
     if use_fallback:
         fallback_urls = platform_config.get('fallback_urls', [])
@@ -185,16 +229,19 @@ def download_tool(tool_name, use_fallback=True):
             if url.endswith('.zip'):
                 zip_path = os.path.join(tools_dir, f'{tool_name}.zip')
                 if download_file(url, zip_path):
-                    extract_file = find_aria2c_in_zip(zip_path)
+                    extract_file = find_file_in_zip(zip_path, filename)
                     if extract_file:
+                        os.makedirs(dest_dir, exist_ok=True)
                         if extract_from_zip(zip_path, extract_file, dest_path):
                             os.remove(zip_path)
                             print(f"下载完成: {dest_path}")
                             return dest_path
                         else:
-                            os.remove(zip_path)
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
                     else:
-                        os.remove(zip_path)
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
             else:
                 if download_file(url, dest_path):
                     print(f"下载完成: {dest_path}")
@@ -229,6 +276,38 @@ def get_aria2c_path():
         if os.path.exists(p):
             return p
     
+    return None
+
+def ensure_chromedriver():
+    """确保 chromedriver 可用"""
+    exists, path = check_tool_exists('chromedriver')
+    if exists:
+        return path
+    
+    print("chromedriver 不存在，正在自动下载...")
+    return download_tool('chromedriver')
+
+def get_chromedriver_path():
+    """获取 chromedriver 路径"""
+    exists, path = check_tool_exists('chromedriver')
+    if exists:
+        return path
+    return None
+
+def ensure_msedgedriver():
+    """确保 msedgedriver 可用"""
+    exists, path = check_tool_exists('msedgedriver')
+    if exists:
+        return path
+    
+    print("msedgedriver 不存在，正在自动下载...")
+    return download_tool('msedgedriver')
+
+def get_msedgedriver_path():
+    """获取 msedgedriver 路径"""
+    exists, path = check_tool_exists('msedgedriver')
+    if exists:
+        return path
     return None
 
 def check_extension_exists(extension_name):
