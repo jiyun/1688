@@ -313,7 +313,7 @@ class AlibabaScraperGUI:
         self.db_tree_frame = ctk.CTkFrame(self.db_content_frame, fg_color="transparent")
         self.db_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        db_columns = ("platform", "product_id", "title", "ship_from", "resource_counts", "sku_prices", "shop_name", "shop_product_id", "price_matrix", "output_path", "status", "created_at")
+        db_columns = ("platform", "product_id", "title", "ship_from", "resource_counts", "sku_prices", "remark", "shop_name", "shop_product_id", "price_matrix", "output_path", "status", "created_at")
         self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
         
         self.db_tree.heading("platform", text="平台", command=lambda: self._sort_db_column("platform"))
@@ -322,6 +322,7 @@ class AlibabaScraperGUI:
         self.db_tree.heading("ship_from", text="发货地", command=lambda: self._sort_db_column("ship_from"))
         self.db_tree.heading("resource_counts", text="资源", command=lambda: self._sort_db_column("resource_counts"))
         self.db_tree.heading("sku_prices", text="SKU", command=lambda: self._sort_db_column("sku_prices"))
+        self.db_tree.heading("remark", text="备注", command=lambda: self._sort_db_column("remark"))
         self.db_tree.heading("shop_name", text="DS店铺", command=lambda: self._sort_db_column("shop_name"))
         self.db_tree.heading("shop_product_id", text="DSID", command=lambda: self._sort_db_column("shop_product_id"))
         self.db_tree.heading("price_matrix", text="DS价格矩阵", command=lambda: self._sort_db_column("price_matrix"))
@@ -335,6 +336,7 @@ class AlibabaScraperGUI:
         self.db_tree.column("ship_from", width=60, anchor="center")
         self.db_tree.column("resource_counts", width=45, anchor="center")
         self.db_tree.column("sku_prices", width=40, anchor="center")
+        self.db_tree.column("remark", width=80, anchor="w")
         self.db_tree.column("shop_name", width=80, anchor="w")
         self.db_tree.column("shop_product_id", width=85, anchor="center")
         self.db_tree.column("price_matrix", width=80, anchor="center")
@@ -1008,12 +1010,13 @@ class AlibabaScraperGUI:
                     total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
                     resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
                     
-                    shop_id = product.get('shop_id', '')
-                    shop_name = ''
-                    if shop_id:
-                        shop = db.get_shop(shop_id)
-                        if shop:
-                            shop_name = shop.get('shop_name', '')[:8]
+                    shop_name = product.get('ds_shop', '') or ''
+                    if not shop_name:
+                        shop_id = product.get('shop_id', '')
+                        if shop_id:
+                            shop = db.get_shop(shop_id)
+                            if shop:
+                                shop_name = shop.get('shop_name', '')[:8]
                     
                     ship_from = product.get('ship_from', '') or '-'
                     
@@ -1039,6 +1042,8 @@ class AlibabaScraperGUI:
                     elif status == 'completed':
                         status = '完成'
                     
+                    remark = product.get('remark', '') or '-'
+                    
                     self.db_tree.insert("", "end", values=(
                         platform,
                         product_id,
@@ -1046,6 +1051,7 @@ class AlibabaScraperGUI:
                         ship_from,
                         resource_counts_str,
                         sku_prices_str,
+                        remark,
                         shop_name,
                         shop_product_id,
                         price_matrix,
@@ -1120,12 +1126,13 @@ class AlibabaScraperGUI:
                 total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
                 resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
                 
-                shop_id = product.get('shop_id', '')
-                shop_name = ''
-                if shop_id:
-                    shop = db.get_shop(shop_id)
-                    if shop:
-                        shop_name = shop.get('shop_name', '')[:8]
+                shop_name = product.get('ds_shop', '') or ''
+                if not shop_name:
+                    shop_id = product.get('shop_id', '')
+                    if shop_id:
+                        shop = db.get_shop(shop_id)
+                        if shop:
+                            shop_name = shop.get('shop_name', '')[:8]
                 
                 ship_from = product.get('ship_from', '') or '-'
                 
@@ -1151,6 +1158,8 @@ class AlibabaScraperGUI:
                 elif status == 'completed':
                     status = '完成'
                 
+                remark = product.get('remark', '') or '-'
+                
                 self.db_tree.insert("", "end", values=(
                     platform,
                     product_id,
@@ -1158,6 +1167,7 @@ class AlibabaScraperGUI:
                     ship_from,
                     resource_counts_str,
                     sku_prices_str,
+                    remark,
                     shop_name,
                     shop_product_id,
                     price_matrix,
@@ -1232,12 +1242,13 @@ class AlibabaScraperGUI:
                 total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
                 resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
                 
-                shop_id = product.get('shop_id', '')
-                shop_name = ''
-                if shop_id:
-                    shop = db.get_shop(shop_id)
-                    if shop:
-                        shop_name = shop.get('shop_name', '')[:8]
+                shop_name = product.get('ds_shop', '') or ''
+                if not shop_name:
+                    shop_id = product.get('shop_id', '')
+                    if shop_id:
+                        shop = db.get_shop(shop_id)
+                        if shop:
+                            shop_name = shop.get('shop_name', '')[:8]
                 
                 ship_from_val = product.get('ship_from', '') or '-'
                 
@@ -1263,6 +1274,8 @@ class AlibabaScraperGUI:
                 elif status_val == 'completed':
                     status_val = '完成'
                 
+                remark = product.get('remark', '') or '-'
+                
                 self.db_tree.insert("", "end", values=(
                     product_platform,
                     product_id,
@@ -1270,6 +1283,7 @@ class AlibabaScraperGUI:
                     ship_from_val,
                     resource_counts_str,
                     sku_prices_str,
+                    remark,
                     shop_name,
                     shop_product_id,
                     price_matrix,
@@ -1355,11 +1369,14 @@ class AlibabaScraperGUI:
         
         # 检查是否双击了可编辑列
         col_index = int(column.replace('#', '')) - 1
-        if col_index == 6:  # shop_name (DS店铺)
-            self._inline_edit_cell(item, product_id, 'ds_shop', 'shop_name', values[6], column)
+        if col_index == 6:  # remark (备注)
+            self._inline_edit_cell(item, product_id, 'remark', 'remark', values[6], column)
             return
-        elif col_index == 7:  # shop_product_id (DSID)
-            self._inline_edit_cell(item, product_id, 'shop_product_id', 'shop_product_id', values[7], column, is_dsid=True)
+        elif col_index == 7:  # shop_name (DS店铺)
+            self._inline_edit_cell(item, product_id, 'ds_shop', 'shop_name', values[7], column)
+            return
+        elif col_index == 8:  # shop_product_id (DSID)
+            self._inline_edit_cell(item, product_id, 'shop_product_id', 'shop_product_id', values[8], column, is_dsid=True)
             return
         
         self._show_product_detail(product_id)
@@ -1436,7 +1453,7 @@ class AlibabaScraperGUI:
             context_menu.add_command(label="访问原址", command=lambda: webbrowser.open(f"https://item.jd.com/{product_id}.html"))
         
         context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
-        context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(output_path))
+        context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(product_id, output_path))
         
         if shop_product_id and shop_product_id != '-':
             context_menu.add_command(label="访问店铺商品页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html"))
@@ -1455,6 +1472,7 @@ class AlibabaScraperGUI:
         
         context_menu.add_separator()
         context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
+        context_menu.add_command(label="图片编辑", command=lambda: self._open_image_editor(product_id))
         context_menu.add_command(label="在线采集", command=lambda: self._db_online_collect_for_item(product_id))
         context_menu.add_separator()
         context_menu.add_command(label="删除记录", command=self._delete_db_record)
@@ -1470,19 +1488,36 @@ class AlibabaScraperGUI:
         except Exception as e:
             self.log(f"复制失败: {e}", "error")
     
-    def _open_output_directory(self, output_path: str):
+    def _open_output_directory(self, product_id: str, output_path: str = None):
         """打开输出目录"""
+        target_path = None
+        
         if output_path and output_path != '-' and os.path.exists(output_path):
-            import subprocess
-            subprocess.run(['explorer', output_path])
+            target_path = output_path
         else:
-            # 尝试默认路径
-            default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'products', 'upload')
-            if os.path.exists(default_path):
-                import subprocess
-                subprocess.run(['explorer', default_path])
-            else:
-                self.show_info("提示", "输出目录不存在")
+            default_base = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'products', 'upload')
+            product_path = os.path.join(default_base, product_id)
+            if os.path.exists(product_path):
+                target_path = product_path
+            elif os.path.exists(default_base):
+                target_path = default_base
+        
+        if target_path:
+            import subprocess
+            subprocess.run(['explorer', target_path])
+        else:
+            self.show_info("提示", "输出目录不存在")
+    
+    def _open_image_editor(self, product_id: str):
+        """打开图片编辑器"""
+        try:
+            from gui.image_editor import ImageEditorWindow
+            editor = ImageEditorWindow(self.root, product_id)
+            editor.focus_set()
+            self.log(f"已打开图片编辑器: {product_id}")
+        except Exception as e:
+            self.log(f"打开图片编辑器失败: {e}", "error")
+            self.show_info("错误", f"打开图片编辑器失败: {e}")
     
     def _show_product_detail(self, product_id: str):
         """显示商品详情（products表完整记录）"""

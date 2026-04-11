@@ -1,6 +1,6 @@
 # 1688详情页资源采集工具
 
-![Version](https://img.shields.io/badge/version-0.4.4-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -11,10 +11,10 @@
 
 ## 版本信息 
 
-- 当前版本：0.4.4
+- 当前版本：0.5.0
 - 作者：急云
 - 项目地址：https://github.com/jiyun/1688/
-- 发布日期：2026-04-09
+- 发布日期：2026-04-11
 - [查看完整更新日志](CHANGELOG.md)
 
 ## 核心功能
@@ -30,6 +30,7 @@
 - **数据挖掘**：自动提取商品标题、店铺信息、发货地、销量等数据
 - **价格管理**：支持SKU价格提取、成本计算、阶梯价格生成
 - **数据库管理**：使用DuckDB存储商品数据，支持搜索和筛选
+- **图片编辑器**：可视化编辑商品图片，支持拖拽排序、拼接、涂抹、污点去除
 
 ## 系统要求
 

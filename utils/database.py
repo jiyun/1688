@@ -240,7 +240,8 @@ class Database:
                 'ship_from': 'VARCHAR',
                 'sales_count': 'INTEGER DEFAULT 0',
                 'min_order': 'INTEGER DEFAULT 1',
-                'ds_shop': 'VARCHAR'
+                'ds_shop': 'VARCHAR',
+                'remark': 'VARCHAR'
             }
             
             for col_name, col_type in new_columns.items():

@@ -11,8 +11,8 @@ FILE_NAMING = {
     'main_image_prefix': 'T_',                         # 主图前缀
     'detail_image_prefix': 'C_',                       # 详情图前缀
     'video_prefix': 'video_',                          # 视频前缀
-    'color_option_prefix': 'color_',                   # 颜色选项前缀
-    'new_image_prefix': 'new_C_',                      # 新生成图片前缀
+    'color_option_prefix': 'color_',                   # 色卡图前缀
+    'new_image_prefix': 'new_',                      # 新生成图片前缀
     'merged_image_name': '拼接结果.jpg',               # 拼接结果图片文件名
 }
 
@@ -155,6 +155,23 @@ PRICING_CONF = {
     'canvas_height': 150,
     'listbox_height': 10,
     'listbox_width': 70,
+}
+
+IMAGE_EDITOR_CONF = {
+    'canvas_width': 1440,
+    'max_history': 50,
+    'brush_sizes': {1: 5, 2: 10, 3: 20, 4: 35, 5: 50},
+    'default_brush_level': 3,
+    'video_duration_options': [10, 15, 20, 25, 30, 35, 40, 45],
+    'default_video_duration': 15,
+    'video_fps': 30,
+    'video_width': 1440,
+    'min_split_height': 200,
+    'magnetic_threshold': 20,
+    'default_fill_color': (255, 255, 255),
+    'supported_formats': ['jpg', 'webp', 'avif', 'png'],
+    'default_format': 'jpg',
+    'default_quality': 95,
 }
 
 UPDATE_CONF = {

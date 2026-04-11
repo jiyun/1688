@@ -1,9 +1,9 @@
 {
-    "version": "0.4.4",
-    "release_date": "2026-04-09",
+    "version": "0.5.0",
+    "release_date": "2026-04-11",
     "min_python": "3.11",
     "download_url": {
-        "github": "https://github.com/jiyun/1688/archive/refs/tags/v0.4.4.zip"
+        "github": "https://github.com/jiyun/1688/archive/refs/tags/v0.5.0.zip"
     },
     "checksum": {
         "sha256": ""
