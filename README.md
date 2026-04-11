@@ -36,30 +36,42 @@
 
 - **操作系统**：Windows
 - **Python版本**：Python 3.11+
+- **浏览器要求**：
+  - **Chrome浏览器**（在线采集功能必要）：目前仅支持 Chrome，Edge 尚未完成适配
 - **外部工具**：
-  - [aria2c](https://github.com/aria2/aria2/releases)（用于批量下载）
+  - [aria2c](https://github.com/aria2/aria2/releases)（必要，用于批量下载）
+  - [ffmpeg](https://ffmpeg.org/download.html)（可选，用于视频生成）
 - **浏览器扩展**（可选）：
   - [SingleFile](https://github.com/gildas-lormeau/SingleFile/releases)（用于保存完整HTML页面，在线采集功能无需此扩展）
-- **Python依赖库**：
-  - BeautifulSoup4 (`pip install beautifulsoup4`)
-  - requests (`pip install requests`)
-  - Pillow (`pip install Pillow`)
-  - duckdb (`pip install duckdb`)
 
-- **可选依赖库**（用于增强GUI体验）：
-  - tkinterweb (`pip install tkinterweb`)  # 用于Markdown渲染
-  - markdown (`pip install markdown`)  # 用于Markdown解析
-  - customtkinter (`pip install customtkinter`)  # 用于现代GUI界面
+### Python依赖库
+
+**核心依赖（必要）**：
+```bash
+pip install requests beautifulsoup4 lxml Pillow duckdb customtkinter pandas selenium webdriver-manager psutil pyperclip packaging
+```
+
+**可选依赖（增强功能）**：
+```bash
+# GUI增强 - Markdown渲染
+pip install tkinterweb markdown
+
+# 图片编辑器增强 - 污点去除工具
+pip install opencv-python
+
+# 视频生成功能
+pip install moviepy
+```
 
 ## 安装步骤
 
 1. **安装Python**：从[Python官网](https://www.python.org/)下载并安装Python 3.11+
 2. **安装依赖库**：打开命令提示符，运行以下命令：
    ```bash
-   pip install beautifulsoup4 requests Pillow duckdb customtkinter
+   pip install -r requirements.txt
    ```
 3. **下载aria2c**：从[aria2c官网](https://github.com/aria2/aria2/releases)下载最新版本，解压后将`aria2c.exe`文件复制到项目根目录
-4. **安装SingleFile扩展**：在浏览器中安装SingleFile扩展
+4. **安装Chrome浏览器**：在线采集功能需要Chrome浏览器（Edge尚未适配）
 5. **下载项目**：将本项目下载到本地任意目录
 
 ## 使用方法

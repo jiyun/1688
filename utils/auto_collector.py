@@ -165,19 +165,47 @@ class AutoCollector:
             if edge_path:
                 print(f"找到 Edge: {edge_path}")
                 options.binary_location = edge_path
-            self.driver = webdriver.Edge(options=options)
+            else:
+                print("未找到 Edge 浏览器，请安装 Microsoft Edge")
+                raise RuntimeError("Edge 浏览器未安装")
+            
+            try:
+                from selenium.webdriver.edge.service import Service as EdgeService
+                edgedriver_path = os.path.abspath(os.path.join(
+                    os.path.dirname(os.path.dirname(__file__)),
+                    'tools', 'msedgedriver.exe'
+                ))
+                if os.path.exists(edgedriver_path):
+                    print(f"使用本地 msedgedriver: {edgedriver_path}")
+                    self.driver = webdriver.Edge(options=options, service=EdgeService(executable_path=edgedriver_path))
+                else:
+                    self.driver = webdriver.Edge(options=options)
+            except Exception as e:
+                print(f"Edge WebDriver 初始化失败: {e}")
+                print("提示: Edge 适配尚未完全完成，建议使用 Chrome 浏览器")
+                raise
         else:
             chrome_path = find_chrome_executable()
-            edge_path = find_edge_executable()
             
             if chrome_path:
                 print(f"使用 Chrome 浏览器: {chrome_path}")
                 options.binary_location = chrome_path
-            elif edge_path:
-                print(f"Chrome 未找到，使用 Edge 浏览器: {edge_path}")
-                options.binary_location = edge_path
             else:
-                print("使用 Chrome 浏览器...")
+                edge_path = find_edge_executable()
+                if edge_path:
+                    print(f"Chrome 未找到，尝试使用 Edge 浏览器: {edge_path}")
+                    print("警告: Edge 适配尚未完全完成，建议安装 Chrome 浏览器")
+                    options.binary_location = edge_path
+                    try:
+                        self.driver = webdriver.Edge(options=options)
+                        self.driver.implicitly_wait(10)
+                        print(f"浏览器启动成功，下载目录: {self.output_dir}")
+                        return
+                    except Exception as e:
+                        print(f"Edge 启动失败: {e}")
+                        raise RuntimeError("Chrome 和 Edge 浏览器均不可用，请安装 Chrome 浏览器")
+                else:
+                    print("使用 Chrome 浏览器...")
             
             chromedriver_path = os.path.abspath(os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),

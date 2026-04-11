@@ -23,9 +23,25 @@ TOOLS_CONFIG = {
 }
 
 REQUIRED_PACKAGES = {
-    'PIL': 'pillow',
+    'PIL': 'Pillow',
     'bs4': 'beautifulsoup4',
+    'lxml': 'lxml',
     'pandas': 'pandas',
+    'duckdb': 'duckdb',
+    'customtkinter': 'customtkinter',
+    'selenium': 'selenium',
+    'webdriver_manager': 'webdriver-manager',
+    'psutil': 'psutil',
+    'pyperclip': 'pyperclip',
+    'packaging': 'packaging',
+    'requests': 'requests',
+}
+
+OPTIONAL_PACKAGES = {
+    'tkinterweb': 'tkinterweb',
+    'markdown': 'markdown',
+    'cv2': 'opencv-python',
+    'moviepy': 'moviepy',
 }
 
 def get_tools_dir():
@@ -250,6 +266,28 @@ def check_and_install_packages():
     
     return results
 
+def check_optional_packages():
+    """检查可选Python包"""
+    print("\n=== 检查可选依赖 ===")
+    results = {}
+    
+    for import_name, package_name in OPTIONAL_PACKAGES.items():
+        if check_package_installed(import_name):
+            print(f"  {package_name}: 已安装")
+            results[package_name] = True
+        else:
+            print(f"  {package_name}: 未安装 (可选)")
+            results[package_name] = False
+    
+    return results
+
+def install_optional_package(package_name):
+    """安装可选Python包"""
+    for import_name, pkg_name in OPTIONAL_PACKAGES.items():
+        if pkg_name == package_name:
+            return install_package(package_name)
+    return False
+
 def check_all_dependencies():
     """检查所有依赖（工具和Python包）"""
     print("=== 检查项目依赖 ===")
@@ -265,6 +303,7 @@ def check_all_dependencies():
             tool_results[tool_name] = False
     
     package_results = check_and_install_packages()
+    optional_results = check_optional_packages()
     
     missing_tools = [k for k, v in tool_results.items() if not v]
     missing_packages = [k for k, v in package_results.items() if not v]
