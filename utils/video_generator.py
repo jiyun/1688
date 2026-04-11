@@ -166,9 +166,12 @@ def _generate_scroll_video_moviepy(image: Image.Image, output_path: str,
     """使用moviepy生成滚动视频 (720p 9:16)"""
     try:
         try:
-            from moviepy import ImageClip
+            from moviepy import VideoClip
+            MOVIEPY_V2 = True
         except ImportError:
-            from moviepy.editor import ImageClip
+            from moviepy.editor import ImageClip, VideoClip as _VideoClip
+            VideoClip = _VideoClip
+            MOVIEPY_V2 = False
         print("moviepy已加载，开始生成视频...")
     except ImportError as e:
         print(f"moviepy未安装或导入失败: {e}")
@@ -184,33 +187,68 @@ def _generate_scroll_video_moviepy(image: Image.Image, output_path: str,
         print(f"图片尺寸: {image.width}x{image.height}")
         print(f"目标视频: {VIDEO_WIDTH}x{VIDEO_HEIGHT} @ {fps}fps, {duration}s")
         
-        clip = ImageClip(temp_path, duration=duration)
-        
         image_height = image.height
         scroll_distance = max(0, image_height - VIDEO_HEIGHT)
         
-        if scroll_distance > 0:
-            def scroll_effect(get_frame, t):
-                frame = get_frame(t)
-                y = int(scroll_distance * t / duration)
-                cropped = frame[y:y + VIDEO_HEIGHT, :]
-                return cropped
+        if MOVIEPY_V2:
+            try:
+                import numpy as np
+                
+                img_array = np.array(image)
+                
+                def make_frame(t):
+                    if scroll_distance > 0:
+                        y = int(scroll_distance * t / duration)
+                        cropped = img_array[y:y + VIDEO_HEIGHT, :]
+                        if cropped.shape[0] < VIDEO_HEIGHT:
+                            pad = np.zeros((VIDEO_HEIGHT - cropped.shape[0], VIDEO_WIDTH, 3), dtype=np.uint8)
+                            cropped = np.vstack([cropped, pad])
+                        return cropped
+                    else:
+                        return img_array
+                
+                clip = VideoClip(make_frame, duration=duration)
+                
+                print("正在写入视频文件...")
+                clip.write_videofile(
+                    output_path, 
+                    fps=fps, 
+                    codec='libx264',
+                    audio=False,
+                    preset='medium',
+                    threads=4,
+                    logger=None
+                )
+            except Exception as e:
+                print(f"moviepy 2.x 方式失败: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+        else:
+            clip = ImageClip(temp_path, duration=duration)
             
-            clip = clip.fl(scroll_effect, apply_to=['mask'])
-        
-        clip = clip.set_fps(fps)
-        clip = clip.resize(newsize=(VIDEO_WIDTH, VIDEO_HEIGHT))
-        
-        print("正在写入视频文件...")
-        clip.write_videofile(
-            output_path, 
-            fps=fps, 
-            codec='libx264',
-            audio=False,
-            preset='medium',
-            threads=4,
-            logger=None
-        )
+            if scroll_distance > 0:
+                def scroll_effect(get_frame, t):
+                    frame = get_frame(t)
+                    y = int(scroll_distance * t / duration)
+                    cropped = frame[y:y + VIDEO_HEIGHT, :]
+                    return cropped
+                
+                clip = clip.fl(scroll_effect, apply_to=['mask'])
+            
+            clip = clip.set_fps(fps)
+            clip = clip.resize(newsize=(VIDEO_WIDTH, VIDEO_HEIGHT))
+            
+            print("正在写入视频文件...")
+            clip.write_videofile(
+                output_path, 
+                fps=fps, 
+                codec='libx264',
+                audio=False,
+                preset='medium',
+                threads=4,
+                logger=None
+            )
         
         print(f"视频写入完成: {output_path}")
         return True
