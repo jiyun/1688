@@ -25,15 +25,12 @@ TOOLS_CONFIG = {
 REQUIRED_PACKAGES = {
     'PIL': 'Pillow',
     'bs4': 'beautifulsoup4',
-    'lxml': 'lxml',
     'pandas': 'pandas',
     'duckdb': 'duckdb',
     'customtkinter': 'customtkinter',
     'selenium': 'selenium',
     'webdriver_manager': 'webdriver-manager',
     'psutil': 'psutil',
-    'pyperclip': 'pyperclip',
-    'packaging': 'packaging',
     'requests': 'requests',
 }
 
@@ -42,6 +39,18 @@ OPTIONAL_PACKAGES = {
     'markdown': 'markdown',
     'cv2': 'opencv-python',
     'moviepy': 'moviepy',
+}
+
+EXTENSION_CONFIG = {
+    '1688-extension': {
+        'urls': [
+            'https://github.com/jiyun/1688/raw/main/tools/1688-extension.zip',
+        ],
+        'fallback_urls': [
+            'https://ghproxy.com/https://github.com/jiyun/1688/raw/main/tools/1688-extension.zip',
+        ],
+        'extract_dir': '1688-extension'
+    }
 }
 
 def get_tools_dir():
@@ -220,6 +229,88 @@ def get_aria2c_path():
         if os.path.exists(p):
             return p
     
+    return None
+
+def check_extension_exists(extension_name):
+    """检查浏览器扩展是否存在"""
+    tools_dir = get_tools_dir()
+    config = EXTENSION_CONFIG.get(extension_name, {})
+    extract_dir = config.get('extract_dir', extension_name)
+    ext_path = os.path.join(tools_dir, extract_dir)
+    manifest_path = os.path.join(ext_path, 'manifest.json')
+    return os.path.exists(manifest_path), ext_path
+
+def download_extension(extension_name, use_fallback=True):
+    """下载浏览器扩展"""
+    config = EXTENSION_CONFIG.get(extension_name)
+    if not config:
+        print(f"未知扩展: {extension_name}")
+        return None
+    
+    tools_dir = get_tools_dir()
+    os.makedirs(tools_dir, exist_ok=True)
+    
+    extract_dir = config.get('extract_dir', extension_name)
+    dest_dir = os.path.join(tools_dir, extract_dir)
+    
+    manifest_path = os.path.join(dest_dir, 'manifest.json')
+    if os.path.exists(manifest_path):
+        print(f"{extension_name} 已存在: {dest_dir}")
+        return dest_dir
+    
+    urls = config.get('urls', [])
+    
+    for url in urls:
+        zip_path = os.path.join(tools_dir, f'{extension_name}.zip')
+        if download_file(url, zip_path):
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    zf.extractall(tools_dir)
+                os.remove(zip_path)
+                if os.path.exists(manifest_path):
+                    print(f"下载完成: {dest_dir}")
+                    return dest_dir
+                else:
+                    print("解压后未找到 manifest.json")
+            except Exception as e:
+                print(f"解压失败: {e}")
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+    
+    if use_fallback:
+        fallback_urls = config.get('fallback_urls', [])
+        for url in fallback_urls:
+            print(f"尝试备用下载源...")
+            zip_path = os.path.join(tools_dir, f'{extension_name}.zip')
+            if download_file(url, zip_path):
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as zf:
+                        zf.extractall(tools_dir)
+                    os.remove(zip_path)
+                    if os.path.exists(manifest_path):
+                        print(f"下载完成: {dest_dir}")
+                        return dest_dir
+                except Exception as e:
+                    print(f"解压失败: {e}")
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+    
+    return None
+
+def ensure_1688_extension():
+    """确保 1688-extension 可用"""
+    exists, path = check_extension_exists('1688-extension')
+    if exists:
+        return path
+    
+    print("1688-extension 不存在，正在自动下载...")
+    return download_extension('1688-extension')
+
+def get_1688_extension_path():
+    """获取 1688-extension 路径"""
+    exists, path = check_extension_exists('1688-extension')
+    if exists:
+        return path
     return None
 
 def check_package_installed(package_name):

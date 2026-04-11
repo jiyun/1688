@@ -5,7 +5,6 @@
 # 核心依赖（必要）
 requests>=2.28.0
 beautifulsoup4>=4.11.0
-lxml>=4.9.0
 Pillow>=9.0.0
 duckdb>=0.9.0
 customtkinter>=5.2.0
@@ -17,8 +16,6 @@ webdriver-manager>=4.0.0
 
 # 系统工具（必要）
 psutil>=5.9.0
-pyperclip>=1.8.0
-packaging>=21.0
 
 # ===========================================
 # 可选依赖（增强功能）
@@ -31,19 +28,24 @@ packaging>=21.0
 # 图片编辑器增强 - 污点去除工具
 # opencv-python>=4.8.0
 
-# 视频生成功能
+# 视频生成功能（与ffmpeg二选一，ffmpeg优先）
 # moviepy>=1.0.3
 
 # ===========================================
-# 外部工具（需单独安装）
+# 外部工具（需单独安装或自动下载）
 # ===========================================
 # aria2c - 批量下载工具（必要）
-#   下载地址: https://github.com/aria2/aria2/releases
-#   将 aria2c.exe 放到项目根目录
+#   自动下载到 tools/ 目录
+#   手动下载: https://github.com/aria2/aria2/releases
 #
 # ffmpeg - 视频处理工具（可选，用于视频生成）
 #   下载地址: https://ffmpeg.org/download.html
 #   或通过 conda install ffmpeg 安装
+#   如果未安装，视频生成会尝试使用 moviepy
 #
 # Chrome浏览器 - 在线采集功能（必要）
 #   目前仅支持 Chrome，Edge 尚未完成适配
+#
+# 1688-extension - 1688助手浏览器扩展（可选）
+#   自动下载到 tools/1688-extension/ 目录
+#   用于在线采集时自动保存页面

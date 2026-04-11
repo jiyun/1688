@@ -48,7 +48,7 @@
 
 **核心依赖（必要）**：
 ```bash
-pip install requests beautifulsoup4 lxml Pillow duckdb customtkinter pandas selenium webdriver-manager psutil pyperclip packaging
+pip install requests beautifulsoup4 Pillow duckdb customtkinter pandas selenium webdriver-manager psutil
 ```
 
 **可选依赖（增强功能）**：

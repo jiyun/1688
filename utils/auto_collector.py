@@ -96,19 +96,22 @@ class AutoCollector:
         
         extensions = []
         
-        extension_dir = os.path.abspath(os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'tools', 'SingleFile-MV3-main'
-        ))
-        if os.path.exists(extension_dir):
-            manifest_path = os.path.join(extension_dir, 'manifest.json')
-            if os.path.exists(manifest_path):
-                extensions.append(extension_dir)
-                print(f"找到扩展: 1688-extension")
+        from utils.tool_downloader import ensure_1688_extension, get_1688_extension_path
+        
+        ext_path = get_1688_extension_path()
+        if ext_path:
+            extensions.append(ext_path)
+            print(f"找到扩展: 1688-extension ({ext_path})")
+        else:
+            print("1688-extension 未找到，尝试自动下载...")
+            ext_path = ensure_1688_extension()
+            if ext_path:
+                extensions.append(ext_path)
+                print(f"已下载扩展: 1688-extension")
         
         singlefile_dir = os.path.abspath(os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
-            'tools', 'SingleFile-crx'
+            'tools', 'SingleFile-MV3-main'
         ))
         if os.path.exists(singlefile_dir):
             manifest_path = os.path.join(singlefile_dir, 'manifest.json')
