@@ -165,7 +165,10 @@ def _generate_scroll_video_moviepy(image: Image.Image, output_path: str,
                                    duration: int, fps: int) -> bool:
     """使用moviepy生成滚动视频 (720p 9:16)"""
     try:
-        from moviepy.editor import ImageClip
+        try:
+            from moviepy import ImageClip
+        except ImportError:
+            from moviepy.editor import ImageClip
         print("moviepy已加载，开始生成视频...")
     except ImportError as e:
         print(f"moviepy未安装或导入失败: {e}")
@@ -205,7 +208,8 @@ def _generate_scroll_video_moviepy(image: Image.Image, output_path: str,
             codec='libx264',
             audio=False,
             preset='medium',
-            threads=4
+            threads=4,
+            logger=None
         )
         
         print(f"视频写入完成: {output_path}")
@@ -224,16 +228,16 @@ def _generate_scroll_video_moviepy(image: Image.Image, output_path: str,
 
 def generate_slideshow(image_paths: List[str], output_path: str = None,
                       duration_per_image: float = 3.0,
-                      fps: int = 30, width: int = 1440) -> Optional[str]:
+                      fps: int = 30) -> Optional[str]:
     """
     生成幻灯片视频
+    输出格式：720p 9:16 MP4
     
     Args:
         image_paths: 图片路径列表
         output_path: 输出视频路径
         duration_per_image: 每张图片显示时长（秒）
         fps: 帧率
-        width: 视频宽度
     
     Returns:
         输出视频路径
@@ -242,7 +246,10 @@ def generate_slideshow(image_paths: List[str], output_path: str = None,
         return None
     
     try:
-        from moviepy.editor import ImageSequenceClip
+        try:
+            from moviepy import ImageSequenceClip
+        except ImportError:
+            from moviepy.editor import ImageSequenceClip
     except ImportError:
         print("moviepy未安装")
         return None
@@ -262,7 +269,8 @@ def generate_slideshow(image_paths: List[str], output_path: str = None,
     try:
         clip = ImageSequenceClip(valid_paths, durations=[duration_per_image] * len(valid_paths))
         clip = clip.set_fps(fps)
-        clip.write_videofile(output_path, fps=fps, codec='libx264')
+        clip = clip.resize(newsize=(VIDEO_WIDTH, VIDEO_HEIGHT))
+        clip.write_videofile(output_path, fps=fps, codec='libx264', audio=False)
         return output_path
     except Exception as e:
         print(f"生成幻灯片视频失败: {e}")
