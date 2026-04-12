@@ -226,17 +226,20 @@ class AlibabaScraperGUI:
             manager = ExtensionManager()
             status = manager.get_status()
             
-            missing = []
-            for name, installed in status.items():
-                if not installed:
-                    missing.append(name)
+            has_browser = status.get('chrome', False) or status.get('edge', False)
             
-            if missing:
-                self.log(f"扩展检查: 缺少 {len(missing)} 个组件")
-                for name in missing:
-                    self.log(f"  - {name}: 未安装")
+            if not has_browser:
+                self.log("浏览器检查: 未找到 Chrome 或 Edge 浏览器")
+                self.log("  请安装 Chrome 或 Edge 浏览器以使用在线采集功能")
             else:
-                self.log("扩展检查: 所有依赖已就绪")
+                browsers = []
+                if status.get('chrome'):
+                    browsers.append("Chrome")
+                if status.get('edge'):
+                    browsers.append("Edge")
+                self.log(f"浏览器检查: 已安装 {', '.join(browsers)}")
+            
+            self.log("扩展检查: 所有依赖已就绪")
             
             try:
                 from utils.database import get_shared_db, HAS_DUCKDB
