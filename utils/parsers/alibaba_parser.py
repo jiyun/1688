@@ -734,9 +734,34 @@ class AlibabaParser(BaseParser):
     
     def get_ship_from(self) -> Optional[str]:
         """获取发货地"""
+        if self.page_data:
+            try:
+                result_data = self.page_data.get('result', {})
+                data = result_data.get('data', {})
+                
+                send_address = data.get('sendGoodsAddress')
+                if send_address:
+                    return send_address
+                
+                shop_info = data.get('shopInfo', {})
+                if shop_info:
+                    address = shop_info.get('address') or shop_info.get('city')
+                    if address:
+                        return address
+            except:
+                pass
+        
         ship_match = re.search(r'"sendGoodsAddress"\s*:\s*"([^"]+)"', self.html_content)
         if ship_match:
             return ship_match.group(1)
+        
+        address_match = re.search(r'"address"\s*:\s*"([^"]+)"', self.html_content)
+        if address_match:
+            return address_match.group(1)
+        
+        city_match = re.search(r'"city"\s*:\s*"([^"]+)"', self.html_content)
+        if city_match:
+            return city_match.group(1)
         
         location_elem = self.soup.select_one('span.location')
         if location_elem:

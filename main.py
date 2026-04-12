@@ -136,6 +136,9 @@ class AlibabaScraper:
         
         from utils.shared_cache import save_product_info_temp, save_shop_info_temp
         
+        plugin_nav_data = self.parser.get_plugin_nav_data()
+        main_category = plugin_nav_data.get('category', '') if plugin_nav_data else ''
+        
         info = {
             'title': self.parser.get_title(),
             'description': self.parser.get_description(),
@@ -145,7 +148,8 @@ class AlibabaScraper:
             'ship_from': self.parser.get_ship_from(),
             'sales_count': self.parser.get_sales_count(),
             'min_order': self.parser.get_min_order(),
-            'platform': self.parser.get_platform()
+            'platform': self.parser.get_platform(),
+            'main_category': main_category
         }
         
         save_product_info_temp(self.product_id, info)
@@ -155,6 +159,9 @@ class AlibabaScraper:
         
         if info.get('title'):
             log_info(f"商品标题: {info['title'][:50]}...", "Main")
+        
+        if main_category:
+            log_info(f"主分类: {main_category}", "Main")
         
         return True
     

@@ -1553,7 +1553,7 @@ class AlibabaScraperGUI:
             
             field_names = {
                 'product_id': '商品ID',
-                'shop_product_id': 'DSID',
+                'shop_product_id': '店铺商品ID',
                 'title': '标题',
                 'description': '描述',
                 'product_url': '商品链接',
@@ -1570,6 +1570,9 @@ class AlibabaScraperGUI:
                 'resource_counts': '资源统计',
                 'cost_prices': '成本价格',
                 'selling_prices': '销售价格',
+                'main_category': '主分类',
+                'ds_shop_url': 'DS店铺',
+                'user_remark': '用户备注',
                 'created_at': '创建时间',
                 'updated_at': '更新时间'
             }

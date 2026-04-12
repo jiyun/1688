@@ -204,12 +204,39 @@ class Database:
             )
         ''')
         
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS shop_products (
+                id INTEGER PRIMARY KEY,
+                shop_id VARCHAR NOT NULL,
+                product_id VARCHAR NOT NULL,
+                title VARCHAR,
+                price DOUBLE,
+                price_range VARCHAR,
+                main_image VARCHAR,
+                product_url VARCHAR,
+                category VARCHAR,
+                category_path VARCHAR,
+                monthly_sales INTEGER DEFAULT 0,
+                yearly_sales INTEGER DEFAULT 0,
+                review_count INTEGER DEFAULT 0,
+                positive_rate DOUBLE,
+                min_order INTEGER DEFAULT 1,
+                ship_from VARCHAR,
+                shop_name VARCHAR,
+                platform VARCHAR DEFAULT 'alibaba',
+                collect_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(shop_id, product_id)
+            )
+        ''')
+        
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS products_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS resources_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS sku_prices_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shops_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS attributes_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS rate_info_id_seq')
+        self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shop_products_id_seq')
         
         self._migrate_products_table()
         
@@ -225,6 +252,9 @@ class Database:
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_platform ON shops(platform)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_attributes_product_id ON attributes(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_rate_info_product_id ON rate_info(product_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_shop_id ON shop_products(shop_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_product_id ON shop_products(product_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_collect_time ON shop_products(collect_time)')
     
     def _migrate_products_table(self):
         """迁移 products 表，添加新字段"""
@@ -240,8 +270,9 @@ class Database:
                 'ship_from': 'VARCHAR',
                 'sales_count': 'INTEGER DEFAULT 0',
                 'min_order': 'INTEGER DEFAULT 1',
-                'ds_shop': 'VARCHAR',
-                'remark': 'VARCHAR'
+                'main_category': 'VARCHAR',
+                'ds_shop_url': 'VARCHAR',
+                'user_remark': 'VARCHAR'
             }
             
             for col_name, col_type in new_columns.items():
@@ -251,6 +282,20 @@ class Database:
                         log_info(f"已添加字段: {col_name}")
                     except Exception as e:
                         log_warning(f"添加字段 {col_name} 失败: {e}")
+            
+            rename_columns = {
+                'ds_shop': 'ds_shop_url',
+                'remark': 'user_remark'
+            }
+            
+            for old_name, new_name in rename_columns.items():
+                if old_name in existing_columns and new_name not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE products RENAME COLUMN {old_name} TO {new_name}')
+                        log_info(f"已重命名字段: {old_name} -> {new_name}")
+                    except Exception as e:
+                        log_warning(f"重命名字段 {old_name} 失败: {e}")
+                        
         except Exception as e:
             log_warning(f"迁移检查失败: {e}")
     
@@ -963,7 +1008,8 @@ class Database:
     def update_product_info(self, product_id: str, title: str = None, description: str = None,
                             product_url: str = None, product_code: str = None, 
                             shop_id: str = None, ship_from: str = None,
-                            sales_count: int = None, min_order: int = None) -> bool:
+                            sales_count: int = None, min_order: int = None,
+                            main_category: str = None) -> bool:
         """更新商品详细信息"""
         existing = self.get_product(product_id)
         
@@ -984,6 +1030,8 @@ class Database:
             update_data['sales_count'] = sales_count
         if min_order is not None:
             update_data['min_order'] = min_order
+        if main_category:
+            update_data['main_category'] = main_category
         
         if existing:
             self.update('products', update_data, 'product_id = ?', [product_id])
@@ -1145,6 +1193,100 @@ class Database:
         sql = f'SELECT * FROM products WHERE {where_clause} ORDER BY created_at DESC LIMIT {limit}'
         
         return self.query(sql, params if params else None)
+    
+    def save_shop_product(self, shop_id: str, product_data: Dict) -> bool:
+        """保存店铺商品数据
+        
+        Args:
+            shop_id: 店铺ID
+            product_data: 商品数据字典
+            
+        Returns:
+            是否成功
+        """
+        product_id = product_data.get('product_id')
+        if not product_id:
+            return False
+        
+        existing = self.query(
+            'SELECT id FROM shop_products WHERE shop_id = ? AND product_id = ?',
+            [shop_id, product_id]
+        )
+        
+        data = {
+            'shop_id': shop_id,
+            'product_id': product_id,
+            'title': product_data.get('title'),
+            'price': product_data.get('price'),
+            'price_range': product_data.get('price_range'),
+            'main_image': product_data.get('main_image'),
+            'product_url': product_data.get('product_url'),
+            'category': product_data.get('category'),
+            'category_path': product_data.get('category_path'),
+            'monthly_sales': product_data.get('monthly_sales', 0),
+            'yearly_sales': product_data.get('yearly_sales', 0),
+            'review_count': product_data.get('review_count', 0),
+            'positive_rate': product_data.get('positive_rate'),
+            'min_order': product_data.get('min_order', 1),
+            'ship_from': product_data.get('ship_from'),
+            'shop_name': product_data.get('shop_name'),
+            'platform': product_data.get('platform', 'alibaba'),
+            'updated_at': datetime.now()
+        }
+        
+        if existing:
+            self.update('shop_products', data, 'shop_id = ? AND product_id = ?', [shop_id, product_id])
+        else:
+            data['collect_time'] = datetime.now()
+            self.insert('shop_products', data)
+        
+        return True
+    
+    def get_shop_products(self, shop_id: str, limit: int = 500) -> List[Dict]:
+        """获取店铺所有商品
+        
+        Args:
+            shop_id: 店铺ID
+            limit: 返回数量限制
+            
+        Returns:
+            商品列表
+        """
+        return self.query(
+            'SELECT * FROM shop_products WHERE shop_id = ? ORDER BY collect_time DESC LIMIT ?',
+            [shop_id, limit]
+        )
+    
+    def get_shop_products_stats(self, shop_id: str) -> Dict:
+        """获取店铺商品统计
+        
+        Args:
+            shop_id: 店铺ID
+            
+        Returns:
+            统计数据
+        """
+        stats = {}
+        
+        total = self.query(
+            'SELECT COUNT(*) as count FROM shop_products WHERE shop_id = ?',
+            [shop_id]
+        )
+        stats['total_products'] = total[0]['count'] if total else 0
+        
+        total_sales = self.query(
+            'SELECT SUM(monthly_sales) as total FROM shop_products WHERE shop_id = ?',
+            [shop_id]
+        )
+        stats['total_monthly_sales'] = total_sales[0]['total'] if total_sales and total_sales[0]['total'] else 0
+        
+        category_stats = self.query(
+            'SELECT category, COUNT(*) as count FROM shop_products WHERE shop_id = ? GROUP BY category ORDER BY count DESC LIMIT 10',
+            [shop_id]
+        )
+        stats['by_category'] = {c['category']: c['count'] for c in category_stats if c['category']}
+        
+        return stats
 
 
 def get_db():
