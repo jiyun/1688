@@ -65,6 +65,7 @@ PRODUCT_LIST_MAPPING = {
     '支持面单': 'support_waybill',
     '综合服务': 'service_score',
     '采购咨询': 'consult_score',
+    '采 购咨询': 'consult_score',
     '退换体验': 'return_score',
     '品质体验': 'quality_score',
     '纠纷解决': 'dispute_score',
@@ -167,11 +168,19 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
         if not column_mapping:
             return [], [f"未知的导出类型: {export_type}"], {}
         
+        normalized_mapping = {}
+        for key, value in column_mapping.items():
+            normalized_mapping[key.replace(' ', '')] = value
+            normalized_mapping[key] = value
+        
         actual_columns = {}
         for col in df.columns:
             col_str = str(col).strip()
+            col_normalized = col_str.replace(' ', '')
             if col_str in column_mapping:
                 actual_columns[col] = column_mapping[col_str]
+            elif col_normalized in normalized_mapping:
+                actual_columns[col] = normalized_mapping[col_normalized]
         
         if 'product_id' not in actual_columns.values():
             for col in df.columns:
