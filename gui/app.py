@@ -2489,7 +2489,7 @@ class AlibabaScraperGUI:
         
         ctk.CTkLabel(preview_frame, text="数据预览:", font=(self.available_font, self.font_size)).pack(anchor="w", padx=5)
         
-        preview_columns = ("product_id", "title", "price", "dropship_price", "sales_count", "review_count", "monthly_orders", "monthly_dropship", "ship_time", "listing_date", "category", "tags")
+        preview_columns = ("product_id", "title", "price", "dropship_price", "sales_count", "review_count", "monthly_orders", "monthly_dropship", "ship_time", "list_time", "category", "tags")
         preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=15)
         
         preview_tree.heading("product_id", text="商品ID")
@@ -2501,7 +2501,7 @@ class AlibabaScraperGUI:
         preview_tree.heading("monthly_orders", text="月成交")
         preview_tree.heading("monthly_dropship", text="月代销")
         preview_tree.heading("ship_time", text="发货时间")
-        preview_tree.heading("listing_date", text="上架时间")
+        preview_tree.heading("list_time", text="上架时间")
         preview_tree.heading("category", text="类目")
         preview_tree.heading("tags", text="标签")
         
@@ -2514,7 +2514,7 @@ class AlibabaScraperGUI:
         preview_tree.column("monthly_orders", width=55, anchor="center")
         preview_tree.column("monthly_dropship", width=55, anchor="center")
         preview_tree.column("ship_time", width=60, anchor="center")
-        preview_tree.column("listing_date", width=70, anchor="center")
+        preview_tree.column("list_time", width=70, anchor="center")
         preview_tree.column("category", width=70, anchor="w")
         preview_tree.column("tags", width=60, anchor="w")
         
@@ -2533,7 +2533,7 @@ class AlibabaScraperGUI:
             for item in preview_tree.get_children():
                 preview_tree.delete(item)
             
-            parsed_products, errors = parse_excel_file(file_path)
+            parsed_products, errors, shop_data = parse_excel_file(file_path)
             
             if errors:
                 status_label.configure(text=f"解析错误: {'; '.join(errors)}", text_color="red")
@@ -2552,15 +2552,19 @@ class AlibabaScraperGUI:
                     product.get('monthly_orders', 0),
                     product.get('monthly_dropship', 0),
                     product.get('ship_time', '')[:8],
-                    product.get('listing_date', '')[:10],
+                    product.get('list_time', '')[:10] if product.get('list_time') else product.get('listing_date', '')[:10],
                     product.get('category', '')[:10],
                     product.get('tags', '')[:8]
                 ))
             
+            shop_info = ""
+            if shop_data.get('shop_name'):
+                shop_info = f" | 店铺: {shop_data.get('shop_name')}"
+            
             if len(parsed_products) > preview_limit:
-                status_label.configure(text=f"解析完成: 共 {len(parsed_products)} 条商品数据 (预览前{preview_limit}条)", text_color="green")
+                status_label.configure(text=f"解析完成: 共 {len(parsed_products)} 条商品数据 (预览前{preview_limit}条){shop_info}", text_color="green")
             else:
-                status_label.configure(text=f"解析完成: 共 {len(parsed_products)} 条商品数据", text_color="green")
+                status_label.configure(text=f"解析完成: 共 {len(parsed_products)} 条商品数据{shop_info}", text_color="green")
         
         def do_import():
             if not parsed_products:
