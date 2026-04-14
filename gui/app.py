@@ -2526,6 +2526,26 @@ class AlibabaScraperGUI:
         status_label = ctk.CTkLabel(main_frame, text="请选择Excel文件")
         status_label.pack(anchor="w", padx=5, pady=5)
         
+        option_frame = ctk.CTkFrame(main_frame)
+        option_frame.pack(fill="x", pady=5)
+        
+        support_dropship_var = ctk.IntVar(value=0)
+        dropship_check = ctk.CTkCheckBox(
+            option_frame, 
+            text="标记为支持一件代发", 
+            variable=support_dropship_var,
+            onvalue=1, 
+            offvalue=0
+        )
+        dropship_check.pack(side="left", padx=10)
+        
+        ctk.CTkLabel(
+            option_frame, 
+            text="(如果是从'支持一件代发'筛选后导出的数据，请勾选此项)", 
+            text_color="gray",
+            font=(self.available_font, self.font_size_small)
+        ).pack(side="left", padx=5)
+        
         parsed_products = []
         
         def preview_excel(file_path):
@@ -2571,7 +2591,9 @@ class AlibabaScraperGUI:
                 self.show_info("提示", "请先选择并预览Excel文件")
                 return
             
-            confirm = self.ask_yes_no("确认导入", f"确定要导入 {len(parsed_products)} 条商品数据吗？")
+            support_dropship = support_dropship_var.get()
+            dropship_text = "并标记为支持一件代发" if support_dropship else ""
+            confirm = self.ask_yes_no("确认导入", f"确定要导入 {len(parsed_products)} 条商品数据{dropship_text}吗？")
             if not confirm:
                 return
             
@@ -2579,7 +2601,7 @@ class AlibabaScraperGUI:
                 from utils.database import get_shared_db
                 db = get_shared_db()
                 
-                imported, errors = import_to_database(parsed_products, db)
+                imported, errors = import_to_database(parsed_products, db, support_dropship=support_dropship if support_dropship else None)
                 db.close()
                 
                 if errors:
