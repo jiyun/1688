@@ -1,0 +1,91 @@
+{
+    "version": "1.0",
+    "description": "1688采购助手导出数据列映射配置",
+    "export_types": {
+        "full_shop": {
+            "name": "全店导出",
+            "file_pattern": "1688采购助手-全店导出-*.xlsx",
+            "description": "从1688采购助手导出的全店商品数据",
+            "columns": {
+                "序号": {"target": "seq_no", "type": "meta", "description": "序号"},
+                "商品标题": {"target": "title", "type": "product", "description": "商品标题"},
+                "宝贝ID": {"target": "product_id", "type": "product", "description": "商品ID"},
+                "宝贝链接": {"target": "product_url", "type": "product", "description": "商品链接"},
+                "图片地址": {"target": "main_image", "type": "product", "description": "主图链接"},
+                "价格": {"target": "price", "type": "product", "description": "价格"},
+                "代发价": {"target": "dropship_price", "type": "product", "description": "代发价"},
+                "销量": {"target": "sales_count", "type": "product", "description": "销量"},
+                "评论数": {"target": "review_count", "type": "product", "description": "评论数"},
+                "月成交笔数": {"target": "monthly_orders", "type": "product", "description": "月成交笔数"},
+                "月代销": {"target": "monthly_dropship", "type": "product", "description": "月代销"},
+                "发货时间": {"target": "ship_time", "type": "product", "description": "发货时间"},
+                "上架时间": {"target": "list_time", "type": "product", "description": "上架时间"},
+                "类目": {"target": "category", "type": "product", "description": "商品类目"},
+                "标签": {"target": "tags", "type": "product", "description": "商品标签"}
+            }
+        },
+        "product_list": {
+            "name": "商品列表导出",
+            "file_pattern": "商品列表-1688采购助手*.xlsx",
+            "description": "从1688采购助手商品列表页导出的数据",
+            "columns": {
+                "标题": {"target": "title", "type": "product", "description": "商品标题"},
+                "主图链接": {"target": "main_image", "type": "product", "description": "主图链接"},
+                "主图": {"target": "main_image_thumb", "type": "product", "description": "主图缩略图"},
+                "商品ID": {"target": "product_id", "type": "product", "description": "商品ID"},
+                "商品链接": {"target": "product_url", "type": "product", "description": "商品链接"},
+                "类目": {"target": "category", "type": "product", "description": "商品类目"},
+                "价格": {"target": "price", "type": "product", "description": "价格"},
+                "年销售件数": {"target": "yearly_sales_qty", "type": "product", "description": "年销售件数"},
+                "年销售笔数": {"target": "yearly_orders", "type": "product", "description": "年销售笔数"},
+                "复购率": {"target": "repurchase_rate", "type": "product", "description": "复购率"},
+                "上架时间": {"target": "list_time", "type": "product", "description": "上架时间"},
+                "月代销": {"target": "monthly_dropship", "type": "product", "description": "月代销"},
+                "销售标签": {"target": "sales_tags", "type": "product", "description": "销售标签"},
+                "属性标签": {"target": "attr_tags", "type": "product", "description": "属性标签"},
+                "服务标签": {"target": "service_tags", "type": "product", "description": "服务标签"},
+                "48h揽收率": {"target": "pickup_rate_48h", "type": "shop", "description": "48小时揽收率"},
+                "支持面单": {"target": "support_waybill", "type": "shop", "description": "支持面单"},
+                "综合服务": {"target": "service_score", "type": "shop", "description": "综合服务评分"},
+                "采购咨询": {"target": "consult_score", "type": "shop", "description": "采购咨询评分"},
+                "退换体验": {"target": "return_score", "type": "shop", "description": "退换体验评分"},
+                "品质体验": {"target": "quality_score", "type": "shop", "description": "品质体验评分"},
+                "纠纷解决": {"target": "dispute_score", "type": "shop", "description": "纠纷解决评分"},
+                "物流时效": {"target": "logistics_score", "type": "shop", "description": "物流时效评分"},
+                "店铺名称": {"target": "shop_name", "type": "shop", "description": "店铺名称"},
+                "店铺链接": {"target": "shop_url", "type": "shop", "description": "店铺链接"},
+                "所在地": {"target": "location", "type": "shop", "description": "所在地"},
+                "开店时长": {"target": "shop_age", "type": "shop", "description": "开店时长"}
+            }
+        }
+    },
+    "column_aliases": {
+        "title": ["商品标题", "标题"],
+        "product_id": ["宝贝ID", "商品ID"],
+        "product_url": ["宝贝链接", "商品链接"],
+        "main_image": ["图片地址", "主图链接"],
+        "price": ["价格"],
+        "sales_count": ["销量", "年销售件数"],
+        "monthly_orders": ["月成交笔数", "年销售笔数"],
+        "monthly_dropship": ["月代销"],
+        "list_time": ["上架时间"],
+        "category": ["类目"],
+        "tags": ["标签", "销售标签", "属性标签", "服务标签"]
+    },
+    "data_types": {
+        "product": "商品属性 - 每个商品独立的数据",
+        "shop": "店铺属性 - 同一店铺所有商品共享",
+        "meta": "元数据 - 导入时的辅助信息"
+    },
+    "special_markers": {
+        "support_dropship": {
+            "description": "一件代发支持标记",
+            "detection": "通过对比全店数据和支持一件代发筛选数据来确定",
+            "values": {
+                "1": "支持一件代发",
+                "0": "不支持一件代发",
+                "null": "未知"
+            }
+        }
+    }
+}

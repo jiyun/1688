@@ -44,6 +44,8 @@ class OnlineCollector:
         self.log_callback = log_callback
         self.collector = None
         self.browser_started = False
+        self.driver = None
+        self.output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'products', 'upload')
     
     def log(self, message):
         """输出日志"""
@@ -78,14 +80,83 @@ class OnlineCollector:
         
         try:
             self.log("正在启动浏览器...")
-            self.collector = AutoCollector(headless=True)
+            self.collector = AutoCollector(
+                output_dir=self.output_dir,
+                headless=False,
+                browser_type='chrome'
+            )
             self.collector.start_browser()
+            self.driver = self.collector.driver
+            
+            self._inject_cookies()
+            
             self.browser_started = True
             self.log("浏览器启动成功")
             return True
         except Exception as e:
             self.log(f"启动浏览器失败: {e}")
+            import traceback
+            traceback.print_exc()
             return False
+    
+    def _inject_cookies(self):
+        """注入已登录的cookies"""
+        try:
+            from utils.cookie_manager import get_cookie_manager
+            
+            cookie_mgr = get_cookie_manager()
+            
+            self.driver.get("https://www.1688.com")
+            time.sleep(1)
+            
+            db_paths = cookie_mgr._get_cookie_db_paths()
+            
+            for browser_type, db_path in db_paths:
+                cookies = cookie_mgr._query_cookies_from_db(db_path, ['.1688.com', '1688.com', '.alibaba.com'])
+                
+                if cookies:
+                    self.log(f"从 {browser_type} 读取到 {len(cookies)} 个cookies")
+                    
+                    for cookie in cookies:
+                        try:
+                            cookie_dict = {
+                                'name': cookie.get('name'),
+                                'value': cookie.get('value'),
+                                'domain': cookie.get('domain', '.1688.com'),
+                            }
+                            
+                            if cookie.get('expires_utc'):
+                                from datetime import datetime
+                                expires = cookie_mgr._chrome_time_to_datetime(cookie.get('expires_utc'))
+                                if expires:
+                                    cookie_dict['expiry'] = int(expires.timestamp())
+                            
+                            self.driver.add_cookie(cookie_dict)
+                        except Exception as e:
+                            pass
+                    
+                    self.log("Cookies注入完成")
+                    break
+            
+        except Exception as e:
+            self.log(f"Cookies注入失败: {e}")
+    
+    def _random_delay(self, min_sec=1, max_sec=3):
+        """随机延迟"""
+        import random
+        delay = random.uniform(min_sec, max_sec)
+        time.sleep(delay)
+    
+    def _scroll_page(self):
+        """模拟滚动页面"""
+        try:
+            import random
+            for _ in range(random.randint(2, 4)):
+                scroll_height = random.randint(300, 800)
+                self.driver.execute_script(f"window.scrollBy(0, {scroll_height});")
+                self._random_delay(0.5, 1.5)
+        except:
+            pass
     
     def open_product_page(self, product_id: str):
         """打开商品页面"""

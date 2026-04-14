@@ -212,13 +212,27 @@ class Database:
                 title VARCHAR,
                 price DOUBLE,
                 price_range VARCHAR,
+                dropship_price DOUBLE,
                 main_image VARCHAR,
                 product_url VARCHAR,
                 category VARCHAR,
                 category_path VARCHAR,
+                sales_count INTEGER DEFAULT 0,
                 monthly_sales INTEGER DEFAULT 0,
                 yearly_sales INTEGER DEFAULT 0,
+                yearly_sales_qty INTEGER DEFAULT 0,
+                monthly_orders INTEGER DEFAULT 0,
+                yearly_orders INTEGER DEFAULT 0,
                 review_count INTEGER DEFAULT 0,
+                monthly_dropship INTEGER DEFAULT 0,
+                repurchase_rate DOUBLE,
+                ship_time VARCHAR,
+                list_time VARCHAR,
+                tags VARCHAR,
+                sales_tags VARCHAR,
+                attr_tags VARCHAR,
+                service_tags VARCHAR,
+                support_dropship INTEGER,
                 positive_rate DOUBLE,
                 min_order INTEGER DEFAULT 1,
                 ship_from VARCHAR,
@@ -227,6 +241,38 @@ class Database:
                 collect_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(shop_id, product_id)
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS ds_shops (
+                id INTEGER PRIMARY KEY,
+                ds_shop_id VARCHAR UNIQUE NOT NULL,
+                ds_shop_name VARCHAR NOT NULL,
+                ds_platform VARCHAR DEFAULT 'jd',
+                ds_shop_url VARCHAR,
+                shop_status VARCHAR DEFAULT 'active',
+                config TEXT,
+                remark VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS product_ds_mapping (
+                id INTEGER PRIMARY KEY,
+                product_id VARCHAR NOT NULL,
+                ds_shop_id VARCHAR NOT NULL,
+                ds_product_id VARCHAR,
+                ds_product_url VARCHAR,
+                listing_status VARCHAR DEFAULT 'pending',
+                listing_time TIMESTAMP,
+                price_adjust DOUBLE DEFAULT 0,
+                remark VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(product_id, ds_shop_id)
             )
         ''')
         
@@ -239,6 +285,7 @@ class Database:
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shop_products_id_seq')
         
         self._migrate_products_table()
+        self._migrate_shop_products_table()
         
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)')
@@ -255,6 +302,11 @@ class Database:
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_shop_id ON shop_products(shop_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_product_id ON shop_products(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_collect_time ON shop_products(collect_time)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_ds_shops_shop_id ON ds_shops(ds_shop_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_ds_shops_platform ON ds_shops(ds_platform)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_product_id ON product_ds_mapping(product_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_ds_shop_id ON product_ds_mapping(ds_shop_id)')
+        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_status ON product_ds_mapping(listing_status)')
     
     def _migrate_products_table(self):
         """迁移 products 表，添加新字段"""
@@ -298,6 +350,40 @@ class Database:
                         
         except Exception as e:
             log_warning(f"迁移检查失败: {e}")
+    
+    def _migrate_shop_products_table(self):
+        """迁移 shop_products 表，添加新字段"""
+        try:
+            columns = self.conn.execute("DESCRIBE shop_products").fetchall()
+            existing_columns = {col[0] for col in columns}
+            
+            new_columns = {
+                'dropship_price': 'DOUBLE',
+                'sales_count': 'INTEGER DEFAULT 0',
+                'yearly_sales_qty': 'INTEGER DEFAULT 0',
+                'monthly_orders': 'INTEGER DEFAULT 0',
+                'yearly_orders': 'INTEGER DEFAULT 0',
+                'monthly_dropship': 'INTEGER DEFAULT 0',
+                'repurchase_rate': 'DOUBLE',
+                'ship_time': 'VARCHAR',
+                'list_time': 'VARCHAR',
+                'tags': 'VARCHAR',
+                'sales_tags': 'VARCHAR',
+                'attr_tags': 'VARCHAR',
+                'service_tags': 'VARCHAR',
+                'support_dropship': 'INTEGER',
+            }
+            
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE shop_products ADD COLUMN {col_name} {col_type}')
+                        log_info(f"已添加字段: shop_products.{col_name}")
+                    except Exception as e:
+                        log_warning(f"添加字段 shop_products.{col_name} 失败: {e}")
+                        
+        except Exception as e:
+            log_warning(f"迁移 shop_products 表失败: {e}")
     
     def _migrate_sku_prices_table(self):
         """迁移 sku_prices 表，重建表结构"""
@@ -459,6 +545,7 @@ class Database:
         placeholders = ', '.join(['?' for _ in data])
         sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
         result = self.conn.execute(sql, list(data.values()))
+        self.conn.execute('CHECKPOINT')
         return result.fetchone()[0]
     
     def update(self, table: str, data: Dict, where: str, where_params: List = None):
@@ -467,6 +554,7 @@ class Database:
         sql = f"UPDATE {table} SET {set_clause} WHERE {where}"
         params = list(data.values()) + (where_params or [])
         self.conn.execute(sql, params)
+        self.conn.execute('CHECKPOINT')
     
     def delete(self, table: str, where: str, where_params: List = None):
         """删除数据"""
@@ -475,6 +563,7 @@ class Database:
             self.conn.execute(sql, where_params)
         else:
             self.conn.execute(sql)
+        self.conn.execute('CHECKPOINT')
     
     def search_products(self, search_term: str, search_field: str = 'product_id') -> List[Dict]:
         """搜索商品记录"""
@@ -1287,6 +1376,93 @@ class Database:
         stats['by_category'] = {c['category']: c['count'] for c in category_stats if c['category']}
         
         return stats
+    
+    def save_ds_shop(self, ds_shop_id: str, ds_shop_name: str, ds_platform: str = 'jd',
+                     ds_shop_url: str = None, config: Dict = None, remark: str = None) -> bool:
+        existing = self.query_one('SELECT * FROM ds_shops WHERE ds_shop_id = ?', [ds_shop_id])
+        
+        data = {
+            'ds_shop_id': ds_shop_id,
+            'ds_shop_name': ds_shop_name,
+            'ds_platform': ds_platform,
+            'ds_shop_url': ds_shop_url,
+            'config': json.dumps(config) if config else None,
+            'remark': remark,
+            'updated_at': datetime.now()
+        }
+        
+        if existing:
+            self.update('ds_shops', data, 'ds_shop_id = ?', [ds_shop_id])
+        else:
+            data['created_at'] = datetime.now()
+            self.insert('ds_shops', data)
+        
+        return True
+    
+    def get_ds_shop(self, ds_shop_id: str) -> Optional[Dict]:
+        return self.query_one('SELECT * FROM ds_shops WHERE ds_shop_id = ?', [ds_shop_id])
+    
+    def get_all_ds_shops(self) -> List[Dict]:
+        return self.query('SELECT * FROM ds_shops ORDER BY created_at DESC')
+    
+    def delete_ds_shop(self, ds_shop_id: str) -> bool:
+        self.execute("DELETE FROM product_ds_mapping WHERE ds_shop_id = ?", [ds_shop_id])
+        self.execute("DELETE FROM ds_shops WHERE ds_shop_id = ?", [ds_shop_id])
+        return True
+    
+    def save_product_ds_mapping(self, product_id: str, ds_shop_id: str,
+                                 ds_product_id: str = None, ds_product_url: str = None,
+                                 listing_status: str = 'pending', price_adjust: float = 0,
+                                 remark: str = None) -> bool:
+        existing = self.query_one(
+            'SELECT * FROM product_ds_mapping WHERE product_id = ? AND ds_shop_id = ?',
+            [product_id, ds_shop_id]
+        )
+        
+        data = {
+            'product_id': product_id,
+            'ds_shop_id': ds_shop_id,
+            'ds_product_id': ds_product_id,
+            'ds_product_url': ds_product_url,
+            'listing_status': listing_status,
+            'price_adjust': price_adjust,
+            'remark': remark,
+            'updated_at': datetime.now()
+        }
+        
+        if existing:
+            self.update('product_ds_mapping', data, 'product_id = ? AND ds_shop_id = ?', [product_id, ds_shop_id])
+        else:
+            data['created_at'] = datetime.now()
+            self.insert('product_ds_mapping', data)
+        
+        return True
+    
+    def get_product_ds_mappings(self, product_id: str) -> List[Dict]:
+        return self.query(
+            'SELECT m.*, d.ds_shop_name, d.ds_platform FROM product_ds_mapping m '
+            'LEFT JOIN ds_shops d ON m.ds_shop_id = d.ds_shop_id '
+            'WHERE m.product_id = ? ORDER BY m.created_at DESC',
+            [product_id]
+        )
+    
+    def delete_product_ds_mapping(self, product_id: str, ds_shop_id: str) -> bool:
+        self.execute(
+            "DELETE FROM product_ds_mapping WHERE product_id = ? AND ds_shop_id = ?",
+            [product_id, ds_shop_id]
+        )
+        return True
+    
+    def get_product_ds_status(self, product_id: str) -> Dict:
+        mappings = self.get_product_ds_mappings(product_id)
+        
+        return {
+            'total_shops': len(mappings),
+            'listed_count': sum(1 for m in mappings if m.get('listing_status') == 'listed'),
+            'pending_count': sum(1 for m in mappings if m.get('listing_status') == 'pending'),
+            'delisted_count': sum(1 for m in mappings if m.get('listing_status') == 'delisted'),
+            'shops': mappings
+        }
 
 
 def get_db():
