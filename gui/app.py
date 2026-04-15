@@ -513,10 +513,7 @@ class AlibabaScraperGUI:
         
         for col in self._shop_products_visible_columns:
             cfg = self._shop_products_all_columns[col]
-            if col in ('product_id', 'title', 'price', 'dropship_price', 'sales_count', 'review_count', 'category', 'collected'):
-                self.shop_products_tree.heading(col, text=cfg['text'], command=lambda c=col: self._sort_shop_products_column(c))
-            else:
-                self.shop_products_tree.heading(col, text=cfg['text'])
+            self.shop_products_tree.heading(col, text=cfg['text'], command=lambda c=col: self._sort_shop_products_column(c))
             self.shop_products_tree.column(col, width=cfg['width'], anchor=cfg['anchor'])
         
         scrollbar = ttk.Scrollbar(self.shop_products_tree_frame, orient="vertical", command=self.shop_products_tree.yview)
@@ -526,21 +523,17 @@ class AlibabaScraperGUI:
         scrollbar.pack(side="right", fill="y")
         
         self.shop_products_tree.bind('<Double-1>', self._on_shop_products_tree_double_click)
-        self.shop_products_tree.bind('<Button-3>', self._show_shop_products_context_menu)
-        self.shop_products_tree.bind('<Button-1>', self._on_shop_products_header_click)
+        self.shop_products_tree.bind('<Button-3>', self._on_shop_products_right_click)
     
-    def _on_shop_products_header_click(self, event):
-        """处理店铺商品表头点击事件"""
+    def _on_shop_products_right_click(self, event):
+        """处理店铺商品右键点击事件"""
         region = self.shop_products_tree.identify_region(event.x, event.y)
         if region == "heading":
-            column = self.shop_products_tree.identify_column(event.x)
-            if column:
-                col_index = int(column.replace('#', '')) - 1
-                if 0 <= col_index < len(self._shop_products_visible_columns):
-                    col_name = self._shop_products_visible_columns[col_index]
-                    self._show_column_visibility_menu(event, col_name)
+            self._show_column_visibility_menu(event)
+        else:
+            self._show_shop_products_context_menu(event)
     
-    def _show_column_visibility_menu(self, event, clicked_column):
+    def _show_column_visibility_menu(self, event):
         """显示列可见性菜单"""
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="显示/隐藏列", state="disabled")
@@ -3071,10 +3064,14 @@ class AlibabaScraperGUI:
             values = self.shop_products_tree.item(item).get('values', [])
             items.append((values, item))
         
-        col_index = {
-            'product_id': 0, 'title': 1, 'price': 2, 'dropship_price': 3,
-            'sales_count': 4, 'review_count': 5, 'category': 6, 'collected': 7
-        }.get(column, 0)
+        try:
+            col_index = self._shop_products_visible_columns.index(column)
+        except ValueError:
+            col_index = 0
+        
+        numeric_columns = ('price', 'dropship_price', 'sales_count', 'yearly_sales_qty', 
+                          'review_count', 'monthly_orders', 'yearly_orders', 
+                          'monthly_dropship', 'repurchase_rate')
         
         def sort_key(item):
             val = item[0][col_index] if len(item[0]) > col_index else ''
@@ -3084,15 +3081,23 @@ class AlibabaScraperGUI:
                     return float(val_str)
                 except:
                     return 0
-            elif column in ('sales_count', 'review_count'):
+            elif column in numeric_columns:
+                val_str = str(val).replace('%', '').replace(',', '').replace('-', '0')
                 try:
-                    return int(val)
+                    return float(val_str)
                 except:
                     return 0
             elif column == 'collected':
                 if str(val).startswith('✓'):
                     return 2
                 elif val == '○':
+                    return 1
+                else:
+                    return 0
+            elif column == 'support_dropship':
+                if val == '✓':
+                    return 2
+                elif val == '×':
                     return 1
                 else:
                     return 0
