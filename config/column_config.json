@@ -33,7 +33,9 @@
       "shop_type",
       "ds_platform",
       "shop_status",
-      "product_count"
+      "product_count",
+      "ds_shop_url",
+      "remark"
     ],
     "column_widths": {}
   }

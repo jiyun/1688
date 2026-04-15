@@ -477,12 +477,19 @@ class AlibabaScraperGUI:
         region = self.db_tree.identify_region(event.x, event.y)
         if region != "heading":
             self._hide_products_drag_hint()
+            self._hide_products_drag_indicator()
+            self._stop_products_drag_animation()
             return
         if abs(event.x - self._products_drag_start_x) > 15:
             self._show_products_drag_hint(event.x)
+            self._show_products_drag_indicator(event.x)
+            self._start_products_drag_animation()
     
     def _on_products_drag_release(self, event):
         self._hide_products_drag_hint()
+        self._hide_products_drag_indicator()
+        self._stop_products_drag_animation()
+        
         region = self.db_tree.identify_region(event.x, event.y)
         if region != "heading" or abs(event.x - self._products_drag_start_x) < 15:
             return
@@ -505,10 +512,41 @@ class AlibabaScraperGUI:
                 
                 self._create_products_tree()
                 self._refresh_db_data()
+                self.log(f"列顺序已更新: 位置 {source_idx + 1} → {target_idx + 1}", "success")
+    
+    def _start_products_drag_animation(self):
+        if not hasattr(self, '_products_drag_anim_id'):
+            self._products_drag_anim_id = None
+            self._products_drag_flash = False
+        if self._products_drag_anim_id:
+            return
+        self._products_drag_flash = False
+        self._animate_products_drag_flash()
+    
+    def _stop_products_drag_animation(self):
+        if hasattr(self, '_products_drag_anim_id') and self._products_drag_anim_id:
+            self.db_tree.after_cancel(self._products_drag_anim_id)
+            self._products_drag_anim_id = None
+    
+    def _animate_products_drag_flash(self):
+        if self._products_drag_hint and self._products_drag_hint.winfo_ismapped():
+            self._products_drag_flash = not self._products_drag_flash
+            self._products_drag_hint.configure(bg='#4a90d9' if self._products_drag_flash else '#2d6cb5')
+            self._products_drag_anim_id = self.db_tree.after(300, self._animate_products_drag_flash)
     
     def _show_products_drag_hint(self, x: int):
         if self._products_drag_hint is None:
-            self._products_drag_hint = tk.Label(self.db_tree, text="↔ 拖动调整列顺序", bg='#4a90d9', fg='white', padx=8, pady=2)
+            self._products_drag_hint = tk.Label(
+                self.db_tree, 
+                text="↔ 拖动调整列顺序", 
+                bg='#4a90d9', 
+                fg='white', 
+                padx=10, 
+                pady=3,
+                font=('Microsoft YaHei UI', 9, 'bold'),
+                relief='raised',
+                borderwidth=1
+            )
         col = self.db_tree.identify_column(x)
         if col:
             bbox = self.db_tree.bbox(col)
@@ -520,6 +558,25 @@ class AlibabaScraperGUI:
     def _hide_products_drag_hint(self):
         if self._products_drag_hint:
             self._products_drag_hint.place_forget()
+    
+    def _show_products_drag_indicator(self, x: int):
+        if not hasattr(self, '_products_drag_indicator'):
+            self._products_drag_indicator = tk.Frame(self.db_tree, bg='#ff6b6b', width=3, height=25)
+        col = self.db_tree.identify_column(x)
+        if col:
+            bbox = self.db_tree.bbox(col)
+            if bbox:
+                col_center = bbox[0] + bbox[2] // 2
+                if x < col_center:
+                    self._products_drag_indicator.place(x=bbox[0] - 2, y=0, anchor='nw')
+                else:
+                    self._products_drag_indicator.place(x=bbox[0] + bbox[2] - 1, y=0, anchor='nw')
+                return
+        self._products_drag_indicator.place(x=x, y=0, anchor='n')
+    
+    def _hide_products_drag_indicator(self):
+        if hasattr(self, '_products_drag_indicator'):
+            self._products_drag_indicator.place_forget()
     
     def _on_products_right_click(self, event):
         region = self.db_tree.identify_region(event.x, event.y)
@@ -647,6 +704,10 @@ class AlibabaScraperGUI:
         self._drag_column = None
         self._drag_start_x = 0
         self._drag_hint_label = None
+        self._drag_indicator = None
+        self._drag_animation_id = None
+        self._drag_flash_state = False
+        self._drag_source_col = None
         
         self.shop_products_tree.bind('<Button-1>', self._on_column_drag_press, add='+')
         self.shop_products_tree.bind('<B1-Motion>', self._on_column_drag_motion, add='+')
@@ -657,20 +718,27 @@ class AlibabaScraperGUI:
         region = self.shop_products_tree.identify_region(event.x, event.y)
         if region == "heading":
             self._drag_start_x = event.x
+            self._drag_source_col = self.shop_products_tree.identify_column(event.x)
     
     def _on_column_drag_motion(self, event):
         """列拖动中"""
         region = self.shop_products_tree.identify_region(event.x, event.y)
         if region != "heading":
             self._hide_drag_hint()
+            self._hide_drag_indicator()
+            self._stop_drag_animation()
             return
         
         if abs(event.x - self._drag_start_x) > 15:
             self._show_drag_hint(event.x)
+            self._show_drag_indicator(event.x)
+            self._start_drag_animation()
     
     def _on_column_drag_release(self, event):
         """列拖动结束"""
         self._hide_drag_hint()
+        self._hide_drag_indicator()
+        self._stop_drag_animation()
         
         region = self.shop_products_tree.identify_region(event.x, event.y)
         if region != "heading":
@@ -695,9 +763,30 @@ class AlibabaScraperGUI:
                 config = get_column_config()
                 config.set_visible_columns('shop_products', self._shop_products_visible_columns)
                 
-                self._create_shop_products_tree()
-                self._refresh_shop_products()
-                self.log(f"列顺序已更新", "info")
+                self._animate_column_move(source_idx, target_idx)
+    
+    def _start_drag_animation(self):
+        """开始拖动动画"""
+        if self._drag_animation_id:
+            return
+        self._drag_flash_state = False
+        self._animate_drag_flash()
+    
+    def _stop_drag_animation(self):
+        """停止拖动动画"""
+        if self._drag_animation_id:
+            self.shop_products_tree.after_cancel(self._drag_animation_id)
+            self._drag_animation_id = None
+    
+    def _animate_drag_flash(self):
+        """拖动闪烁动画"""
+        if self._drag_hint_label and self._drag_hint_label.winfo_ismapped():
+            self._drag_flash_state = not self._drag_flash_state
+            if self._drag_flash_state:
+                self._drag_hint_label.configure(bg='#4a90d9')
+            else:
+                self._drag_hint_label.configure(bg='#2d6cb5')
+            self._drag_animation_id = self.shop_products_tree.after(300, self._animate_drag_flash)
     
     def _show_drag_hint(self, x: int):
         """显示拖动提示"""
@@ -707,9 +796,11 @@ class AlibabaScraperGUI:
                 text="↔ 拖动调整列顺序",
                 bg='#4a90d9',
                 fg='white',
-                padx=8,
-                pady=2,
-                font=('Microsoft YaHei UI', 9)
+                padx=10,
+                pady=3,
+                font=('Microsoft YaHei UI', 9, 'bold'),
+                relief='raised',
+                borderwidth=1
             )
         
         col = self.shop_products_tree.identify_column(x)
@@ -725,6 +816,44 @@ class AlibabaScraperGUI:
         """隐藏拖动提示"""
         if self._drag_hint_label:
             self._drag_hint_label.place_forget()
+    
+    def _show_drag_indicator(self, x: int):
+        """显示拖放位置指示器"""
+        if self._drag_indicator is None:
+            self._drag_indicator = tk.Frame(
+                self.shop_products_tree,
+                bg='#ff6b6b',
+                width=3,
+                height=25
+            )
+        
+        col = self.shop_products_tree.identify_column(x)
+        if col:
+            bbox = self.shop_products_tree.bbox(col)
+            if bbox:
+                col_center = bbox[0] + bbox[2] // 2
+                if x < col_center:
+                    self._drag_indicator.place(x=bbox[0] - 2, y=0, anchor='nw')
+                else:
+                    self._drag_indicator.place(x=bbox[0] + bbox[2] - 1, y=0, anchor='nw')
+                return
+        
+        self._drag_indicator.place(x=x, y=0, anchor='n')
+    
+    def _hide_drag_indicator(self):
+        """隐藏拖放位置指示器"""
+        if self._drag_indicator:
+            self._drag_indicator.place_forget()
+    
+    def _animate_column_move(self, source_idx: int, target_idx: int):
+        """列移动动画效果"""
+        self._create_shop_products_tree()
+        self._refresh_shop_products()
+        
+        if source_idx != target_idx:
+            self.log(f"列顺序已更新: 位置 {source_idx + 1} → {target_idx + 1}", "success")
+        else:
+            self.log(f"列顺序已更新", "info")
     
     def _on_shop_products_right_click(self, event):
         """处理店铺商品右键点击事件"""
@@ -827,6 +956,9 @@ class AlibabaScraperGUI:
         """设置DS店铺列拖放功能"""
         self._ds_shops_drag_start_x = 0
         self._ds_shops_drag_hint = None
+        self._ds_shops_drag_indicator = None
+        self._ds_shops_drag_anim_id = None
+        self._ds_shops_drag_flash = False
         
         self.ds_shops_tree.bind('<Button-1>', self._on_ds_shops_drag_press, add='+')
         self.ds_shops_tree.bind('<B1-Motion>', self._on_ds_shops_drag_motion, add='+')
@@ -841,12 +973,19 @@ class AlibabaScraperGUI:
         region = self.ds_shops_tree.identify_region(event.x, event.y)
         if region != "heading":
             self._hide_ds_shops_drag_hint()
+            self._hide_ds_shops_drag_indicator()
+            self._stop_ds_shops_drag_animation()
             return
         if abs(event.x - self._ds_shops_drag_start_x) > 15:
             self._show_ds_shops_drag_hint(event.x)
+            self._show_ds_shops_drag_indicator(event.x)
+            self._start_ds_shops_drag_animation()
     
     def _on_ds_shops_drag_release(self, event):
         self._hide_ds_shops_drag_hint()
+        self._hide_ds_shops_drag_indicator()
+        self._stop_ds_shops_drag_animation()
+        
         region = self.ds_shops_tree.identify_region(event.x, event.y)
         if region != "heading" or abs(event.x - self._ds_shops_drag_start_x) < 15:
             return
@@ -869,10 +1008,38 @@ class AlibabaScraperGUI:
                 
                 self._create_ds_shops_tree()
                 self._refresh_ds_shops()
+                self.log(f"列顺序已更新: 位置 {source_idx + 1} → {target_idx + 1}", "success")
+    
+    def _start_ds_shops_drag_animation(self):
+        if self._ds_shops_drag_anim_id:
+            return
+        self._ds_shops_drag_flash = False
+        self._animate_ds_shops_drag_flash()
+    
+    def _stop_ds_shops_drag_animation(self):
+        if self._ds_shops_drag_anim_id:
+            self.ds_shops_tree.after_cancel(self._ds_shops_drag_anim_id)
+            self._ds_shops_drag_anim_id = None
+    
+    def _animate_ds_shops_drag_flash(self):
+        if self._ds_shops_drag_hint and self._ds_shops_drag_hint.winfo_ismapped():
+            self._ds_shops_drag_flash = not self._ds_shops_drag_flash
+            self._ds_shops_drag_hint.configure(bg='#4a90d9' if self._ds_shops_drag_flash else '#2d6cb5')
+            self._ds_shops_drag_anim_id = self.ds_shops_tree.after(300, self._animate_ds_shops_drag_flash)
     
     def _show_ds_shops_drag_hint(self, x: int):
         if self._ds_shops_drag_hint is None:
-            self._ds_shops_drag_hint = tk.Label(self.ds_shops_tree, text="↔ 拖动调整列顺序", bg='#4a90d9', fg='white', padx=8, pady=2)
+            self._ds_shops_drag_hint = tk.Label(
+                self.ds_shops_tree, 
+                text="↔ 拖动调整列顺序", 
+                bg='#4a90d9', 
+                fg='white', 
+                padx=10, 
+                pady=3,
+                font=('Microsoft YaHei UI', 9, 'bold'),
+                relief='raised',
+                borderwidth=1
+            )
         col = self.ds_shops_tree.identify_column(x)
         if col:
             bbox = self.ds_shops_tree.bbox(col)
@@ -884,6 +1051,25 @@ class AlibabaScraperGUI:
     def _hide_ds_shops_drag_hint(self):
         if self._ds_shops_drag_hint:
             self._ds_shops_drag_hint.place_forget()
+    
+    def _show_ds_shops_drag_indicator(self, x: int):
+        if self._ds_shops_drag_indicator is None:
+            self._ds_shops_drag_indicator = tk.Frame(self.ds_shops_tree, bg='#ff6b6b', width=3, height=25)
+        col = self.ds_shops_tree.identify_column(x)
+        if col:
+            bbox = self.ds_shops_tree.bbox(col)
+            if bbox:
+                col_center = bbox[0] + bbox[2] // 2
+                if x < col_center:
+                    self._ds_shops_drag_indicator.place(x=bbox[0] - 2, y=0, anchor='nw')
+                else:
+                    self._ds_shops_drag_indicator.place(x=bbox[0] + bbox[2] - 1, y=0, anchor='nw')
+                return
+        self._ds_shops_drag_indicator.place(x=x, y=0, anchor='n')
+    
+    def _hide_ds_shops_drag_indicator(self):
+        if self._ds_shops_drag_indicator:
+            self._ds_shops_drag_indicator.place_forget()
     
     def _on_ds_shops_right_click(self, event):
         region = self.ds_shops_tree.identify_region(event.x, event.y)
