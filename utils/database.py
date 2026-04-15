@@ -249,8 +249,9 @@ class Database:
                 id INTEGER PRIMARY KEY,
                 ds_shop_id VARCHAR UNIQUE NOT NULL,
                 ds_shop_name VARCHAR NOT NULL,
-                ds_platform VARCHAR DEFAULT 'jd',
+                ds_platform VARCHAR DEFAULT 'alibaba',
                 ds_shop_url VARCHAR,
+                shop_type VARCHAR DEFAULT 'supplier',
                 shop_status VARCHAR DEFAULT 'active',
                 config TEXT,
                 remark VARCHAR,
@@ -286,6 +287,7 @@ class Database:
         
         self._migrate_products_table()
         self._migrate_shop_products_table()
+        self._migrate_ds_shops_table()
         
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)')
         self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)')
@@ -384,6 +386,27 @@ class Database:
                         
         except Exception as e:
             log_warning(f"迁移 shop_products 表失败: {e}")
+    
+    def _migrate_ds_shops_table(self):
+        """迁移 ds_shops 表，添加新字段"""
+        try:
+            columns = self.conn.execute("DESCRIBE ds_shops").fetchall()
+            existing_columns = {col[0] for col in columns}
+            
+            new_columns = {
+                'shop_type': "VARCHAR DEFAULT 'supplier'",
+            }
+            
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE ds_shops ADD COLUMN {col_name} {col_type}')
+                        log_info(f"已添加字段: ds_shops.{col_name}")
+                    except Exception as e:
+                        log_warning(f"添加字段 ds_shops.{col_name} 失败: {e}")
+                        
+        except Exception as e:
+            log_warning(f"迁移 ds_shops 表失败: {e}")
     
     def _migrate_sku_prices_table(self):
         """迁移 sku_prices 表，重建表结构"""

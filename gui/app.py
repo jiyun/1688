@@ -337,7 +337,7 @@ class AlibabaScraperGUI:
         self.db_sub_notebook.add(self.db_shop_products_tab, text="店铺商品")
         
         self.db_ds_shops_tab = ctk.CTkFrame(self.db_sub_notebook)
-        self.db_sub_notebook.add(self.db_ds_shops_tab, text="DS店铺")
+        self.db_sub_notebook.add(self.db_ds_shops_tab, text="店铺信息")
         
         self._init_db_products_tab()
         self._init_db_shop_products_tab()
@@ -764,12 +764,13 @@ class AlibabaScraperGUI:
         self._refresh_shop_products()
     
     def _init_db_ds_shops_tab(self):
-        """初始化DS店铺管理子选项卡"""
+        """初始化店铺信息子选项卡"""
         from utils.column_config import get_column_config
         
         self._ds_shops_all_columns = {
             'ds_shop_id': {'text': '店铺ID', 'width': 100, 'anchor': 'center', 'default': True},
             'ds_shop_name': {'text': '店铺名称', 'width': 150, 'anchor': 'w', 'default': True},
+            'shop_type': {'text': '类型', 'width': 60, 'anchor': 'center', 'default': True},
             'ds_platform': {'text': '平台', 'width': 60, 'anchor': 'center', 'default': True},
             'ds_shop_url': {'text': '店铺链接', 'width': 200, 'anchor': 'w', 'default': True},
             'shop_status': {'text': '状态', 'width': 60, 'anchor': 'center', 'default': True},
@@ -3787,8 +3788,26 @@ class AlibabaScraperGUI:
                         row_values.append(ds_shop_id)
                     elif col == 'ds_shop_name':
                         row_values.append(shop.get('ds_shop_name', ''))
+                    elif col == 'shop_type':
+                        shop_type = shop.get('shop_type', 'supplier')
+                        if shop_type == 'supplier':
+                            row_values.append('供应商')
+                        elif shop_type == 'user':
+                            row_values.append('用户店铺')
+                        else:
+                            row_values.append(shop_type)
                     elif col == 'ds_platform':
-                        row_values.append(shop.get('ds_platform', 'jd'))
+                        platform = shop.get('ds_platform', 'alibaba')
+                        if platform == 'alibaba':
+                            row_values.append('1688')
+                        elif platform == 'jd':
+                            row_values.append('京东')
+                        elif platform == 'pdd':
+                            row_values.append('拼多多')
+                        elif platform == 'tb':
+                            row_values.append('淘宝')
+                        else:
+                            row_values.append(platform)
                     elif col == 'ds_shop_url':
                         row_values.append(shop.get('ds_shop_url', '')[:40])
                     elif col == 'shop_status':

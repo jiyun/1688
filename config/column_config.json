@@ -18,8 +18,10 @@
     "visible_columns": [
       "product_id",
       "title",
-      "platform",
       "status",
+      "resource_counts",
+      "sku_prices",
+      "output_path",
       "created_at"
     ],
     "column_widths": {}

@@ -279,6 +279,60 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
     return products, errors, shop_data
 
 
+def parse_shop_url(shop_url: str) -> Dict:
+    """解析店铺链接，提取店铺ID和平台
+    
+    支持的URL格式：
+    - https://shop5x1481695p964.1688.com/ (子域名形式)
+    - https://m.1688.com/winport/b2b-2203732271454a73fd.html (移动端形式)
+    - https://winport.1688.com/company/xxx.html
+    
+    Returns:
+        {'shop_id': 'xxx', 'platform': 'alibaba'}
+    """
+    import re
+    
+    if not shop_url:
+        return {'shop_id': '', 'platform': ''}
+    
+    result = {'shop_id': '', 'platform': ''}
+    
+    if '1688.com' in shop_url or 'alibaba.com' in shop_url:
+        result['platform'] = 'alibaba'
+        
+        shop_match = re.search(r'shop([a-z0-9]+)\.1688\.com', shop_url)
+        if shop_match:
+            result['shop_id'] = shop_match.group(1)
+            return result
+        
+        winport_match = re.search(r'winport/([^/]+)\.html', shop_url)
+        if winport_match:
+            result['shop_id'] = winport_match.group(1)
+            return result
+        
+        company_match = re.search(r'company/([^/]+)\.html', shop_url)
+        if company_match:
+            result['shop_id'] = company_match.group(1)
+            return result
+            
+    elif 'jd.com' in shop_url:
+        result['platform'] = 'jd'
+        jd_match = re.search(r'jd\.com/([^/]+)', shop_url)
+        if jd_match:
+            result['shop_id'] = jd_match.group(1)
+            
+    elif 'pinduoduo.com' in shop_url or 'yangkeduo.com' in shop_url:
+        result['platform'] = 'pdd'
+        
+    elif 'taobao.com' in shop_url:
+        result['platform'] = 'tb'
+        tb_match = re.search(r'shop(\d+)', shop_url)
+        if tb_match:
+            result['shop_id'] = tb_match.group(1)
+    
+    return result
+
+
 def _safe_str(value) -> str:
     """安全转换为字符串"""
     if pd.isna(value):
@@ -400,7 +454,62 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
             errors.append(f"导入商品 {product.get('product_id', '未知')} 失败: {e}")
     
     log_success(f"导入完成: {imported}/{len(products)} 条商品数据")
+    
+    if shop_data and shop_data.get('shop_name'):
+        try:
+            _ensure_supplier_record(db, shop_data)
+        except Exception as e:
+            log_warning(f"创建供应商记录失败: {e}")
+    
     return imported, errors
+
+
+def _ensure_supplier_record(db, shop_data: Dict):
+    """确保供应商记录存在
+    
+    Args:
+        db: 数据库连接
+        shop_data: 店铺数据字典
+    """
+    shop_name = shop_data.get('shop_name')
+    if not shop_name:
+        return
+    
+    shop_url = shop_data.get('shop_url', '')
+    parsed = parse_shop_url(shop_url)
+    shop_id = parsed.get('shop_id', '') or f"supplier_{shop_name}"
+    platform = parsed.get('platform', 'alibaba') or 'alibaba'
+    
+    existing = db.query_one(
+        "SELECT * FROM ds_shops WHERE ds_shop_name = ?",
+        [shop_name]
+    )
+    
+    if existing:
+        update_data = {}
+        if shop_url and not existing.get('ds_shop_url'):
+            update_data['ds_shop_url'] = shop_url
+        if shop_data.get('location') and not existing.get('remark'):
+            update_data['remark'] = f"所在地: {shop_data.get('location')}"
+        if shop_id and not existing.get('ds_shop_id').startswith('supplier_'):
+            pass
+        
+        if update_data:
+            db.update('ds_shops', update_data, 'ds_shop_name = ?', [shop_name])
+            db.conn.execute('CHECKPOINT')
+    else:
+        supplier_data = {
+            'ds_shop_id': shop_id,
+            'ds_shop_name': shop_name,
+            'ds_platform': platform,
+            'ds_shop_url': shop_url,
+            'shop_type': 'supplier',
+            'shop_status': 'active',
+            'remark': f"来源: Excel导入 | 所在地: {shop_data.get('location', '')}"
+        }
+        db.insert('ds_shops', supplier_data)
+        db.conn.execute('CHECKPOINT')
+        log_success(f"已创建供应商记录: {shop_name} (ID: {shop_id})")
 
 
 def mark_dropship_support(db, product_ids: List[str], shop_id: str = None):
