@@ -3145,7 +3145,13 @@ class AlibabaScraperGUI:
                 db = get_shared_db()
                 
                 shop_name = shop_data.get('shop_name')
-                imported, errors = import_to_database(parsed_products, db, shop_name=shop_name, support_dropship=support_dropship if support_dropship else None)
+                imported, errors = import_to_database(
+                    parsed_products, 
+                    db, 
+                    shop_name=shop_name, 
+                    support_dropship=support_dropship if support_dropship else None,
+                    shop_data=shop_data
+                )
                 db.close()
                 
                 if errors:
@@ -4149,7 +4155,7 @@ class AlibabaScraperGUI:
         create_button(btn_frame, "取消", dialog.destroy, 'secondary', width=60).pack(side="left", padx=5)
     
     def _on_ds_shops_tree_double_click(self, event):
-        """DS店铺列表双击事件"""
+        """店铺列表双击事件"""
         selection = self.ds_shops_tree.selection()
         if not selection:
             return
@@ -4157,13 +4163,17 @@ class AlibabaScraperGUI:
         item = self.ds_shops_tree.item(selection[0])
         values = item.get('values', [])
         
-        if len(values) >= 4:
-            ds_shop_url = values[3]
-            if ds_shop_url:
-                self._open_url(ds_shop_url)
+        try:
+            url_col_idx = self._ds_shops_visible_columns.index('ds_shop_url')
+            if len(values) > url_col_idx:
+                ds_shop_url = values[url_col_idx]
+                if ds_shop_url:
+                    self._open_url(ds_shop_url)
+        except (ValueError, IndexError):
+            pass
     
     def _show_ds_shops_context_menu(self, event):
-        """显示DS店铺右键菜单"""
+        """显示店铺右键菜单"""
         item = self.ds_shops_tree.identify_row(event.y)
         if not item:
             return
@@ -4174,13 +4184,21 @@ class AlibabaScraperGUI:
         if len(values) < 1:
             return
         
-        ds_shop_id = values[0]
-        ds_shop_name = values[1] if len(values) > 1 else ''
+        try:
+            id_col_idx = self._ds_shops_visible_columns.index('ds_shop_id')
+            name_col_idx = self._ds_shops_visible_columns.index('ds_shop_name')
+            url_col_idx = self._ds_shops_visible_columns.index('ds_shop_url')
+        except ValueError:
+            id_col_idx, name_col_idx, url_col_idx = 0, 1, 4
+        
+        ds_shop_id = values[id_col_idx] if len(values) > id_col_idx else ''
+        ds_shop_name = values[name_col_idx] if len(values) > name_col_idx else ''
+        ds_shop_url = values[url_col_idx] if len(values) > url_col_idx else ''
         
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label=f"店铺: {ds_shop_name}", state="disabled")
         menu.add_separator()
-        menu.add_command(label="打开店铺", command=lambda: self._open_url(values[3]) if len(values) > 3 and values[3] else None)
+        menu.add_command(label="打开店铺", command=lambda: self._open_url(ds_shop_url) if ds_shop_url else None)
         menu.add_command(label="查看关联商品", command=lambda: self._show_ds_shop_products(ds_shop_id))
         menu.add_separator()
         menu.add_command(label="编辑", command=lambda: self._edit_ds_shop(ds_shop_id))

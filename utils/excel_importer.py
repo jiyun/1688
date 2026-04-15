@@ -367,7 +367,7 @@ def _safe_int(value) -> int:
 
 
 def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name: str = None, 
-                       support_dropship: int = None) -> Tuple[int, List[str]]:
+                       support_dropship: int = None, shop_data: Dict = None) -> Tuple[int, List[str]]:
     """将商品数据导入数据库
     
     Args:
@@ -376,6 +376,7 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
         shop_id: 店铺ID（可选）
         shop_name: 店铺名称（可选）
         support_dropship: 一件代发支持标记（可选）
+        shop_data: 店铺数据字典（可选，用于创建供应商记录）
         
     Returns:
         (导入数量, 错误消息列表)
@@ -385,6 +386,9 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
     
     errors = []
     imported = 0
+    
+    if shop_data is None:
+        shop_data = {}
     
     for product in products:
         try:
