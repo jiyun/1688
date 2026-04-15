@@ -372,13 +372,24 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
             else:
                 from datetime import datetime
                 existing_shop_product = db.query_one(
-                    "SELECT id FROM shop_products WHERE product_id = ?",
+                    "SELECT * FROM shop_products WHERE product_id = ?",
                     [product_id]
                 )
                 
                 if existing_shop_product:
-                    shop_product_data['updated_at'] = datetime.now()
-                    db.update('shop_products', shop_product_data, 'product_id = ?', [product_id])
+                    update_data = {'updated_at': datetime.now()}
+                    
+                    for key, new_value in shop_product_data.items():
+                        if key == 'product_id':
+                            continue
+                        
+                        if new_value is not None and new_value != '' and new_value != 0:
+                            update_data[key] = new_value
+                    
+                    if support_dropship is not None:
+                        update_data['support_dropship'] = support_dropship
+                    
+                    db.update('shop_products', update_data, 'product_id = ?', [product_id])
                 else:
                     shop_product_data['collect_time'] = datetime.now()
                     db.insert('shop_products', shop_product_data)

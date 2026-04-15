@@ -1,0 +1,37 @@
+{
+  "shop_products": {
+    "visible_columns": [
+      "product_id",
+      "title",
+      "price",
+      "dropship_price",
+      "sales_count",
+      "review_count",
+      "category",
+      "collected",
+      "product_url",
+      "support_dropship"
+    ],
+    "column_widths": {}
+  },
+  "products": {
+    "visible_columns": [
+      "product_id",
+      "title",
+      "platform",
+      "status",
+      "created_at"
+    ],
+    "column_widths": {}
+  },
+  "ds_shops": {
+    "visible_columns": [
+      "ds_shop_id",
+      "ds_shop_name",
+      "ds_platform",
+      "shop_status",
+      "product_count"
+    ],
+    "column_widths": {}
+  }
+}

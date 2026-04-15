@@ -393,48 +393,35 @@ class AlibabaScraperGUI:
     
     def _init_db_products_tab(self):
         """初始化商品管理子选项卡"""
+        from utils.column_config import get_column_config
+        
+        self._products_all_columns = {
+            'platform': {'text': '平台', 'width': 60, 'anchor': 'center', 'default': True},
+            'product_id': {'text': '商品ID', 'width': 105, 'anchor': 'center', 'default': True},
+            'title': {'text': '商品标题', 'width': 200, 'anchor': 'w', 'default': True},
+            'ship_from': {'text': '发货地', 'width': 60, 'anchor': 'center', 'default': True},
+            'resource_counts': {'text': '资源', 'width': 45, 'anchor': 'center', 'default': True},
+            'sku_prices': {'text': 'SKU', 'width': 40, 'anchor': 'center', 'default': True},
+            'remark': {'text': '备注', 'width': 80, 'anchor': 'w', 'default': True},
+            'shop_name': {'text': 'DS店铺', 'width': 80, 'anchor': 'w', 'default': True},
+            'shop_product_id': {'text': 'DSID', 'width': 85, 'anchor': 'center', 'default': True},
+            'price_matrix': {'text': 'DS价格矩阵', 'width': 80, 'anchor': 'center', 'default': False},
+            'output_path': {'text': '输出路径', 'width': 150, 'anchor': 'w', 'default': False},
+            'status': {'text': '状态', 'width': 50, 'anchor': 'center', 'default': True},
+            'created_at': {'text': '创建时间', 'width': 120, 'anchor': 'center', 'default': True},
+        }
+        
+        config = get_column_config()
+        saved_columns = config.get_visible_columns('products')
+        if saved_columns:
+            self._products_visible_columns = [col for col in saved_columns if col in self._products_all_columns]
+        else:
+            self._products_visible_columns = [col for col, cfg in self._products_all_columns.items() if cfg['default']]
+        
         self.db_tree_frame = ctk.CTkFrame(self.db_products_tab, fg_color="transparent")
         self.db_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        db_columns = ("platform", "product_id", "title", "ship_from", "resource_counts", "sku_prices", "remark", "shop_name", "shop_product_id", "price_matrix", "output_path", "status", "created_at")
-        self.db_tree = ttk.Treeview(self.db_tree_frame, columns=db_columns, show="headings", selectmode="browse")
-        
-        self.db_tree.heading("platform", text="平台", command=lambda: self._sort_db_column("platform"))
-        self.db_tree.heading("product_id", text="商品ID", command=lambda: self._sort_db_column("product_id"))
-        self.db_tree.heading("title", text="商品标题", command=lambda: self._sort_db_column("title"))
-        self.db_tree.heading("ship_from", text="发货地", command=lambda: self._sort_db_column("ship_from"))
-        self.db_tree.heading("resource_counts", text="资源", command=lambda: self._sort_db_column("resource_counts"))
-        self.db_tree.heading("sku_prices", text="SKU", command=lambda: self._sort_db_column("sku_prices"))
-        self.db_tree.heading("remark", text="备注", command=lambda: self._sort_db_column("remark"))
-        self.db_tree.heading("shop_name", text="DS店铺", command=lambda: self._sort_db_column("shop_name"))
-        self.db_tree.heading("shop_product_id", text="DSID", command=lambda: self._sort_db_column("shop_product_id"))
-        self.db_tree.heading("price_matrix", text="DS价格矩阵", command=lambda: self._sort_db_column("price_matrix"))
-        self.db_tree.heading("output_path", text="输出路径")
-        self.db_tree.heading("status", text="状态", command=lambda: self._sort_db_column("status"))
-        self.db_tree.heading("created_at", text="创建时间", command=lambda: self._sort_db_column("created_at"))
-        
-        self.db_tree.column("platform", width=60, anchor="center")
-        self.db_tree.column("product_id", width=105, anchor="center")
-        self.db_tree.column("title", width=200, anchor="w")
-        self.db_tree.column("ship_from", width=60, anchor="center")
-        self.db_tree.column("resource_counts", width=45, anchor="center")
-        self.db_tree.column("sku_prices", width=40, anchor="center")
-        self.db_tree.column("remark", width=80, anchor="w")
-        self.db_tree.column("shop_name", width=80, anchor="w")
-        self.db_tree.column("shop_product_id", width=85, anchor="center")
-        self.db_tree.column("price_matrix", width=80, anchor="center")
-        self.db_tree.column("output_path", width=150, anchor="w")
-        self.db_tree.column("status", width=50, anchor="center")
-        self.db_tree.column("created_at", width=120, anchor="center")
-        
-        db_scrollbar = ttk.Scrollbar(self.db_tree_frame, orient="vertical", command=self.db_tree.yview)
-        self.db_tree.configure(yscrollcommand=db_scrollbar.set)
-        
-        self.db_tree.pack(side="left", fill="both", expand=True)
-        db_scrollbar.pack(side="right", fill="y")
-        
-        self.db_tree.bind('<Button-3>', self._show_db_context_menu)
-        self.db_tree.bind('<Double-1>', self._on_db_tree_double_click)
+        self._create_products_tree()
         
         self._db_sort_column = None
         self._db_sort_reverse = False
@@ -447,6 +434,126 @@ class AlibabaScraperGUI:
         
         self.products_status_label = ctk.CTkLabel(products_btn_frame, text="")
         self.products_status_label.pack(side="right", padx=10)
+    
+    def _create_products_tree(self):
+        """创建商品管理树形视图"""
+        for widget in self.db_tree_frame.winfo_children():
+            widget.destroy()
+        
+        columns = tuple(self._products_visible_columns)
+        self.db_tree = ttk.Treeview(self.db_tree_frame, columns=columns, show="headings", selectmode="browse")
+        
+        for col in self._products_visible_columns:
+            cfg = self._products_all_columns[col]
+            self.db_tree.heading(col, text=cfg['text'], command=lambda c=col: self._sort_db_column(c))
+            self.db_tree.column(col, width=cfg['width'], anchor=cfg.get('anchor', 'center'))
+        
+        db_scrollbar = ttk.Scrollbar(self.db_tree_frame, orient="vertical", command=self.db_tree.yview)
+        self.db_tree.configure(yscrollcommand=db_scrollbar.set)
+        
+        self.db_tree.pack(side="left", fill="both", expand=True)
+        db_scrollbar.pack(side="right", fill="y")
+        
+        self.db_tree.bind('<Button-3>', self._on_products_right_click)
+        self.db_tree.bind('<Double-1>', self._on_db_tree_double_click)
+        
+        self._setup_products_drag_drop()
+    
+    def _setup_products_drag_drop(self):
+        """设置商品管理列拖放功能"""
+        self._products_drag_start_x = 0
+        self._products_drag_hint = None
+        
+        self.db_tree.bind('<Button-1>', self._on_products_drag_press, add='+')
+        self.db_tree.bind('<B1-Motion>', self._on_products_drag_motion, add='+')
+        self.db_tree.bind('<ButtonRelease-1>', self._on_products_drag_release, add='+')
+    
+    def _on_products_drag_press(self, event):
+        region = self.db_tree.identify_region(event.x, event.y)
+        if region == "heading":
+            self._products_drag_start_x = event.x
+    
+    def _on_products_drag_motion(self, event):
+        region = self.db_tree.identify_region(event.x, event.y)
+        if region != "heading":
+            self._hide_products_drag_hint()
+            return
+        if abs(event.x - self._products_drag_start_x) > 15:
+            self._show_products_drag_hint(event.x)
+    
+    def _on_products_drag_release(self, event):
+        self._hide_products_drag_hint()
+        region = self.db_tree.identify_region(event.x, event.y)
+        if region != "heading" or abs(event.x - self._products_drag_start_x) < 15:
+            return
+        
+        source_col = self.db_tree.identify_column(self._products_drag_start_x)
+        target_col = self.db_tree.identify_column(event.x)
+        
+        if source_col and target_col and source_col != target_col:
+            source_idx = int(source_col.replace('#', '')) - 1
+            target_idx = int(target_col.replace('#', '')) - 1
+            
+            if 0 <= source_idx < len(self._products_visible_columns) and 0 <= target_idx < len(self._products_visible_columns):
+                col_name = self._products_visible_columns[source_idx]
+                self._products_visible_columns.pop(source_idx)
+                self._products_visible_columns.insert(target_idx, col_name)
+                
+                from utils.column_config import get_column_config
+                config = get_column_config()
+                config.set_visible_columns('products', self._products_visible_columns)
+                
+                self._create_products_tree()
+                self._refresh_db_data()
+    
+    def _show_products_drag_hint(self, x: int):
+        if self._products_drag_hint is None:
+            self._products_drag_hint = tk.Label(self.db_tree, text="↔ 拖动调整列顺序", bg='#4a90d9', fg='white', padx=8, pady=2)
+        col = self.db_tree.identify_column(x)
+        if col:
+            bbox = self.db_tree.bbox(col)
+            if bbox:
+                self._products_drag_hint.place(x=bbox[0], y=0, anchor='nw')
+                return
+        self._products_drag_hint.place(x=x, y=2, anchor='n')
+    
+    def _hide_products_drag_hint(self):
+        if self._products_drag_hint:
+            self._products_drag_hint.place_forget()
+    
+    def _on_products_right_click(self, event):
+        region = self.db_tree.identify_region(event.x, event.y)
+        if region == "heading":
+            self._show_products_column_menu(event)
+        else:
+            self._show_db_context_menu(event)
+    
+    def _show_products_column_menu(self, event):
+        menu = tk.Menu(self.db_tree, tearoff=0)
+        menu.add_command(label="显示/隐藏列", state="disabled")
+        menu.add_separator()
+        
+        for col_name, cfg in self._products_all_columns.items():
+            is_visible = col_name in self._products_visible_columns
+            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
+            menu.add_command(label=label, command=lambda c=col_name: self._toggle_products_column(c))
+        
+        menu.post(event.x_root, event.y_root)
+    
+    def _toggle_products_column(self, column_name):
+        from utils.column_config import get_column_config
+        
+        if column_name in self._products_visible_columns:
+            if len(self._products_visible_columns) > 1:
+                self._products_visible_columns.remove(column_name)
+        else:
+            self._products_visible_columns.append(column_name)
+        
+        config = get_column_config()
+        config.set_visible_columns('products', self._products_visible_columns)
+        
+        self._create_products_tree()
+        self._refresh_db_data()
     
     def _init_db_shop_products_tab(self):
         """初始化店铺商品子选项卡"""
@@ -658,36 +765,29 @@ class AlibabaScraperGUI:
     
     def _init_db_ds_shops_tab(self):
         """初始化DS店铺管理子选项卡"""
+        from utils.column_config import get_column_config
+        
+        self._ds_shops_all_columns = {
+            'ds_shop_id': {'text': '店铺ID', 'width': 100, 'anchor': 'center', 'default': True},
+            'ds_shop_name': {'text': '店铺名称', 'width': 150, 'anchor': 'w', 'default': True},
+            'ds_platform': {'text': '平台', 'width': 60, 'anchor': 'center', 'default': True},
+            'ds_shop_url': {'text': '店铺链接', 'width': 200, 'anchor': 'w', 'default': True},
+            'shop_status': {'text': '状态', 'width': 60, 'anchor': 'center', 'default': True},
+            'product_count': {'text': '商品数', 'width': 60, 'anchor': 'center', 'default': True},
+            'remark': {'text': '备注', 'width': 100, 'anchor': 'w', 'default': True},
+        }
+        
+        config = get_column_config()
+        saved_columns = config.get_visible_columns('ds_shops')
+        if saved_columns:
+            self._ds_shops_visible_columns = [col for col in saved_columns if col in self._ds_shops_all_columns]
+        else:
+            self._ds_shops_visible_columns = [col for col, cfg in self._ds_shops_all_columns.items() if cfg['default']]
+        
         self.ds_shops_tree_frame = ctk.CTkFrame(self.db_ds_shops_tab, fg_color="transparent")
         self.ds_shops_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        ds_columns = ("ds_shop_id", "ds_shop_name", "ds_platform", "ds_shop_url", "shop_status", "product_count", "remark")
-        self.ds_shops_tree = ttk.Treeview(self.ds_shops_tree_frame, columns=ds_columns, show="headings", selectmode="browse")
-        
-        self.ds_shops_tree.heading("ds_shop_id", text="店铺ID")
-        self.ds_shops_tree.heading("ds_shop_name", text="店铺名称")
-        self.ds_shops_tree.heading("ds_platform", text="平台")
-        self.ds_shops_tree.heading("ds_shop_url", text="店铺链接")
-        self.ds_shops_tree.heading("shop_status", text="状态")
-        self.ds_shops_tree.heading("product_count", text="商品数")
-        self.ds_shops_tree.heading("remark", text="备注")
-        
-        self.ds_shops_tree.column("ds_shop_id", width=100, anchor="center")
-        self.ds_shops_tree.column("ds_shop_name", width=150, anchor="w")
-        self.ds_shops_tree.column("ds_platform", width=60, anchor="center")
-        self.ds_shops_tree.column("ds_shop_url", width=200, anchor="w")
-        self.ds_shops_tree.column("shop_status", width=60, anchor="center")
-        self.ds_shops_tree.column("product_count", width=60, anchor="center")
-        self.ds_shops_tree.column("remark", width=100, anchor="w")
-        
-        ds_scrollbar = ttk.Scrollbar(self.ds_shops_tree_frame, orient="vertical", command=self.ds_shops_tree.yview)
-        self.ds_shops_tree.configure(yscrollcommand=ds_scrollbar.set)
-        
-        self.ds_shops_tree.pack(side="left", fill="both", expand=True)
-        ds_scrollbar.pack(side="right", fill="y")
-        
-        self.ds_shops_tree.bind('<Double-1>', self._on_ds_shops_tree_double_click)
-        self.ds_shops_tree.bind('<Button-3>', self._show_ds_shops_context_menu)
+        self._create_ds_shops_tree()
         
         ds_btn_frame = ctk.CTkFrame(self.db_ds_shops_tab, fg_color="transparent")
         ds_btn_frame.pack(fill="x", pady=5)
@@ -697,6 +797,157 @@ class AlibabaScraperGUI:
         
         self.ds_shops_status_label = ctk.CTkLabel(ds_btn_frame, text="")
         self.ds_shops_status_label.pack(side="right", padx=10)
+    
+    def _create_ds_shops_tree(self):
+        """创建DS店铺树形视图"""
+        for widget in self.ds_shops_tree_frame.winfo_children():
+            widget.destroy()
+        
+        columns = tuple(self._ds_shops_visible_columns)
+        self.ds_shops_tree = ttk.Treeview(self.ds_shops_tree_frame, columns=columns, show="headings", selectmode="browse")
+        
+        for col in self._ds_shops_visible_columns:
+            cfg = self._ds_shops_all_columns[col]
+            self.ds_shops_tree.heading(col, text=cfg['text'], command=lambda c=col: self._sort_ds_shops_column(c))
+            self.ds_shops_tree.column(col, width=cfg['width'], anchor=cfg.get('anchor', 'center'))
+        
+        ds_scrollbar = ttk.Scrollbar(self.ds_shops_tree_frame, orient="vertical", command=self.ds_shops_tree.yview)
+        self.ds_shops_tree.configure(yscrollcommand=ds_scrollbar.set)
+        
+        self.ds_shops_tree.pack(side="left", fill="both", expand=True)
+        ds_scrollbar.pack(side="right", fill="y")
+        
+        self.ds_shops_tree.bind('<Double-1>', self._on_ds_shops_tree_double_click)
+        self.ds_shops_tree.bind('<Button-3>', self._on_ds_shops_right_click)
+        
+        self._setup_ds_shops_drag_drop()
+    
+    def _setup_ds_shops_drag_drop(self):
+        """设置DS店铺列拖放功能"""
+        self._ds_shops_drag_start_x = 0
+        self._ds_shops_drag_hint = None
+        
+        self.ds_shops_tree.bind('<Button-1>', self._on_ds_shops_drag_press, add='+')
+        self.ds_shops_tree.bind('<B1-Motion>', self._on_ds_shops_drag_motion, add='+')
+        self.ds_shops_tree.bind('<ButtonRelease-1>', self._on_ds_shops_drag_release, add='+')
+    
+    def _on_ds_shops_drag_press(self, event):
+        region = self.ds_shops_tree.identify_region(event.x, event.y)
+        if region == "heading":
+            self._ds_shops_drag_start_x = event.x
+    
+    def _on_ds_shops_drag_motion(self, event):
+        region = self.ds_shops_tree.identify_region(event.x, event.y)
+        if region != "heading":
+            self._hide_ds_shops_drag_hint()
+            return
+        if abs(event.x - self._ds_shops_drag_start_x) > 15:
+            self._show_ds_shops_drag_hint(event.x)
+    
+    def _on_ds_shops_drag_release(self, event):
+        self._hide_ds_shops_drag_hint()
+        region = self.ds_shops_tree.identify_region(event.x, event.y)
+        if region != "heading" or abs(event.x - self._ds_shops_drag_start_x) < 15:
+            return
+        
+        source_col = self.ds_shops_tree.identify_column(self._ds_shops_drag_start_x)
+        target_col = self.ds_shops_tree.identify_column(event.x)
+        
+        if source_col and target_col and source_col != target_col:
+            source_idx = int(source_col.replace('#', '')) - 1
+            target_idx = int(target_col.replace('#', '')) - 1
+            
+            if 0 <= source_idx < len(self._ds_shops_visible_columns) and 0 <= target_idx < len(self._ds_shops_visible_columns):
+                col_name = self._ds_shops_visible_columns[source_idx]
+                self._ds_shops_visible_columns.pop(source_idx)
+                self._ds_shops_visible_columns.insert(target_idx, col_name)
+                
+                from utils.column_config import get_column_config
+                config = get_column_config()
+                config.set_visible_columns('ds_shops', self._ds_shops_visible_columns)
+                
+                self._create_ds_shops_tree()
+                self._refresh_ds_shops()
+    
+    def _show_ds_shops_drag_hint(self, x: int):
+        if self._ds_shops_drag_hint is None:
+            self._ds_shops_drag_hint = tk.Label(self.ds_shops_tree, text="↔ 拖动调整列顺序", bg='#4a90d9', fg='white', padx=8, pady=2)
+        col = self.ds_shops_tree.identify_column(x)
+        if col:
+            bbox = self.ds_shops_tree.bbox(col)
+            if bbox:
+                self._ds_shops_drag_hint.place(x=bbox[0], y=0, anchor='nw')
+                return
+        self._ds_shops_drag_hint.place(x=x, y=2, anchor='n')
+    
+    def _hide_ds_shops_drag_hint(self):
+        if self._ds_shops_drag_hint:
+            self._ds_shops_drag_hint.place_forget()
+    
+    def _on_ds_shops_right_click(self, event):
+        region = self.ds_shops_tree.identify_region(event.x, event.y)
+        if region == "heading":
+            self._show_ds_shops_column_menu(event)
+        else:
+            self._show_ds_shops_context_menu(event)
+    
+    def _show_ds_shops_column_menu(self, event):
+        menu = tk.Menu(self.ds_shops_tree, tearoff=0)
+        menu.add_command(label="显示/隐藏列", state="disabled")
+        menu.add_separator()
+        
+        for col_name, cfg in self._ds_shops_all_columns.items():
+            is_visible = col_name in self._ds_shops_visible_columns
+            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
+            menu.add_command(label=label, command=lambda c=col_name: self._toggle_ds_shops_column(c))
+        
+        menu.post(event.x_root, event.y_root)
+    
+    def _toggle_ds_shops_column(self, column_name):
+        from utils.column_config import get_column_config
+        
+        if column_name in self._ds_shops_visible_columns:
+            if len(self._ds_shops_visible_columns) > 1:
+                self._ds_shops_visible_columns.remove(column_name)
+        else:
+            self._ds_shops_visible_columns.append(column_name)
+        
+        config = get_column_config()
+        config.set_visible_columns('ds_shops', self._ds_shops_visible_columns)
+        
+        self._create_ds_shops_tree()
+        self._refresh_ds_shops()
+    
+    def _sort_ds_shops_column(self, col):
+        """DS店铺列排序"""
+        items = [(self.ds_shops_tree.set(item, col), item) for item in self.ds_shops_tree.get_children('')]
+        
+        if not hasattr(self, '_ds_shops_sort_column'):
+            self._ds_shops_sort_column = None
+            self._ds_shops_sort_reverse = False
+        
+        if self._ds_shops_sort_column == col:
+            self._ds_shops_sort_reverse = not self._ds_shops_sort_reverse
+        else:
+            self._ds_shops_sort_column = col
+            self._ds_shops_sort_reverse = False
+        
+        import re
+        def natural_sort_key(s):
+            s = str(s)
+            return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+        
+        def sort_key(x):
+            val = x[0]
+            try:
+                return float(val.replace('-', '0'))
+            except ValueError:
+                return natural_sort_key(val)
+        
+        items.sort(key=sort_key, reverse=self._ds_shops_sort_reverse)
+        
+        for index, (val, item) in enumerate(items):
+            self.ds_shops_tree.move(item, '', index)
     
     def _init_about_tab(self):
         """初始化关于选项卡"""
@@ -1387,87 +1638,85 @@ class AlibabaScraperGUI:
                 products = db.get_all_products()
                 
                 for product in products:
-                    output_path = product.get('output_path', '') or ''
-                    if len(output_path) > 18:
-                        output_path = '...' + output_path[-15:]
+                    row_values = []
                     
-                    title = product.get('title', '') or ''
-                    if len(title) > 20:
-                        title = title[:20] + '...'
-                    
-                    product_id = product.get('product_id', '')
-                    
-                    platform = product.get('platform', 'alibaba')
-                    if platform == 'alibaba':
-                        platform = '1688'
-                    elif platform == 'jd':
-                        platform = '京东'
-                    
-                    sku_prices_count = db.count_sku_prices(product_id)
-                    sku_prices_str = f"{sku_prices_count}" if sku_prices_count > 0 else "-"
-                    
-                    resource_counts = db.count_resources(product_id)
-                    total_resources = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
-                    resource_counts_str = f"{total_resources}" if total_resources > 0 else "-"
-                    
-                    shop_name = product.get('ds_shop', '') or ''
-                    if not shop_name:
-                        shop_id = product.get('shop_id', '')
-                        if shop_id:
-                            shop = db.get_shop(shop_id)
-                            if shop:
-                                shop_name = shop.get('shop_name', '')[:8]
-                    
-                    ship_from = product.get('ship_from', '') or '-'
-                    
-                    shop_product_id = product.get('shop_product_id', '') or '-'
-                    
-                    price_matrix = product.get('selling_prices', '')
-                    if price_matrix:
-                        try:
-                            import json
-                            prices_data = json.loads(price_matrix)
-                            if isinstance(prices_data, list) and len(prices_data) > 0:
-                                price_matrix = f"{len(prices_data)}条"
+                    for col in self._products_visible_columns:
+                        if col == 'platform':
+                            platform = product.get('platform', 'alibaba')
+                            if platform == 'alibaba':
+                                row_values.append('1688')
+                            elif platform == 'jd':
+                                row_values.append('京东')
                             else:
-                                price_matrix = '-'
-                        except:
-                            price_matrix = '-'
-                    else:
-                        price_matrix = '-'
+                                row_values.append(platform)
+                        elif col == 'product_id':
+                            row_values.append(product.get('product_id', ''))
+                        elif col == 'title':
+                            title = product.get('title', '') or ''
+                            if len(title) > 20:
+                                title = title[:20] + '...'
+                            row_values.append(title)
+                        elif col == 'ship_from':
+                            row_values.append(product.get('ship_from', '') or '-')
+                        elif col == 'resource_counts':
+                            resource_counts = db.count_resources(product.get('product_id', ''))
+                            total = resource_counts['main_images'] + resource_counts['color_images'] + resource_counts['detail_images'] + resource_counts['videos']
+                            row_values.append(f"{total}" if total > 0 else "-")
+                        elif col == 'sku_prices':
+                            count = db.count_sku_prices(product.get('product_id', ''))
+                            row_values.append(f"{count}" if count > 0 else "-")
+                        elif col == 'remark':
+                            row_values.append(product.get('remark', '') or '-')
+                        elif col == 'shop_name':
+                            shop_name = product.get('ds_shop', '') or ''
+                            if not shop_name:
+                                shop_id = product.get('shop_id', '')
+                                if shop_id:
+                                    shop = db.get_shop(shop_id)
+                                    if shop:
+                                        shop_name = shop.get('shop_name', '')[:8]
+                            row_values.append(shop_name)
+                        elif col == 'shop_product_id':
+                            row_values.append(product.get('shop_product_id', '') or '-')
+                        elif col == 'price_matrix':
+                            price_matrix = product.get('selling_prices', '')
+                            if price_matrix:
+                                try:
+                                    import json
+                                    prices_data = json.loads(price_matrix)
+                                    if isinstance(prices_data, list) and len(prices_data) > 0:
+                                        row_values.append(f"{len(prices_data)}条")
+                                    else:
+                                        row_values.append('-')
+                                except:
+                                    row_values.append('-')
+                            else:
+                                row_values.append('-')
+                        elif col == 'output_path':
+                            output_path = product.get('output_path', '') or ''
+                            if len(output_path) > 18:
+                                output_path = '...' + output_path[-15:]
+                            row_values.append(output_path)
+                        elif col == 'status':
+                            status = product.get('status', '') or '-'
+                            if status == 'pending':
+                                status = '待处理'
+                            elif status == 'completed':
+                                status = '完成'
+                            row_values.append(status)
+                        elif col == 'created_at':
+                            row_values.append(str(product.get('created_at', ''))[:16])
                     
-                    status = product.get('status', '') or '-'
-                    if status == 'pending':
-                        status = '待处理'
-                    elif status == 'completed':
-                        status = '完成'
-                    
-                    remark = product.get('remark', '') or '-'
-                    
-                    self.db_tree.insert("", "end", values=(
-                        platform,
-                        product_id,
-                        title,
-                        ship_from,
-                        resource_counts_str,
-                        sku_prices_str,
-                        remark,
-                        shop_name,
-                        shop_product_id,
-                        price_matrix,
-                        output_path,
-                        status,
-                        str(product.get('created_at', ''))[:16]
-                    ))
+                    self.db_tree.insert("", "end", values=row_values)
                 
-                self.db_status_label.configure(text=f"共 {len(products)} 条")
+                self.products_status_label.configure(text=f"共 {len(products)} 条")
                 
                 self._update_ship_from_options(db, stats)
             finally:
                 db.close()
         except Exception as e:
             self.log(f"读取数据库失败: {e}", "error")
-            self.db_status_label.configure(text="读取失败")
+            self.products_status_label.configure(text="读取失败")
     
     def _update_ship_from_options(self, db, stats):
         """更新发货地筛选选项"""
@@ -2279,10 +2528,24 @@ class AlibabaScraperGUI:
             self._db_sort_column = col
             self._db_sort_reverse = False
         
-        try:
-            items.sort(key=lambda x: float(x[0].replace('-', '0').replace('条', '')), reverse=self._db_sort_reverse)
-        except ValueError:
-            items.sort(key=lambda x: x[0], reverse=self._db_sort_reverse)
+        import re
+        def natural_sort_key(s):
+            s = str(s)
+            return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+        
+        def sort_key(x):
+            val = x[0]
+            if col == 'product_id':
+                try:
+                    return int(val)
+                except:
+                    return natural_sort_key(val)
+            try:
+                return float(val.replace('-', '0').replace('条', ''))
+            except ValueError:
+                return natural_sort_key(val)
+        
+        items.sort(key=sort_key, reverse=self._db_sort_reverse)
         
         for index, (val, item) in enumerate(items):
             self.db_tree.move(item, '', index)
@@ -3174,9 +3437,20 @@ class AlibabaScraperGUI:
                           'review_count', 'monthly_orders', 'yearly_orders', 
                           'monthly_dropship', 'repurchase_rate')
         
+        def natural_sort_key(s):
+            """自然排序键函数，支持数字排序"""
+            import re
+            s = str(s)
+            return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+        
         def sort_key(item):
             val = item[0][col_index] if len(item[0]) > col_index else ''
-            if column in ('price', 'dropship_price'):
+            if column == 'product_id':
+                try:
+                    return int(val)
+                except:
+                    return natural_sort_key(val)
+            elif column in ('price', 'dropship_price'):
                 val_str = str(val).replace('¥', '').replace('-', '0')
                 try:
                     return float(val_str)
@@ -3507,15 +3781,24 @@ class AlibabaScraperGUI:
                     [ds_shop_id]
                 )
                 
-                self.ds_shops_tree.insert("", "end", values=(
-                    ds_shop_id,
-                    shop.get('ds_shop_name', ''),
-                    shop.get('ds_platform', 'jd'),
-                    shop.get('ds_shop_url', '')[:40],
-                    shop.get('shop_status', 'active'),
-                    product_count.get('cnt', 0) if product_count else 0,
-                    shop.get('remark', '')[:20]
-                ))
+                row_values = []
+                for col in self._ds_shops_visible_columns:
+                    if col == 'ds_shop_id':
+                        row_values.append(ds_shop_id)
+                    elif col == 'ds_shop_name':
+                        row_values.append(shop.get('ds_shop_name', ''))
+                    elif col == 'ds_platform':
+                        row_values.append(shop.get('ds_platform', 'jd'))
+                    elif col == 'ds_shop_url':
+                        row_values.append(shop.get('ds_shop_url', '')[:40])
+                    elif col == 'shop_status':
+                        row_values.append(shop.get('shop_status', 'active'))
+                    elif col == 'product_count':
+                        row_values.append(product_count.get('cnt', 0) if product_count else 0)
+                    elif col == 'remark':
+                        row_values.append(shop.get('remark', '')[:20])
+                
+                self.ds_shops_tree.insert("", "end", values=row_values)
             
             self.ds_shops_status_label.configure(text=f"共 {len(shops)} 个店铺")
             db.close()
