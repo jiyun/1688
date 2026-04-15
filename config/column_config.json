@@ -30,6 +30,7 @@
     "visible_columns": [
       "ds_shop_id",
       "ds_shop_name",
+      "shop_type",
       "ds_platform",
       "shop_status",
       "product_count"

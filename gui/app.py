@@ -793,7 +793,7 @@ class AlibabaScraperGUI:
         ds_btn_frame = ctk.CTkFrame(self.db_ds_shops_tab, fg_color="transparent")
         ds_btn_frame.pack(fill="x", pady=5)
         
-        create_button(ds_btn_frame, "添加店铺", self._add_ds_shop, 'success', width=80).pack(side="left", padx=5)
+        create_button(ds_btn_frame, "添加用户店铺", self._add_ds_shop, 'success', width=90).pack(side="left", padx=5)
         create_button(ds_btn_frame, "刷新", self._refresh_ds_shops, 'secondary', width=60).pack(side="left", padx=5)
         
         self.ds_shops_status_label = ctk.CTkLabel(ds_btn_frame, text="")
@@ -3826,9 +3826,9 @@ class AlibabaScraperGUI:
             self.log(f"刷新DS店铺失败: {e}", "error")
     
     def _add_ds_shop(self):
-        """添加DS店铺"""
+        """添加用户店铺"""
         dialog = ctk.CTkToplevel(self.root)
-        dialog.title("添加DS店铺")
+        dialog.title("添加用户店铺")
         dialog.geometry("500x450")
         dialog.transient(self.root)
         dialog.grab_set()
@@ -3836,7 +3836,7 @@ class AlibabaScraperGUI:
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
-        ctk.CTkLabel(main_frame, text="添加DS店铺", font=(self.available_font, 16, "bold")).pack(pady=10)
+        ctk.CTkLabel(main_frame, text="添加用户店铺", font=(self.available_font, 16, "bold")).pack(pady=10)
         
         ctk.CTkLabel(main_frame, text="输入店铺链接将自动识别平台和店铺ID", text_color="gray").pack()
         
@@ -3857,8 +3857,8 @@ class AlibabaScraperGUI:
         ctk.CTkEntry(form_frame, textvariable=ds_shop_name_var, width=300).grid(row=2, column=1, padx=5, pady=5)
         
         ctk.CTkLabel(form_frame, text="平台:").grid(row=3, column=0, padx=5, pady=5, sticky="e")
-        ds_platform_var = ctk.StringVar(value="jd")
-        platform_label = ctk.CTkLabel(form_frame, text="jd", font=(self.available_font, 12, "bold"))
+        ds_platform_var = ctk.StringVar(value="alibaba")
+        platform_label = ctk.CTkLabel(form_frame, text="1688", font=(self.available_font, 12, "bold"))
         platform_label.grid(row=3, column=1, padx=5, pady=5, sticky="w")
         
         ctk.CTkLabel(form_frame, text="备注:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
@@ -3943,16 +3943,17 @@ class AlibabaScraperGUI:
                     ds_shop_name=ds_shop_name,
                     ds_platform=ds_platform_var.get(),
                     ds_shop_url=ds_shop_url_var.get().strip(),
-                    remark=remark_var.get().strip()
+                    remark=remark_var.get().strip(),
+                    shop_type='user'
                 )
                 db.close()
                 
-                self.log(f"已添加DS店铺: {ds_shop_name}", "success")
+                self.log(f"已添加用户店铺: {ds_shop_name}", "success")
                 self._refresh_ds_shops()
                 dialog.destroy()
                 
             except Exception as e:
-                self.log(f"添加DS店铺失败: {e}", "error")
+                self.log(f"添加用户店铺失败: {e}", "error")
                 self.show_info("错误", f"添加失败: {e}")
         
         btn_frame = ctk.CTkFrame(main_frame)

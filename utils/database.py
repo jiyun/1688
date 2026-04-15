@@ -1400,8 +1400,9 @@ class Database:
         
         return stats
     
-    def save_ds_shop(self, ds_shop_id: str, ds_shop_name: str, ds_platform: str = 'jd',
-                     ds_shop_url: str = None, config: Dict = None, remark: str = None) -> bool:
+    def save_ds_shop(self, ds_shop_id: str, ds_shop_name: str, ds_platform: str = 'alibaba',
+                     ds_shop_url: str = None, config: Dict = None, remark: str = None, 
+                     shop_type: str = 'user') -> bool:
         existing = self.query_one('SELECT * FROM ds_shops WHERE ds_shop_id = ?', [ds_shop_id])
         
         data = {
@@ -1409,6 +1410,7 @@ class Database:
             'ds_shop_name': ds_shop_name,
             'ds_platform': ds_platform,
             'ds_shop_url': ds_shop_url,
+            'shop_type': shop_type,
             'config': json.dumps(config) if config else None,
             'remark': remark,
             'updated_at': datetime.now()
@@ -1420,6 +1422,7 @@ class Database:
             data['created_at'] = datetime.now()
             self.insert('ds_shops', data)
         
+        self.conn.execute('CHECKPOINT')
         return True
     
     def get_ds_shop(self, ds_shop_id: str) -> Optional[Dict]:
