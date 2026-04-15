@@ -279,6 +279,68 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
     return products, errors, shop_data
 
 
+def get_redirected_shop_url(shop_url: str, timeout: int = 10) -> Dict:
+    """通过HTTP请求获取跳转后的真实店铺链接
+    
+    Args:
+        shop_url: 原始店铺链接（可能是移动端链接）
+        timeout: 请求超时时间（秒）
+        
+    Returns:
+        {'redirected_url': '跳转后的URL', 'shop_id': '店铺ID', 'platform': '平台'}
+    """
+    import urllib.request
+    import re
+    
+    result = {
+        'redirected_url': shop_url,
+        'shop_id': '',
+        'platform': ''
+    }
+    
+    if not shop_url:
+        return result
+    
+    try:
+        req = urllib.request.Request(
+            shop_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            method='GET'
+        )
+        
+        response = urllib.request.urlopen(req, timeout=timeout)
+        final_url = response.geturl()
+        
+        if final_url and final_url != shop_url:
+            result['redirected_url'] = final_url
+            log_info(f"店铺链接跳转: {shop_url} -> {final_url}")
+        
+        parsed = parse_shop_url(final_url or shop_url)
+        result['shop_id'] = parsed.get('shop_id', '')
+        result['platform'] = parsed.get('platform', '')
+        
+    except urllib.error.HTTPError as e:
+        log_warning(f"HTTP错误 {e.code}: {shop_url}")
+        parsed = parse_shop_url(shop_url)
+        result['shop_id'] = parsed.get('shop_id', '')
+        result['platform'] = parsed.get('platform', '')
+    except urllib.error.URLError as e:
+        log_warning(f"URL错误: {e.reason}")
+        parsed = parse_shop_url(shop_url)
+        result['shop_id'] = parsed.get('shop_id', '')
+        result['platform'] = parsed.get('platform', '')
+    except Exception as e:
+        log_warning(f"获取跳转链接失败: {e}")
+        parsed = parse_shop_url(shop_url)
+        result['shop_id'] = parsed.get('shop_id', '')
+        result['platform'] = parsed.get('platform', '')
+    
+    return result
+
+
 def parse_shop_url(shop_url: str) -> Dict:
     """解析店铺链接，提取店铺ID和平台
     
@@ -480,9 +542,11 @@ def _ensure_supplier_record(db, shop_data: Dict):
         return
     
     shop_url = shop_data.get('shop_url', '')
-    parsed = parse_shop_url(shop_url)
-    shop_id = parsed.get('shop_id', '') or f"supplier_{shop_name}"
-    platform = parsed.get('platform', 'alibaba') or 'alibaba'
+    redirected_info = get_redirected_shop_url(shop_url) if shop_url else {}
+    
+    final_shop_url = redirected_info.get('redirected_url', shop_url)
+    shop_id = redirected_info.get('shop_id', '') or f"supplier_{shop_name}"
+    platform = redirected_info.get('platform', 'alibaba') or 'alibaba'
     
     existing = db.query_one(
         "SELECT * FROM ds_shops WHERE ds_shop_name = ?",
@@ -491,22 +555,23 @@ def _ensure_supplier_record(db, shop_data: Dict):
     
     if existing:
         update_data = {}
-        if shop_url and not existing.get('ds_shop_url'):
-            update_data['ds_shop_url'] = shop_url
+        if final_shop_url and not existing.get('ds_shop_url'):
+            update_data['ds_shop_url'] = final_shop_url
+        if shop_id and (not existing.get('ds_shop_id') or existing.get('ds_shop_id', '').startswith('supplier_')):
+            update_data['ds_shop_id'] = shop_id
         if shop_data.get('location') and not existing.get('remark'):
             update_data['remark'] = f"所在地: {shop_data.get('location')}"
-        if shop_id and not existing.get('ds_shop_id').startswith('supplier_'):
-            pass
         
         if update_data:
             db.update('ds_shops', update_data, 'ds_shop_name = ?', [shop_name])
             db.conn.execute('CHECKPOINT')
+            log_info(f"已更新供应商信息: {shop_name}")
     else:
         supplier_data = {
             'ds_shop_id': shop_id,
             'ds_shop_name': shop_name,
             'ds_platform': platform,
-            'ds_shop_url': shop_url,
+            'ds_shop_url': final_shop_url,
             'shop_type': 'supplier',
             'shop_status': 'active',
             'remark': f"来源: Excel导入 | 所在地: {shop_data.get('location', '')}"

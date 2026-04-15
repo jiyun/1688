@@ -1,0 +1,103 @@
+{
+    "supplier_info_fields": [
+        {
+            "field": "ds_shop_name",
+            "label": "店铺名称",
+            "type": "text",
+            "show": true
+        },
+        {
+            "field": "ds_platform",
+            "label": "平台",
+            "type": "platform",
+            "show": true
+        },
+        {
+            "field": "shop_type",
+            "label": "类型",
+            "type": "shop_type",
+            "show": true
+        },
+        {
+            "field": "product_count",
+            "label": "商品数",
+            "type": "number",
+            "show": true
+        },
+        {
+            "field": "service_score",
+            "label": "综合服务",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "consult_score",
+            "label": "采购咨询",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "return_score",
+            "label": "退换体验",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "quality_score",
+            "label": "品质体验",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "dispute_score",
+            "label": "纠纷解决",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "logistics_score",
+            "label": "物流时效",
+            "type": "score",
+            "show": true
+        },
+        {
+            "field": "pickup_rate_48h",
+            "label": "48h揽收率",
+            "type": "percent",
+            "show": false
+        },
+        {
+            "field": "location",
+            "label": "所在地",
+            "type": "text",
+            "show": true
+        },
+        {
+            "field": "shop_age",
+            "label": "入驻年限",
+            "type": "text",
+            "show": true
+        },
+        {
+            "field": "remark",
+            "label": "备注",
+            "type": "text",
+            "show": false
+        }
+    ],
+    "score_colors": {
+        "high": {"min": 4.5, "color": "#28a745"},
+        "medium": {"min": 3.5, "color": "#ffc107"},
+        "low": {"min": 0, "color": "#dc3545"}
+    },
+    "platform_names": {
+        "alibaba": "1688",
+        "jd": "京东",
+        "pdd": "拼多多",
+        "tb": "淘宝"
+    },
+    "shop_type_names": {
+        "supplier": "供应商",
+        "user": "用户店铺"
+    }
+}

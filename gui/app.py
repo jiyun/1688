@@ -647,8 +647,35 @@ class AlibabaScraperGUI:
         else:
             self._shop_products_visible_columns = [col for col, cfg in self._shop_products_all_columns.items() if cfg['default']]
         
-        self.shop_products_tree_frame = ctk.CTkFrame(self.db_shop_products_tab, fg_color="transparent")
-        self.shop_products_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self._current_supplier_filter = None
+        
+        filter_frame = ctk.CTkFrame(self.db_shop_products_tab, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=5, pady=2)
+        
+        ctk.CTkLabel(filter_frame, text="供应商筛选:", font=(self.available_font, self.font_size)).pack(side="left", padx=5)
+        
+        self.supplier_filter_var = ctk.StringVar(value="全部")
+        self.supplier_filter_combo = ctk.CTkComboBox(
+            filter_frame, 
+            variable=self.supplier_filter_var,
+            values=["全部"],
+            width=200,
+            command=self._on_supplier_filter_change
+        )
+        self.supplier_filter_combo.pack(side="left", padx=5)
+        
+        create_button(filter_frame, "刷新列表", self._refresh_shop_products, 'secondary', width=70).pack(side="left", padx=5)
+        
+        self.supplier_info_frame = ctk.CTkFrame(filter_frame)
+        self.supplier_info_frame.pack(side="right", padx=10)
+        
+        self._supplier_info_labels = {}
+        
+        main_frame = ctk.CTkFrame(self.db_shop_products_tab, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=5, pady=2)
+        
+        self.shop_products_tree_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        self.shop_products_tree_frame.pack(side="left", fill="both", expand=True)
         
         self._create_shop_products_tree()
         
@@ -3183,15 +3210,36 @@ class AlibabaScraperGUI:
             db = get_shared_db()
             
             try:
-                products = db.query('''
+                suppliers = db.query(
+                    "SELECT DISTINCT shop_name FROM shop_products WHERE shop_name IS NOT NULL AND shop_name != '' ORDER BY shop_name"
+                )
+                supplier_names = ["全部"] + [s['shop_name'] for s in suppliers]
+                self.supplier_filter_combo.configure(values=supplier_names)
+                
+                selected_supplier = self.supplier_filter_var.get()
+                if selected_supplier and selected_supplier != "全部":
+                    self._update_supplier_info(db, selected_supplier)
+                else:
+                    self._clear_supplier_info()
+                
+                where_clause = ""
+                params = []
+                if selected_supplier and selected_supplier != "全部":
+                    where_clause = "WHERE sp.shop_name = ?"
+                    params = [selected_supplier]
+                
+                sql = f'''
                     SELECT sp.*, 
                            p.id as product_exists,
                            (SELECT COUNT(*) FROM resources r WHERE r.product_id = sp.product_id) as resource_count
                     FROM shop_products sp
                     LEFT JOIN products p ON p.product_id = sp.product_id
+                    {where_clause}
                     ORDER BY sp.collect_time DESC
                     LIMIT 1000
-                ''')
+                '''
+                
+                products = db.query(sql, params)
                 
                 collected_count = 0
                 for product in products:
@@ -3269,6 +3317,73 @@ class AlibabaScraperGUI:
                 db.close()
         except Exception as e:
             self.log(f"读取店铺商品失败: {e}", "error")
+    
+    def _on_supplier_filter_change(self, value):
+        """供应商筛选变化处理"""
+        self._refresh_shop_products()
+    
+    def _update_supplier_info(self, db, supplier_name):
+        """更新供应商信息显示"""
+        for widget in self.supplier_info_frame.winfo_children():
+            widget.destroy()
+        
+        supplier = db.query_one(
+            "SELECT * FROM ds_shops WHERE ds_shop_name = ?",
+            [supplier_name]
+        )
+        
+        if not supplier:
+            ctk.CTkLabel(self.supplier_info_frame, text=f"供应商: {supplier_name} (无详细信息)").pack(side="left", padx=5)
+            return
+        
+        product_count = db.query_one(
+            "SELECT COUNT(*) as cnt FROM shop_products WHERE shop_name = ?",
+            [supplier_name]
+        )
+        count = product_count.get('cnt', 0) if product_count else 0
+        
+        info_parts = [f"商品数: {count}"]
+        
+        if supplier.get('ds_platform'):
+            platform = supplier.get('ds_platform')
+            platform_name = {'alibaba': '1688', 'jd': '京东', 'pdd': '拼多多', 'tb': '淘宝'}.get(platform, platform)
+            info_parts.append(f"平台: {platform_name}")
+        
+        if supplier.get('shop_type'):
+            shop_type = supplier.get('shop_type')
+            type_name = {'supplier': '供应商', 'user': '用户店铺'}.get(shop_type, shop_type)
+            info_parts.append(f"类型: {type_name}")
+        
+        ctk.CTkLabel(
+            self.supplier_info_frame, 
+            text=" | ".join(info_parts),
+            font=(self.available_font, self.font_size_small)
+        ).pack(side="left", padx=5)
+    
+    def _clear_supplier_info(self):
+        """清空供应商信息显示"""
+        for widget in self.supplier_info_frame.winfo_children():
+            widget.destroy()
+        
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            total = db.query_one("SELECT COUNT(*) as cnt FROM shop_products")
+            supplier_count = db.query_one(
+                "SELECT COUNT(DISTINCT shop_name) as cnt FROM shop_products WHERE shop_name IS NOT NULL AND shop_name != ''"
+            )
+            db.close()
+            
+            total_count = total.get('cnt', 0) if total else 0
+            supplier_cnt = supplier_count.get('cnt', 0) if supplier_count else 0
+            
+            ctk.CTkLabel(
+                self.supplier_info_frame, 
+                text=f"总计: {total_count} 条商品 | {supplier_cnt} 个供应商",
+                font=(self.available_font, self.font_size_small)
+            ).pack(side="left", padx=5)
+        except:
+            pass
     
     def _search_shop_products(self):
         """搜索店铺商品"""
