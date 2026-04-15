@@ -2440,7 +2440,7 @@ class AlibabaScraperGUI:
         
         import_dialog = ctk.CTkToplevel(self.root)
         import_dialog.title("导入Excel数据")
-        import_dialog.geometry("1000x700")
+        import_dialog.geometry("1000x750")
         import_dialog.transient(self.root)
         import_dialog.grab_set()
         
@@ -2490,7 +2490,7 @@ class AlibabaScraperGUI:
         ctk.CTkLabel(preview_frame, text="数据预览:", font=(self.available_font, self.font_size)).pack(anchor="w", padx=5)
         
         preview_columns = ("product_id", "title", "price", "dropship_price", "sales_count", "review_count", "monthly_orders", "monthly_dropship", "ship_time", "list_time", "category", "tags")
-        preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=15)
+        preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=12)
         
         preview_tree.heading("product_id", text="商品ID")
         preview_tree.heading("title", text="商品标题")
