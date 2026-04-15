@@ -450,6 +450,8 @@ class AlibabaScraperGUI:
     
     def _init_db_shop_products_tab(self):
         """初始化店铺商品子选项卡"""
+        from utils.column_config import get_column_config
+        
         self._shop_products_all_columns = {
             'product_id': {'text': '商品ID', 'width': 105, 'anchor': 'center', 'default': True},
             'title': {'text': '商品标题', 'width': 200, 'anchor': 'w', 'default': True},
@@ -474,7 +476,12 @@ class AlibabaScraperGUI:
             'product_url': {'text': '链接', 'width': 50, 'anchor': 'center', 'default': True},
         }
         
-        self._shop_products_visible_columns = [col for col, cfg in self._shop_products_all_columns.items() if cfg['default']]
+        config = get_column_config()
+        saved_columns = config.get_visible_columns('shop_products')
+        if saved_columns:
+            self._shop_products_visible_columns = [col for col in saved_columns if col in self._shop_products_all_columns]
+        else:
+            self._shop_products_visible_columns = [col for col, cfg in self._shop_products_all_columns.items() if cfg['default']]
         
         self.shop_products_tree_frame = ctk.CTkFrame(self.db_shop_products_tab, fg_color="transparent")
         self.shop_products_tree_frame.pack(fill="both", expand=True, padx=5, pady=5)
@@ -514,7 +521,8 @@ class AlibabaScraperGUI:
         for col in self._shop_products_visible_columns:
             cfg = self._shop_products_all_columns[col]
             self.shop_products_tree.heading(col, text=cfg['text'], command=lambda c=col: self._sort_shop_products_column(c))
-            self.shop_products_tree.column(col, width=cfg['width'], anchor=cfg['anchor'])
+            anchor = cfg.get('anchor', 'center')
+            self.shop_products_tree.column(col, width=cfg['width'], anchor=anchor)
         
         scrollbar = ttk.Scrollbar(self.shop_products_tree_frame, orient="vertical", command=self.shop_products_tree.yview)
         self.shop_products_tree.configure(yscrollcommand=scrollbar.set)
@@ -524,6 +532,92 @@ class AlibabaScraperGUI:
         
         self.shop_products_tree.bind('<Double-1>', self._on_shop_products_tree_double_click)
         self.shop_products_tree.bind('<Button-3>', self._on_shop_products_right_click)
+        
+        self._setup_column_drag_drop()
+    
+    def _setup_column_drag_drop(self):
+        """设置列拖放功能"""
+        self._drag_column = None
+        self._drag_start_x = 0
+        self._drag_hint_label = None
+        
+        self.shop_products_tree.bind('<Button-1>', self._on_column_drag_press, add='+')
+        self.shop_products_tree.bind('<B1-Motion>', self._on_column_drag_motion, add='+')
+        self.shop_products_tree.bind('<ButtonRelease-1>', self._on_column_drag_release, add='+')
+    
+    def _on_column_drag_press(self, event):
+        """列拖动开始"""
+        region = self.shop_products_tree.identify_region(event.x, event.y)
+        if region == "heading":
+            self._drag_start_x = event.x
+    
+    def _on_column_drag_motion(self, event):
+        """列拖动中"""
+        region = self.shop_products_tree.identify_region(event.x, event.y)
+        if region != "heading":
+            self._hide_drag_hint()
+            return
+        
+        if abs(event.x - self._drag_start_x) > 15:
+            self._show_drag_hint(event.x)
+    
+    def _on_column_drag_release(self, event):
+        """列拖动结束"""
+        self._hide_drag_hint()
+        
+        region = self.shop_products_tree.identify_region(event.x, event.y)
+        if region != "heading":
+            return
+        
+        if abs(event.x - self._drag_start_x) < 15:
+            return
+        
+        source_col = self.shop_products_tree.identify_column(self._drag_start_x)
+        target_col = self.shop_products_tree.identify_column(event.x)
+        
+        if source_col and target_col and source_col != target_col:
+            source_idx = int(source_col.replace('#', '')) - 1
+            target_idx = int(target_col.replace('#', '')) - 1
+            
+            if 0 <= source_idx < len(self._shop_products_visible_columns) and 0 <= target_idx < len(self._shop_products_visible_columns):
+                col_name = self._shop_products_visible_columns[source_idx]
+                self._shop_products_visible_columns.pop(source_idx)
+                self._shop_products_visible_columns.insert(target_idx, col_name)
+                
+                from utils.column_config import get_column_config
+                config = get_column_config()
+                config.set_visible_columns('shop_products', self._shop_products_visible_columns)
+                
+                self._create_shop_products_tree()
+                self._refresh_shop_products()
+                self.log(f"列顺序已更新", "info")
+    
+    def _show_drag_hint(self, x: int):
+        """显示拖动提示"""
+        if self._drag_hint_label is None:
+            self._drag_hint_label = tk.Label(
+                self.shop_products_tree,
+                text="↔ 拖动调整列顺序",
+                bg='#4a90d9',
+                fg='white',
+                padx=8,
+                pady=2,
+                font=('Microsoft YaHei UI', 9)
+            )
+        
+        col = self.shop_products_tree.identify_column(x)
+        if col:
+            bbox = self.shop_products_tree.bbox(col)
+            if bbox:
+                self._drag_hint_label.place(x=bbox[0], y=0, anchor='nw')
+                return
+        
+        self._drag_hint_label.place(x=x, y=2, anchor='n')
+    
+    def _hide_drag_hint(self):
+        """隐藏拖动提示"""
+        if self._drag_hint_label:
+            self._drag_hint_label.place_forget()
     
     def _on_shop_products_right_click(self, event):
         """处理店铺商品右键点击事件"""
@@ -548,11 +642,16 @@ class AlibabaScraperGUI:
     
     def _toggle_column_visibility(self, column_name):
         """切换列可见性"""
+        from utils.column_config import get_column_config
+        
         if column_name in self._shop_products_visible_columns:
             if len(self._shop_products_visible_columns) > 1:
                 self._shop_products_visible_columns.remove(column_name)
         else:
             self._shop_products_visible_columns.append(column_name)
+        
+        config = get_column_config()
+        config.set_visible_columns('shop_products', self._shop_products_visible_columns)
         
         self._create_shop_products_tree()
         self._refresh_shop_products()
