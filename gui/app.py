@@ -2540,9 +2540,10 @@ class AlibabaScraperGUI:
         ).pack(side="left", padx=5)
         
         parsed_products = []
+        shop_data = {}
         
         def preview_excel(file_path):
-            nonlocal parsed_products
+            nonlocal parsed_products, shop_data
             for item in preview_tree.get_children():
                 preview_tree.delete(item)
             
@@ -2594,7 +2595,8 @@ class AlibabaScraperGUI:
                 from utils.database import get_shared_db
                 db = get_shared_db()
                 
-                imported, errors = import_to_database(parsed_products, db, support_dropship=support_dropship if support_dropship else None)
+                shop_name = shop_data.get('shop_name')
+                imported, errors = import_to_database(parsed_products, db, shop_name=shop_name, support_dropship=support_dropship if support_dropship else None)
                 db.close()
                 
                 if errors:

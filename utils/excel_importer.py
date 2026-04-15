@@ -125,6 +125,27 @@ def detect_export_type(file_path: str) -> str:
     return 'unknown'
 
 
+def extract_shop_name_from_filename(file_path: str, export_type: str = None) -> str:
+    """从文件名提取店铺名称
+    
+    全店导出格式: 1688采购助手-全店导出-店铺名称.xlsx
+    商品列表导出: 从数据中读取店铺名称
+    """
+    filename = os.path.basename(file_path)
+    
+    if export_type is None:
+        export_type = detect_export_type(file_path)
+    
+    if export_type == 'full_shop':
+        if '全店导出-' in filename:
+            parts = filename.split('全店导出-')
+            if len(parts) > 1:
+                shop_name = parts[1].replace('.xlsx', '').replace('.xls', '').strip()
+                return shop_name
+    
+    return ''
+
+
 def get_column_mapping(export_type: str) -> Dict[str, str]:
     """获取指定导出类型的列映射"""
     if export_type == 'full_shop':
@@ -167,6 +188,11 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
         
         if not column_mapping:
             return [], [f"未知的导出类型: {export_type}"], {}
+        
+        filename_shop_name = extract_shop_name_from_filename(file_path, export_type)
+        if filename_shop_name:
+            shop_data['shop_name'] = filename_shop_name
+            shop_data['shop_name_source'] = 'filename'
         
         normalized_mapping = {}
         for key, value in column_mapping.items():
