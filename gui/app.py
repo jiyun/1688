@@ -1450,18 +1450,21 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         if sku_prices:
             for sku_data in sku_prices:
                 try:
-                    color = sku_data.get('color', '')
-                    size = sku_data.get('size', '')
-                    
-                    if '代发' in color or '代发' in size:
+                    if sku_data is None:
                         continue
                     
-                    sku_id = sku_data['skuId']
-                    price = float(sku_data['price']) if sku_data['price'] else None
-                    discount_price = float(sku_data['discountPrice']) if sku_data['discountPrice'] else None
-                    can_book_count = int(sku_data['canBookCount']) if sku_data['canBookCount'] else None
-                    sale_count = int(sku_data['saleCount']) if sku_data['saleCount'] else None
-                    spec_id = sku_data['specId']
+                    color = sku_data.get('color', '') or ''
+                    size = sku_data.get('size', '') or ''
+                    
+                    sku_id = sku_data.get('skuId')
+                    if not sku_id:
+                        continue
+                    
+                    price = float(sku_data['price']) if sku_data.get('price') else None
+                    discount_price = float(sku_data['discountPrice']) if sku_data.get('discountPrice') else None
+                    can_book_count = int(sku_data['canBookCount']) if sku_data.get('canBookCount') else None
+                    sale_count = int(sku_data['saleCount']) if sku_data.get('saleCount') else None
+                    spec_id = sku_data.get('specId')
                     
                     db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
                     saved_sku_count += 1
@@ -1505,6 +1508,9 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         if detail_images:
             for idx, img_url in enumerate(detail_images):
                 try:
+                    if not isinstance(img_url, str):
+                        self.log(f"保存详情图跳过: 非字符串类型 {type(img_url).__name__}", "warning")
+                        continue
                     from config import FILE_NAMING
                     filename = f'{FILE_NAMING["detail_image_prefix"]}{idx+1}.jpg'
                     result = db.insert_resource(
@@ -1516,6 +1522,8 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
                     )
                     if result:
                         saved_detail_count += 1
+                    else:
+                        self.log(f"保存详情图失败: insert_resource返回False, URL={img_url[:80]}", "warning")
                 except Exception as e:
                     self.log(f"保存详情图失败: {e}", "warning")
         

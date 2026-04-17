@@ -1,6 +1,6 @@
 # 1688详情页资源采集工具
 
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.6.2-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -11,10 +11,10 @@
 
 ## 版本信息 
 
-- 当前版本：0.5.0
+- 当前版本：0.6.2
 - 作者：急云
 - 项目地址：https://github.com/jiyun/1688/
-- 发布日期：2026-04-11
+- 发布日期：2026-04-16
 - [查看完整更新日志](CHANGELOG.md)
 
 ## 核心功能
@@ -152,43 +152,66 @@ pip install moviepy
 ├── gui/                # GUI模块
 │   ├── __init__.py     # GUI包初始化
 │   ├── app.py          # GUI应用主程序
+│   ├── dialog.py       # 对话框组件（分析/导入/DS状态/Excel导入）
+│   ├── db_viewer.py    # 数据库查看器
 │   ├── commands.py     # 上下文菜单命令
 │   ├── logging.py      # 日志处理
 │   ├── menu.py         # 菜单管理
 │   ├── queue.py        # 队列管理
 │   ├── utils.py        # GUI工具函数
 │   ├── dnd.py          # 拖放功能
+│   ├── online_collector_gui.py # 在线采集GUI
 │   ├── pricing_gui.py  # 价格计算工具
-│   ├── tiered_price_generator.py # 阶梯价格生成器
+│   ├── tabs/           # 选项卡模块
+│   │   ├── __init__.py
+│   │   ├── products_tab.py    # 商品选项卡
+│   │   ├── shop_products_tab.py # 店铺商品选项卡
+│   │   ├── ds_products_tab.py # DS商品选项卡
+│   │   └── ds_shops_tab.py    # DS店铺选项卡
 │   └── image_editor/   # 图片编辑器模块
 │       ├── __init__.py
 │       ├── editor_window.py  # 编辑器主窗口
 │       ├── editor_canvas.py  # 画布组件
 │       ├── image_block.py    # 图片块数据模型
 │       ├── tools.py          # 工具类
+│       ├── widgets.py        # 自定义控件
 │       └── history.py        # 历史记录管理
 ├── utils/              # 工具模块
 │   ├── parser.py       # HTML解析兼容层
 │   ├── database.py     # DuckDB数据库模块
+│   ├── exceptions.py   # 统一异常体系
+│   ├── config_manager.py # 统一配置管理器
 │   ├── shared_cache.py # 共享内存缓存
 │   ├── downloader.py   # 下载管理工具
 │   ├── file_handler.py # 文件处理工具
 │   ├── tool_downloader.py # aria2c下载工具
-│   ├── image_utils.py  # 图像处理基础工具
 │   ├── image_processor.py # 图像处理流程
 │   ├── price_extractor.py # 价格提取器
-│   ├── resource_downloader.py # 资源下载器
+│   ├── resource_downloader.py # 资源下载器（aria2c + requests备选）
 │   ├── video_generator.py   # 视频生成器
+│   ├── column_config.py # 列配置（委托ConfigManager）
+│   ├── column_mapping.py # 列映射（委托ConfigManager）
+│   ├── cookie_manager.py # Cookie管理器
+│   ├── excel_importer.py # Excel导入器
+│   ├── extension_manager.py # 浏览器扩展管理
+│   ├── auto_collector.py # 在线采集器
+│   ├── logger.py       # 日志模块（时间戳+上下文绑定）
 │   ├── launcher.py     # 启动器
-│   ├── logger.py       # 日志模块
 │   ├── updater.py      # 版本检测升级模块
 │   └── parsers/        # 平台解析器
 │       ├── __init__.py
 │       ├── base_parser.py   # 解析器基类
-│       ├── alibaba_parser.py # 1688解析器
+│       ├── factory.py       # 解析器工厂
+│       ├── alibaba_parser.py # 1688解析器（预编译正则+LRU缓存）
 │       └── jd_parser.py     # 京东解析器
+├── tests/              # 单元测试
+│   ├── __init__.py
+│   └── test_core.py    # 核心模块测试（48个用例）
+├── config/             # 配置文件目录
+│   ├── column_config.json   # 列配置
+│   ├── column_mapping.json  # 列映射
+│   └── supplier_display.json # 供应商显示配置
 ├── docs/               # 文档目录
-│   └── image_editor_plan.md # 图片编辑器规划文档
 ├── version.json        # 版本配置文件
 ├── ROADMAP.md          # 项目路线图
 ├── LICENSE             # 许可证文件
@@ -200,30 +223,35 @@ pip install moviepy
 - **main.py**：主脚本，整合所有功能，处理完整流程，支持命令行模式和GUI模式（通过 `--gui` 参数启用）
 - **config.py**：配置文件，包含下载参数、文件命名规则、图片处理配置、GUI配置和价格计算配置等
 - **gui/app.py**：GUI应用主程序，创建主窗口和各个组件
+- **gui/dialog.py**：对话框组件，包含分析对话框、导入对话框、DS状态对话框、Excel导入对话框
+- **gui/db_viewer.py**：数据库查看器，浏览和搜索商品数据
 - **gui/commands.py**：上下文菜单命令，执行图像优化、资源打包、重新采集等操作
 - **gui/logging.py**：日志处理，显示处理进度和结果
 - **gui/menu.py**：菜单管理，创建和管理上下文菜单
 - **gui/queue.py**：队列管理，管理待处理文件列表
 - **gui/utils.py**：GUI工具函数，提供辅助功能
+- **gui/online_collector_gui.py**：在线采集GUI，浏览器在线采集商品数据
 - **gui/pricing_gui.py**：价格计算工具，基于成本数据自动计算商品价格
-- **gui/tiered_price_generator.py**：阶梯价格生成器，支持统一倍率和统一利润率定价策略
-- **utils/parser.py**：HTML解析工具，提取页面中的资源链接和属性
-- **utils/downloader.py**：下载管理工具，生成下载列表，调用aria2c下载
-- **utils/file_handler.py**：文件处理工具，创建目录，保存属性，生成快捷方式和批处理脚本
-- **utils/tool_downloader.py**：aria2c下载工具，检查和下载aria2c工具
-- **utils/image_utils.py**：图像处理基础工具，提供图片放大、切割、动图转换、文件收集、并行处理等功能
-- **utils/image_processor.py**：图像处理流程模块，实现主图、详情图、色卡图、混合图片的完整处理流程
-- **utils/database.py**：数据库模块，使用SQLite存储商品数据、价格信息
+- **gui/tabs/**：选项卡模块，包含商品、店铺商品、DS商品、DS店铺选项卡
+- **utils/parser.py**：HTML解析兼容层，委托平台解析器
+- **utils/database.py**：数据库模块，使用DuckDB存储商品数据、价格信息，含24个优化索引
+- **utils/exceptions.py**：统一异常体系，ScraperError → ParseError/DownloadError/DatabaseError/ConfigError/BrowserError
+- **utils/config_manager.py**：统一配置管理器，单例模式，委托JSON配置读写
+- **utils/resource_downloader.py**：资源下载器，aria2c优先 + requests备选自动降级
+- **utils/logger.py**：日志模块，支持时间戳、模块名、bind()上下文绑定
+- **utils/column_config.py**：列配置，委托ConfigManager管理JSON配置
+- **utils/column_mapping.py**：列映射，委托ConfigManager管理JSON配置
+- **utils/cookie_manager.py**：Cookie管理器，管理浏览器Cookie
+- **utils/excel_importer.py**：Excel导入器，支持从Excel文件导入商品数据
+- **utils/extension_manager.py**：浏览器扩展管理，检测和安装浏览器扩展
+- **utils/auto_collector.py**：在线采集器，使用浏览器自动采集商品数据
 - **utils/price_extractor.py**：价格提取器，从HTML中提取SKU价格信息
-- **utils/version.py**：版本信息模块，管理当前版本号和版本信息
-- **utils/updater.py**：版本检测升级模块，支持自动检测更新、GitHub/Gitee双源切换、下载更新包
 - **utils/video_generator.py**：视频生成器，将详情图生成为瀑布流滚动视频
-- **gui/image_editor/**：图片编辑器模块，提供可视化图片编辑功能
-  - **editor_window.py**：编辑器主窗口，包含详情图、主图、色卡、视频四个选项卡
-  - **editor_canvas.py**：画布组件，支持块模式和列模式编辑
-  - **image_block.py**：图片块数据模型，支持单图块和组合块
-  - **tools.py**：工具类，包含比例转换、智能布局拼接等功能
-  - **history.py**：历史记录管理，支持撤销/重做操作
+- **utils/image_processor.py**：图像处理流程模块，实现主图、详情图、色卡图、混合图片的完整处理流程
+- **utils/parsers/factory.py**：解析器工厂，根据HTML内容自动选择平台解析器
+- **utils/parsers/alibaba_parser.py**：1688解析器，预编译正则 + LRU缓存优化
+- **utils/parsers/jd_parser.py**：京东解析器，支持keep_avif参数
+- **tests/**：单元测试，48个用例覆盖异常体系、配置管理、日志、解析器、导入解析
 - **docs/**：文档目录，包含项目规划文档
 
 ## 性能说明

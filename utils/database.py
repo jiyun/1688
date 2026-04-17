@@ -343,7 +343,8 @@ class Database:
                 'main_category': 'VARCHAR',
                 'ds_shop_url': 'VARCHAR',
                 'user_remark': 'VARCHAR',
-                'price_matrix': 'VARCHAR'
+                'price_matrix': 'VARCHAR',
+                'target_price': 'DOUBLE'
             }
             
             for col_name, col_type in new_columns.items():
@@ -801,7 +802,7 @@ class Database:
             self.insert('resources', data)
             return True
         except Exception as e:
-            print(f"插入资源失败: {e}")
+            log_info(f"插入资源失败: {e}")
             return False
     
     def get_pending_resources(self, product_id: str = None, resource_type: str = None, 
