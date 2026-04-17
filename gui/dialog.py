@@ -905,3 +905,748 @@ def show_dsid_link_dialog(parent, product_id: str, current_dsid: str = "",
     """显示DSID链接解析对话框"""
     dialog = DSIDLinkDialog(parent, product_id, current_dsid, current_remark)
     return dialog.get_result()
+
+
+class ExcelImportDialog:
+    """Excel导入对话框 - 导入1688采购助手导出的商品数据"""
+    
+    def __init__(self, parent, log_callback: Callable = None, 
+                 info_callback: Callable = None, confirm_callback: Callable = None,
+                 refresh_callback: Callable = None,
+                 font_name: str = 'Microsoft YaHei', font_size: int = 10):
+        self.parent = parent
+        self.log = log_callback or (lambda msg, level: print(f"[{level}] {msg}"))
+        self.show_info = info_callback or (lambda title, msg: print(f"{title}: {msg}"))
+        self.ask_yes_no = confirm_callback or (lambda title, msg: True)
+        self.refresh = refresh_callback
+        self.font_name = font_name
+        self.font_size = font_size
+        self.font_size_large = font_size + 4
+        self.font_size_small = max(font_size - 2, 8)
+        self.result = False
+        
+        try:
+            from utils.excel_importer import parse_excel_file, get_excel_preview, import_to_database, HAS_PANDAS
+            self._parse_excel_file = parse_excel_file
+            self._import_to_database = import_to_database
+            self._has_pandas = HAS_PANDAS
+        except ImportError:
+            self._has_pandas = False
+        
+        if not self._has_pandas:
+            self.show_info("错误", "需要安装pandas库:\npip install pandas openpyxl")
+            return
+        
+        self._parsed_products = []
+        self._shop_data = {}
+        
+        self._create_dialog()
+    
+    def _create_dialog(self):
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title("导入Excel数据")
+        self.dialog.geometry("1000x750")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        main_frame = ctk.CTkFrame(self.dialog)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        title_frame = ctk.CTkFrame(main_frame)
+        title_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(
+            title_frame, 
+            text="导入1688采购助手导出的全店商品Excel文件",
+            font=(self.font_name, self.font_size_large, "bold")
+        ).pack(anchor="w", padx=8)
+        
+        ctk.CTkLabel(
+            title_frame, 
+            text="支持格式：1688采购助手导出的xlsx文件，包含商品标题、宝贝ID、价格、销量等信息",
+            font=(self.font_name, self.font_size),
+            text_color="gray"
+        ).pack(anchor="w", padx=20)
+        
+        file_frame = ctk.CTkFrame(main_frame)
+        file_frame.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(file_frame, text="选择文件:").pack(side="left", padx=5)
+        
+        self._file_path_var = ctk.StringVar()
+        file_entry = ctk.CTkEntry(file_frame, textvariable=self._file_path_var, width=500)
+        file_entry.pack(side="left", padx=5)
+        
+        create_button(file_frame, "浏览...", self._browse_file, 'primary', width=80).pack(side="left", padx=5)
+        
+        preview_frame = ctk.CTkFrame(main_frame)
+        preview_frame.pack(fill="both", expand=True, pady=10)
+        
+        ctk.CTkLabel(preview_frame, text="数据预览:", font=(self.font_name, self.font_size)).pack(anchor="w", padx=5)
+        
+        preview_columns = ("product_id", "title", "price", "dropship_price", "sales_count", "review_count", "monthly_orders", "monthly_dropship", "ship_time", "list_time", "category", "tags")
+        self._preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=12)
+        
+        col_config = {
+            "product_id": ("商品ID", 90, "center"),
+            "title": ("商品标题", 180, "w"),
+            "price": ("价格", 60, "center"),
+            "dropship_price": ("代发价", 60, "center"),
+            "sales_count": ("销量", 50, "center"),
+            "review_count": ("评论数", 50, "center"),
+            "monthly_orders": ("月成交", 55, "center"),
+            "monthly_dropship": ("月代销", 55, "center"),
+            "ship_time": ("发货时间", 60, "center"),
+            "list_time": ("上架时间", 70, "center"),
+            "category": ("类目", 70, "w"),
+            "tags": ("标签", 60, "w"),
+        }
+        for col, (text, width, anchor) in col_config.items():
+            self._preview_tree.heading(col, text=text)
+            self._preview_tree.column(col, width=width, anchor=anchor)
+        
+        preview_scrollbar = ttk.Scrollbar(preview_frame, orient="vertical", command=self._preview_tree.yview)
+        self._preview_tree.configure(yscrollcommand=preview_scrollbar.set)
+        self._preview_tree.pack(side="left", fill="both", expand=True, padx=5)
+        preview_scrollbar.pack(side="right", fill="y")
+        
+        self._status_label = ctk.CTkLabel(main_frame, text="请选择Excel文件")
+        self._status_label.pack(anchor="w", padx=5, pady=5)
+        
+        option_frame = ctk.CTkFrame(main_frame)
+        option_frame.pack(fill="x", pady=5)
+        
+        self._support_dropship_var = ctk.IntVar(value=0)
+        ctk.CTkCheckBox(
+            option_frame, 
+            text="标记为支持一件代发", 
+            variable=self._support_dropship_var,
+            onvalue=1, 
+            offvalue=0
+        ).pack(side="left", padx=10)
+        
+        ctk.CTkLabel(
+            option_frame, 
+            text="(如果是从'支持一件代发'筛选后导出的数据，请勾选此项)", 
+            text_color="gray",
+            font=(self.font_name, self.font_size_small)
+        ).pack(side="left", padx=5)
+        
+        btn_frame = ctk.CTkFrame(main_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        create_button(btn_frame, "导入数据", self._do_import, 'success', width=100).pack(side="left", padx=10)
+        create_button(btn_frame, "取消", self._on_cancel, 'secondary', width=80).pack(side="left", padx=5)
+    
+    def _browse_file(self):
+        from tkinter import filedialog
+        file_path = filedialog.askopenfilename(
+            title="选择Excel文件",
+            filetypes=[("Excel文件", "*.xlsx *.xls"), ("所有文件", "*.*")]
+        )
+        if file_path:
+            self._file_path_var.set(file_path)
+            self._preview_excel(file_path)
+    
+    def _preview_excel(self, file_path: str):
+        for item in self._preview_tree.get_children():
+            self._preview_tree.delete(item)
+        
+        self._parsed_products, errors, self._shop_data = self._parse_excel_file(file_path)
+        
+        if errors:
+            self._status_label.configure(text=f"解析错误: {'; '.join(errors)}", text_color="red")
+            return
+        
+        preview_limit = min(500, len(self._parsed_products))
+        for product in self._parsed_products[:preview_limit]:
+            title = product.get('title', '')
+            if len(title) > 20:
+                title = title[:20] + '...'
+            self._preview_tree.insert("", "end", values=(
+                product.get('product_id', ''),
+                title,
+                f"¥{product.get('price', 0):.2f}" if product.get('price') else '-',
+                f"¥{product.get('dropship_price', 0):.2f}" if product.get('dropship_price') else '-',
+                product.get('sales_count', 0),
+                product.get('review_count', 0),
+                product.get('monthly_orders', 0),
+                product.get('monthly_dropship', 0),
+                product.get('ship_time', '')[:8],
+                product.get('list_time', '')[:10] if product.get('list_time') else product.get('listing_date', '')[:10],
+                product.get('category', '')[:10],
+                product.get('tags', '')[:8]
+            ))
+        
+        shop_info = ""
+        if self._shop_data.get('shop_name'):
+            shop_info = f" | 店铺: {self._shop_data.get('shop_name')}"
+        
+        if len(self._parsed_products) > preview_limit:
+            self._status_label.configure(
+                text=f"解析完成: 共 {len(self._parsed_products)} 条商品数据 (预览前{preview_limit}条){shop_info}", 
+                text_color="green"
+            )
+        else:
+            self._status_label.configure(
+                text=f"解析完成: 共 {len(self._parsed_products)} 条商品数据{shop_info}", 
+                text_color="green"
+            )
+    
+    def _do_import(self):
+        if not self._parsed_products:
+            self.show_info("提示", "请先选择并预览Excel文件")
+            return
+        
+        support_dropship = self._support_dropship_var.get()
+        dropship_text = "并标记为支持一件代发" if support_dropship else ""
+        confirm = self.ask_yes_no("确认导入", f"确定要导入 {len(self._parsed_products)} 条商品数据{dropship_text}吗？")
+        if not confirm:
+            return
+        
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            
+            shop_name = self._shop_data.get('shop_name')
+            imported, errors = self._import_to_database(
+                self._parsed_products, 
+                db, 
+                shop_name=shop_name, 
+                support_dropship=support_dropship if support_dropship else None,
+                shop_data=self._shop_data
+            )
+            db.close()
+            
+            if errors:
+                self.log(f"导入完成，但有 {len(errors)} 个错误", "warning")
+                for err in errors[:5]:
+                    self.log(f"  {err}", "warning")
+            
+            self.log(f"成功导入 {imported} 条商品数据", "success")
+            self.result = True
+            if self.refresh:
+                self.refresh()
+            self.dialog.destroy()
+            
+        except Exception as e:
+            self.log(f"导入失败: {e}", "error")
+            self.show_info("错误", f"导入失败: {e}")
+    
+    def _on_cancel(self):
+        self.result = False
+        self.dialog.destroy()
+    
+    def get_result(self) -> bool:
+        return self.result
+
+
+def show_excel_import_dialog(parent, log_callback: Callable = None,
+                              info_callback: Callable = None, 
+                              confirm_callback: Callable = None,
+                              refresh_callback: Callable = None,
+                              font_name: str = 'Microsoft YaHei',
+                              font_size: int = 10) -> bool:
+    """显示Excel导入对话框"""
+    dialog = ExcelImportDialog(
+        parent, 
+        log_callback=log_callback,
+        info_callback=info_callback,
+        confirm_callback=confirm_callback,
+        refresh_callback=refresh_callback,
+        font_name=font_name,
+        font_size=font_size
+    )
+    return dialog.get_result()
+
+
+import math
+
+
+class AnalysisDialog:
+    """商品分析对话框 - 雷达图展示"""
+    
+    def __init__(self, parent, products: List[Dict], font_name: str = 'Microsoft YaHei'):
+        self.parent = parent
+        self.products = products
+        self.font_name = font_name
+        
+        self._max_sales = max((p.get('monthly_sales', 0) or 0) for p in products) or 1
+        self._max_reviews = max((p.get('review_count', 0) or 0) for p in products) or 1
+        self._max_price = max((p.get('price', 0) or 0) for p in products) or 1
+        self._max_dropship = max((p.get('dropship_price', 0) or 0) for p in products if p.get('dropship_price')) or 1
+        
+        self._create_dialog()
+    
+    def _create_dialog(self):
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title("商品分析 - 战力图")
+        self.dialog.geometry("900x700")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        main_frame = ctk.CTkFrame(self.dialog)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        top_frame = ctk.CTkFrame(main_frame)
+        top_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(top_frame, text="商品分析", font=(self.font_name, 16, "bold")).pack(side="left", padx=10)
+        
+        canvas_frame = ctk.CTkFrame(main_frame)
+        canvas_frame.pack(fill="both", expand=True, pady=10)
+        
+        self._canvas = tk.Canvas(canvas_frame, bg='white', highlightthickness=0)
+        self._canvas.pack(fill="both", expand=True)
+        
+        self._canvas.bind('<Configure>', lambda e: self._draw_radar_chart())
+        
+        list_frame = ctk.CTkFrame(main_frame)
+        list_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(list_frame, text="Top 10 商品:", font=(self.font_name, 12, "bold")).pack(anchor="w", padx=5)
+        
+        for i, p in enumerate(self.products[:10], 1):
+            title = p.get('title', '')
+            if len(title) > 25:
+                title = title[:25] + '...'
+            text = f"{i}. [{p.get('product_id')}] {title} - 销量:{p.get('monthly_sales', 0)} 评论:{p.get('review_count', 0)}"
+            ctk.CTkLabel(list_frame, text=text, font=(self.font_name, 10)).pack(anchor="w", padx=20)
+    
+    def _draw_radar_chart(self):
+        canvas = self._canvas
+        canvas.update()
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
+        
+        if width < 100 or height < 100:
+            return
+        
+        canvas.delete("all")
+        
+        cx, cy = width // 2, height // 2
+        radius = min(width, height) // 2 - 50
+        
+        dimensions = ['销量', '评论', '价格', '代发价', '采集']
+        num_dims = len(dimensions)
+        angle_step = 2 * math.pi / num_dims
+        
+        for i in range(5, 0, -1):
+            r = radius * i / 5
+            points = []
+            for j in range(num_dims):
+                angle = angle_step * j - math.pi / 2
+                x = cx + r * math.cos(angle)
+                y = cy + r * math.sin(angle)
+                points.extend([x, y])
+            canvas.create_polygon(points, outline='#ddd', fill='', width=1)
+        
+        for i, dim in enumerate(dimensions):
+            angle = angle_step * i - math.pi / 2
+            x = cx + (radius + 20) * math.cos(angle)
+            y = cy + (radius + 20) * math.sin(angle)
+            canvas.create_text(x, y, text=dim, font=(self.font_name, 10))
+        
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
+        
+        for idx, product in enumerate(self.products[:20]):
+            sales = (product.get('monthly_sales', 0) or 0) / self._max_sales
+            reviews = (product.get('review_count', 0) or 0) / self._max_reviews
+            price = (product.get('price', 0) or 0) / self._max_price
+            dropship = (product.get('dropship_price', 0) or 0) / self._max_dropship if product.get('dropship_price') else 0
+            collected = 1 if (product.get('resource_count', 0) or 0) > 0 else 0
+            
+            values = [sales, reviews, price, dropship, collected]
+            points = []
+            
+            for i, val in enumerate(values):
+                angle = angle_step * i - math.pi / 2
+                r = radius * min(val, 1)
+                x = cx + r * math.cos(angle)
+                y = cy + r * math.sin(angle)
+                points.extend([x, y])
+            
+            color = colors[idx % len(colors)]
+            canvas.create_polygon(points, outline=color, fill='', width=2)
+
+
+def show_analysis_dialog(parent, products: List[Dict], font_name: str = 'Microsoft YaHei'):
+    """显示商品分析对话框"""
+    AnalysisDialog(parent, products, font_name)
+
+
+import re as _re
+from datetime import datetime as _datetime
+
+
+def parse_import_line(line: str) -> dict:
+    """解析单行导入数据
+    
+    格式：URL [中间内容] DSID
+    - URL开头
+    - DSID在结尾（主要目的）
+    - 中间内容可选，可能包含价格
+    """
+    result = {
+        'valid': False,
+        'product_id': None,
+        'target_price': None,
+        'dsid': None,
+        'error': None
+    }
+    
+    try:
+        line = line.strip()
+        if not line:
+            result['error'] = '空行'
+            return result
+        
+        url_match = _re.match(r'(https?://[^\s]+)', line)
+        if not url_match:
+            result['error'] = '行首未找到URL'
+            return result
+        
+        url = url_match.group(1)
+        
+        id_match = _re.search(r'offer/(\d+)\.html', url)
+        if not id_match:
+            id_match = _re.search(r'/(\d{10,})', url)
+        
+        if not id_match:
+            result['error'] = 'URL中未找到商品ID'
+            return result
+        
+        result['product_id'] = id_match.group(1)
+        
+        remaining = line[len(url):].strip()
+        
+        if remaining:
+            parts = remaining.split()
+            
+            if len(parts) >= 1:
+                last_part = parts[-1]
+                if last_part.isdigit():
+                    result['dsid'] = last_part
+                
+                if len(parts) >= 2:
+                    middle_parts = parts[:-1]
+                    middle_text = ' '.join(middle_parts)
+                    
+                    price_match = _re.search(r'【[^】]*?(\d+\.?\d*)[^】]*?】', middle_text)
+                    if price_match:
+                        try:
+                            result['target_price'] = float(price_match.group(1))
+                        except ValueError:
+                            pass
+                    else:
+                        price_patterns = [
+                            r'价格\s*(\d+\.?\d*)',
+                            r'售价\s*(\d+\.?\d*)',
+                            r'[¥￥]\s*(\d+\.?\d*)',
+                            r'(\d+\.?\d*)\s*元',
+                        ]
+                        
+                        for pattern in price_patterns:
+                            match = _re.search(pattern, middle_text)
+                            if match:
+                                try:
+                                    result['target_price'] = float(match.group(1))
+                                    break
+                                except ValueError:
+                                    pass
+                        
+                        if result['target_price'] is None:
+                            numbers = _re.findall(r'(?<![a-zA-Z0-9.])(\d+\.?\d*)(?![a-zA-Z0-9.])', middle_text)
+                            for num_str in numbers:
+                                try:
+                                    num = float(num_str)
+                                    if 1 <= num <= 10000:
+                                        result['target_price'] = num
+                                        break
+                                except ValueError:
+                                    pass
+        
+        result['valid'] = True
+        
+    except Exception as e:
+        result['error'] = str(e)
+    
+    return result
+
+
+class ImportDialog:
+    """导入数据对话框 - 从文本解析并导入商品数据"""
+    
+    def __init__(self, parent, parse_line_fn, info_callback: Callable = None,
+                 confirm_callback: Callable = None, refresh_callback: Callable = None,
+                 font_name: str = 'Microsoft YaHei', font_size: int = 10):
+        self.parent = parent
+        self.parse_line_fn = parse_line_fn
+        self.show_info = info_callback or (lambda title, msg: print(f"{title}: {msg}"))
+        self.ask_yes_no = confirm_callback or (lambda title, msg: True)
+        self.refresh = refresh_callback
+        self.font_name = font_name
+        self.font_size = font_size
+        self.font_size_large = font_size + 4
+        self.font_size_small = max(font_size - 2, 8)
+        self.parsed_data = []
+        
+        self._create_dialog()
+    
+    def _create_dialog(self):
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title("导入数据")
+        self.dialog.geometry("950x850")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        main_frame = ctk.CTkFrame(self.dialog)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        format_frame = ctk.CTkFrame(main_frame)
+        format_frame.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(
+            format_frame,
+            text="导入格式说明",
+            font=(self.font_name, self.font_size_large, "bold")
+        ).pack(anchor="w", padx=8)
+        
+        ctk.CTkLabel(
+            format_frame,
+            text="• 格式：URL [中间内容] DSID（空格分隔）\n• URL：商品链接，从中解析商品ID\n• 中间内容：可选，包含价格数字的文本\n• DSID：店铺商品ID（主要目的）",
+            font=(self.font_name, self.font_size),
+            justify="left"
+        ).pack(anchor="w", padx=20)
+        
+        ctk.CTkLabel(
+            format_frame,
+            text="示例：\n  https://detail.1688.com/offer/123456789.html ABC123\n  https://detail.1688.com/offer/123456789.html 【¥25.00】 ABC123",
+            font=(self.font_name, self.font_size),
+            text_color="gray"
+        ).pack(anchor="w", padx=20, pady=5)
+        
+        input_frame = ctk.CTkFrame(main_frame)
+        input_frame.pack(fill="both", expand=True, pady=8)
+        
+        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=(self.font_name, self.font_size)).pack(anchor="w", padx=8)
+        
+        self._text_input = ctk.CTkTextbox(input_frame, height=200, font=(self.font_name, self.font_size))
+        self._text_input.pack(fill="both", expand=True, padx=8, pady=8)
+        
+        preview_frame = ctk.CTkFrame(main_frame)
+        preview_frame.pack(fill="both", expand=True, pady=8)
+        
+        ctk.CTkLabel(preview_frame, text="解析预览：", font=(self.font_name, self.font_size)).pack(anchor="w", padx=8)
+        
+        preview_columns = ("行号", "商品ID", "目标售价", "DSID", "状态")
+        self._preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=8)
+        
+        self._preview_tree.heading("行号", text="行号")
+        self._preview_tree.heading("商品ID", text="商品ID")
+        self._preview_tree.heading("目标售价", text="目标售价")
+        self._preview_tree.heading("DSID", text="DSID")
+        self._preview_tree.heading("状态", text="状态")
+        
+        self._preview_tree.column("行号", width=50, anchor="center")
+        self._preview_tree.column("商品ID", width=120, anchor="center")
+        self._preview_tree.column("目标售价", width=100, anchor="center")
+        self._preview_tree.column("DSID", width=120, anchor="center")
+        self._preview_tree.column("状态", width=100, anchor="center")
+        
+        preview_scrollbar = ttk.Scrollbar(preview_frame, orient="vertical", command=self._preview_tree.yview)
+        self._preview_tree.configure(yscrollcommand=preview_scrollbar.set)
+        self._preview_tree.pack(side="left", fill="both", expand=True, padx=5)
+        preview_scrollbar.pack(side="right", fill="y")
+        
+        btn_frame = ctk.CTkFrame(main_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        self._count_label = ctk.CTkLabel(btn_frame, text="共 0 行", font=(self.font_name, self.font_size_small))
+        self._count_label.pack(side="left", padx=10)
+        
+        ctk.CTkButton(btn_frame, text="解析预览", command=self._parse_input).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="确认导入", command=self._confirm_import).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="取消", command=self.dialog.destroy).pack(side="right", padx=5)
+    
+    def _parse_input(self):
+        self.parsed_data = []
+        
+        for item in self._preview_tree.get_children():
+            self._preview_tree.delete(item)
+        
+        text = self._text_input.get("1.0", "end-1c")
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        for idx, line in enumerate(lines, 1):
+            result = self.parse_line_fn(line)
+            self.parsed_data.append(result)
+            
+            status = "✓ 有效" if result['valid'] else f"✗ {result['error']}"
+            
+            self._preview_tree.insert("", "end", values=(
+                idx,
+                result.get('product_id', '-'),
+                result.get('target_price', '-'),
+                result.get('dsid', '-'),
+                status
+            ))
+        
+        valid_count = sum(1 for d in self.parsed_data if d['valid'])
+        self._count_label.configure(text=f"共 {len(lines)} 行，有效 {valid_count} 行")
+    
+    def _confirm_import(self):
+        valid_data = [d for d in self.parsed_data if d['valid']]
+        
+        if not valid_data:
+            self.show_info("提示", "没有有效数据可导入")
+            return
+        
+        confirm = self.ask_yes_no("确认导入", f"将导入 {len(valid_data)} 条记录，是否继续？")
+        if not confirm:
+            return
+        
+        success_count = 0
+        fail_count = 0
+        errors = []
+        
+        try:
+            from utils.database import get_shared_db
+            db = get_shared_db()
+            
+            for data in valid_data:
+                try:
+                    product_id = data['product_id']
+                    target_price = data.get('target_price')
+                    dsid = data.get('dsid')
+                    
+                    existing = db.get_product(product_id)
+                    
+                    if existing:
+                        update_data = {'updated_at': _datetime.now()}
+                        if target_price is not None:
+                            update_data['target_price'] = target_price
+                        if dsid:
+                            update_data['shop_product_id'] = dsid
+                        
+                        db.update('products', update_data, 'product_id = ?', [product_id])
+                    else:
+                        insert_data = {
+                            'product_id': product_id,
+                            'status': 'pending',
+                            'created_at': _datetime.now()
+                        }
+                        if target_price is not None:
+                            insert_data['target_price'] = target_price
+                        if dsid:
+                            insert_data['shop_product_id'] = dsid
+                        
+                        db.insert('products', insert_data)
+                    
+                    success_count += 1
+                except Exception as e:
+                    fail_count += 1
+                    errors.append(f"商品ID {data.get('product_id', '?')}: {str(e)}")
+            
+            db.close()
+        except Exception as e:
+            self.show_info("错误", f"数据库操作失败: {e}")
+            return
+        
+        report = f"导入完成！\n\n成功: {success_count} 条\n失败: {fail_count} 条"
+        if errors:
+            report += f"\n\n失败原因:\n" + "\n".join(errors[:10])
+            if len(errors) > 10:
+                report += f"\n... 还有 {len(errors) - 10} 条错误"
+        
+        self.show_info("导入报告", report)
+        if self.refresh:
+            self.refresh()
+        self.dialog.destroy()
+
+
+def show_import_dialog(parent, parse_line_fn=None, info_callback: Callable = None,
+                       confirm_callback: Callable = None, refresh_callback: Callable = None,
+                       font_name: str = 'Microsoft YaHei', font_size: int = 10):
+    """显示导入数据对话框"""
+    if parse_line_fn is None:
+        parse_line_fn = parse_import_line
+    ImportDialog(parent, parse_line_fn, info_callback, confirm_callback,
+                 refresh_callback, font_name, font_size)
+
+
+class DSStatusDialog:
+    """DS关联状态对话框 - 显示商品的代发店铺关联信息"""
+    
+    STATUS_MAP = {'pending': '待处理', 'listed': '已上架', 'delisted': '已下架'}
+    
+    def __init__(self, parent, product_id: str, status: Dict,
+                 font_name: str = 'Microsoft YaHei'):
+        self.parent = parent
+        self.product_id = product_id
+        self.status = status
+        self.font_name = font_name
+        
+        self._create_dialog()
+    
+    def _create_dialog(self):
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title(f"DS关联状态 - {self.product_id}")
+        self.dialog.geometry("700x400")
+        self.dialog.transient(self.parent)
+        
+        main_frame = ctk.CTkFrame(self.dialog)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(info_frame, text=f"商品ID: {self.product_id}",
+                     font=(self.font_name, 12, "bold")).pack(side="left", padx=10)
+        ctk.CTkLabel(info_frame,
+                     text=f"关联店铺: {self.status['total_shops']} | 已上架: {self.status['listed_count']} | 待处理: {self.status['pending_count']}"
+                     ).pack(side="left", padx=10)
+        
+        tree_frame = ctk.CTkFrame(main_frame)
+        tree_frame.pack(fill="both", expand=True, pady=5)
+        
+        columns = ("ds_shop_name", "ds_platform", "ds_product_id", "listing_status", "price_adjust", "remark")
+        tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+        
+        tree.heading("ds_shop_name", text="店铺名称")
+        tree.heading("ds_platform", text="平台")
+        tree.heading("ds_product_id", text="DS商品ID")
+        tree.heading("listing_status", text="状态")
+        tree.heading("price_adjust", text="价格调整")
+        tree.heading("remark", text="备注")
+        
+        tree.column("ds_shop_name", width=120, anchor="w")
+        tree.column("ds_platform", width=60, anchor="center")
+        tree.column("ds_product_id", width=120, anchor="center")
+        tree.column("listing_status", width=80, anchor="center")
+        tree.column("price_adjust", width=80, anchor="center")
+        tree.column("remark", width=150, anchor="w")
+        
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        for shop in self.status['shops']:
+            tree.insert("", "end", values=(
+                shop.get('ds_shop_name', ''),
+                shop.get('ds_platform', ''),
+                shop.get('ds_product_id', '-'),
+                self.STATUS_MAP.get(shop.get('listing_status'), shop.get('listing_status', '')),
+                shop.get('price_adjust', 0),
+                shop.get('remark', '')
+            ))
+        
+        create_button(main_frame, "关闭", self.dialog.destroy, 'secondary', width=60).pack(pady=10)
+
+
+def show_ds_status_dialog(parent, product_id: str, status: Dict,
+                          font_name: str = 'Microsoft YaHei'):
+    """显示DS关联状态对话框"""
+    DSStatusDialog(parent, product_id, status, font_name)

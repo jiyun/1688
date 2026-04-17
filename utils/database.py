@@ -20,6 +20,8 @@ except ImportError:
     def log_warning(msg): print(f"[WARNING] {msg}")
     def log_success(msg): print(f"[SUCCESS] {msg}")
 
+from utils.exceptions import DatabaseError
+
 try:
     import duckdb
     HAS_DUCKDB = True
@@ -34,7 +36,7 @@ class Database:
     
     def __init__(self, db_path: str = None):
         if not HAS_DUCKDB:
-            raise ImportError("DuckDB未安装，请运行: pip install duckdb")
+            raise DatabaseError("DuckDB未安装，请运行: pip install duckdb")
         
         if db_path is None:
             db_dir = os.path.dirname(os.path.abspath(__file__))
@@ -45,11 +47,11 @@ class Database:
         self._connect()
         self._init_database()
     
-    def _connect(self):
+    def _connect(self) -> None:
         """连接数据库"""
         self.conn = duckdb.connect(self.db_path)
     
-    def _init_database(self):
+    def _init_database(self) -> None:
         """初始化数据库表结构"""
         self._migrate_sku_prices_table()
         
@@ -285,32 +287,46 @@ class Database:
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS rate_info_id_seq')
         self.conn.execute('CREATE SEQUENCE IF NOT EXISTS shop_products_id_seq')
         
+        self._create_indexes()
+        
         self._migrate_products_table()
         self._migrate_shop_products_table()
         self._migrate_ds_shops_table()
-        
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_platform ON products(platform)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_products_ship_from ON products(ship_from)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_shop_id ON shops(shop_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shops_platform ON shops(platform)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_attributes_product_id ON attributes(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_rate_info_product_id ON rate_info(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_shop_id ON shop_products(shop_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_product_id ON shop_products(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_shop_products_collect_time ON shop_products(collect_time)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_ds_shops_shop_id ON ds_shops(ds_shop_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_ds_shops_platform ON ds_shops(ds_platform)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_product_id ON product_ds_mapping(product_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_ds_shop_id ON product_ds_mapping(ds_shop_id)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_status ON product_ds_mapping(listing_status)')
     
-    def _migrate_products_table(self):
+    def _create_indexes(self) -> None:
+        indexes = [
+            'CREATE INDEX IF NOT EXISTS idx_products_product_id ON products(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_products_shop_product_id ON products(shop_product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(shop_id)',
+            'CREATE INDEX IF NOT EXISTS idx_products_platform ON products(platform)',
+            'CREATE INDEX IF NOT EXISTS idx_products_ship_from ON products(ship_from)',
+            'CREATE INDEX IF NOT EXISTS idx_products_status ON products(status)',
+            'CREATE INDEX IF NOT EXISTS idx_resources_product_id ON resources(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)',
+            'CREATE INDEX IF NOT EXISTS idx_resources_downloaded ON resources(downloaded)',
+            'CREATE INDEX IF NOT EXISTS idx_shops_shop_id ON shops(shop_id)',
+            'CREATE INDEX IF NOT EXISTS idx_shops_platform ON shops(platform)',
+            'CREATE INDEX IF NOT EXISTS idx_sku_prices_product_id ON sku_prices(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_sku_prices_sku_id ON sku_prices(sku_id)',
+            'CREATE INDEX IF NOT EXISTS idx_attributes_product_id ON attributes(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_rate_info_product_id ON rate_info(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_shop_products_shop_id ON shop_products(shop_id)',
+            'CREATE INDEX IF NOT EXISTS idx_shop_products_product_id ON shop_products(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_shop_products_collect_time ON shop_products(collect_time)',
+            'CREATE INDEX IF NOT EXISTS idx_shop_products_shop_name ON shop_products(shop_name)',
+            'CREATE INDEX IF NOT EXISTS idx_ds_shops_shop_id ON ds_shops(ds_shop_id)',
+            'CREATE INDEX IF NOT EXISTS idx_ds_shops_platform ON ds_shops(ds_platform)',
+            'CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_product_id ON product_ds_mapping(product_id)',
+            'CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_ds_shop_id ON product_ds_mapping(ds_shop_id)',
+            'CREATE INDEX IF NOT EXISTS idx_product_ds_mapping_status ON product_ds_mapping(listing_status)',
+        ]
+        for sql in indexes:
+            try:
+                self.conn.execute(sql)
+            except Exception:
+                pass
+    
+    def _migrate_products_table(self) -> None:
         """迁移 products 表，添加新字段"""
         try:
             columns = self.conn.execute("DESCRIBE products").fetchall()
@@ -326,7 +342,8 @@ class Database:
                 'min_order': 'INTEGER DEFAULT 1',
                 'main_category': 'VARCHAR',
                 'ds_shop_url': 'VARCHAR',
-                'user_remark': 'VARCHAR'
+                'user_remark': 'VARCHAR',
+                'price_matrix': 'VARCHAR'
             }
             
             for col_name, col_type in new_columns.items():
@@ -353,7 +370,7 @@ class Database:
         except Exception as e:
             log_warning(f"迁移检查失败: {e}")
     
-    def _migrate_shop_products_table(self):
+    def _migrate_shop_products_table(self) -> None:
         """迁移 shop_products 表，添加新字段"""
         try:
             columns = self.conn.execute("DESCRIBE shop_products").fetchall()
@@ -387,7 +404,7 @@ class Database:
         except Exception as e:
             log_warning(f"迁移 shop_products 表失败: {e}")
     
-    def _migrate_ds_shops_table(self):
+    def _migrate_ds_shops_table(self) -> None:
         """迁移 ds_shops 表，添加新字段"""
         try:
             columns = self.conn.execute("DESCRIBE ds_shops").fetchall()
@@ -408,7 +425,7 @@ class Database:
         except Exception as e:
             log_warning(f"迁移 ds_shops 表失败: {e}")
     
-    def _migrate_sku_prices_table(self):
+    def _migrate_sku_prices_table(self) -> None:
         """迁移 sku_prices 表，重建表结构"""
         try:
             print("[数据库迁移] 检查 sku_prices 表结构...")
@@ -488,7 +505,7 @@ class Database:
             import traceback
             traceback.print_exc()
     
-    def close(self):
+    def close(self) -> None:
         """关闭数据库连接"""
         if self.conn:
             try:
@@ -520,7 +537,7 @@ class Database:
         results = self.query(sql, params)
         return results[0] if results else None
     
-    def get_setting(self, key: str, default=None):
+    def get_setting(self, key: str, default: Any = None) -> Any:
         """获取设置值"""
         try:
             result = self.conn.execute(
@@ -535,7 +552,7 @@ class Database:
             print(f"获取设置失败: {e}")
             return default
     
-    def save_setting(self, key: str, value):
+    def save_setting(self, key: str, value: Any) -> bool:
         """保存设置值"""
         try:
             import json
@@ -571,7 +588,7 @@ class Database:
         self.conn.execute('CHECKPOINT')
         return result.fetchone()[0]
     
-    def update(self, table: str, data: Dict, where: str, where_params: List = None):
+    def update(self, table: str, data: Dict, where: str, where_params: List = None) -> None:
         """更新数据"""
         set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
         sql = f"UPDATE {table} SET {set_clause} WHERE {where}"
@@ -579,7 +596,7 @@ class Database:
         self.conn.execute(sql, params)
         self.conn.execute('CHECKPOINT')
     
-    def delete(self, table: str, where: str, where_params: List = None):
+    def delete(self, table: str, where: str, where_params: List = None) -> bool:
         """删除数据"""
         sql = f"DELETE FROM {table} WHERE {where}"
         if where_params:
@@ -808,7 +825,7 @@ class Database:
         
         return self.query(sql, params if params else None)
     
-    def mark_resource_downloaded(self, resource_id: int, file_size: int = None):
+    def mark_resource_downloaded(self, resource_id: int, file_size: int = None) -> None:
         """标记资源已下载"""
         update_data = {'downloaded': True, 'download_time': datetime.now()}
         if file_size:
@@ -816,7 +833,7 @@ class Database:
         
         self.update('resources', update_data, 'id = ?', [resource_id])
     
-    def mark_resource_pending(self, resource_id: int):
+    def mark_resource_pending(self, resource_id: int) -> None:
         """标记资源待下载（重置下载状态）"""
         update_data = {'downloaded': False, 'download_time': None, 'file_size': None}
         self.update('resources', update_data, 'id = ?', [resource_id])
@@ -920,7 +937,7 @@ class Database:
             print(f"保存销售价格失败: {e}")
             return False
     
-    def save_main_price(self, product_id: str, price: float, min_amount: int = 1):
+    def save_main_price(self, product_id: str, price: float, min_amount: int = 1) -> None:
         """保存主价格"""
         existing = self.get_product(product_id)
         
@@ -929,7 +946,7 @@ class Database:
         else:
             self.insert('products', {'product_id': product_id, 'status': 'pending'})
     
-    def save_sku_prices(self, product_id: str, sku_prices: List[Dict]):
+    def save_sku_prices(self, product_id: str, sku_prices: List[Dict]) -> None:
         """保存SKU价格和库存"""
         for sku in sku_prices:
             self.insert('sku_prices', {
@@ -941,7 +958,7 @@ class Database:
                 'stock': sku.get('stock', 0)
             })
     
-    def save_consign_prices(self, product_id: str, consign_prices: List[Dict]):
+    def save_consign_prices(self, product_id: str, consign_prices: List[Dict]) -> None:
         """保存代发价格（存储到sku_prices表）"""
         for cp in consign_prices:
             self.insert('sku_prices', {

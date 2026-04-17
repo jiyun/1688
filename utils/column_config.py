@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from utils.config_manager import get_config_manager
 
 
 class ColumnConfigManager:
@@ -13,7 +14,6 @@ class ColumnConfigManager:
     
     _instance = None
     _config = None
-    _config_path = None
     
     DEFAULT_CONFIG = {
         "shop_products": {
@@ -39,38 +39,14 @@ class ColumnConfigManager:
         if self._config is None:
             self._load_config()
     
-    def _get_config_path(self) -> Path:
-        if self._config_path is None:
-            self._config_path = Path(__file__).parent.parent / "config" / "column_config.json"
-        return self._config_path
-    
     def _load_config(self):
-        config_path = self._get_config_path()
-        
-        if config_path.exists():
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    self._config = json.load(f)
-                for key, value in self.DEFAULT_CONFIG.items():
-                    if key not in self._config:
-                        self._config[key] = value.copy()
-            except Exception as e:
-                print(f"加载列配置失败: {e}")
-                self._config = self.DEFAULT_CONFIG.copy()
-        else:
-            self._config = {}
-            for key, value in self.DEFAULT_CONFIG.items():
+        self._config = get_config_manager().get_json_config("column_config")
+        for key, value in self.DEFAULT_CONFIG.items():
+            if key not in self._config:
                 self._config[key] = value.copy()
     
     def _save_config(self):
-        config_path = self._get_config_path()
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(self._config, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"保存列配置失败: {e}")
+        get_config_manager().save_json_config("column_config", self._config)
     
     def get_visible_columns(self, table_name: str) -> List[str]:
         """获取指定表格的可见列列表"""

@@ -9,8 +9,8 @@
       "review_count",
       "category",
       "collected",
-      "product_url",
-      "support_dropship"
+      "support_dropship",
+      "product_url"
     ],
     "column_widths": {}
   },
@@ -22,7 +22,8 @@
       "resource_counts",
       "sku_prices",
       "output_path",
-      "created_at"
+      "created_at",
+      "shop_product_id"
     ],
     "column_widths": {}
   },

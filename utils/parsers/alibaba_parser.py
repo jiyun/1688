@@ -1,5 +1,6 @@
 # 1688/阿里巴巴详情页解析器
 import re
+from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
 from .base_parser import BaseParser
 
@@ -8,6 +9,21 @@ class AlibabaParser(BaseParser):
     """1688/阿里巴巴详情页解析器"""
     
     PLATFORM = 'alibaba'
+    
+    _RE_IMAGE_ID = re.compile(r'O1CN01\w+')
+    _RE_IMG_EXT = re.compile(r'\.(jpg|jpeg|png|gif)(_\w+)?$', re.IGNORECASE)
+    _RE_SUBJECT = re.compile(r'"subject"\s*:\s*"([^"]+)"')
+    _RE_OFFER_URL = re.compile(r'"offerUrl"\s*:\s*"([^"]+)"')
+    _RE_PRODUCT_CODE = re.compile(r'"货号"\s*[:：]\s*["\']?([^"\'<>\s,]+)')
+    _RE_SHOP_ID_URL = re.compile(r'shop/(\w+)')
+    _RE_SHOP_ID_JSON = re.compile(r'"shopId"\s*:\s*"?(\d+)"?')
+    _RE_SEND_ADDRESS = re.compile(r'"sendGoodsAddress"\s*:\s*"([^"]+)"')
+    _RE_ADDRESS = re.compile(r'"address"\s*:\s*"([^"]+)"')
+    _RE_CITY = re.compile(r'"city"\s*:\s*"([^"]+)"')
+    _RE_SHIP_FROM = re.compile(r'发货[地地][：:]\s*([^\s<]+)')
+    _RE_NUMBER = re.compile(r'[\d.]+[万kK]?')
+    _RE_DIGITS = re.compile(r'(\d+)')
+    _RE_DATE = re.compile(r'(\d{4}-\d{2}-\d{2})')
     
     def __init__(self, html_content: str, keep_avif: bool = False, webp_support: bool = False):
         super().__init__(html_content)
@@ -25,13 +41,12 @@ class AlibabaParser(BaseParser):
         ]
         return any(indicator in html_content for indicator in indicators)
     
+    @lru_cache(maxsize=256)
     def _extract_image_id(self, url: str) -> Optional[str]:
-        """从URL中提取图片唯一标识ID"""
-        match = re.search(r'O1CN01\w+', url)
+        match = self._RE_IMAGE_ID.search(url)
         return match.group() if match else None
     
     def _normalize_url(self, url: str) -> str:
-        """标准化URL，移除后缀参数"""
         if url.endswith('_.webp'):
             url = url[:-6]
         if '.jpg_sum' in url:
@@ -39,22 +54,14 @@ class AlibabaParser(BaseParser):
         return url
     
     def _apply_webp_format(self, url: str) -> str:
-        """应用WebP格式（阿里平台专用）
-        
-        阿里平台图片支持WebP格式，通过在URL末尾添加_.webp后缀获取
-        """
         if not self.webp_support:
             return url
         
-        # 如果URL已经包含_.webp，不再重复添加
         if url.endswith('_.webp'):
             return url
         
-        # 移除现有的扩展名后缀（如.jpg），然后添加_.webp
-        # 阿里CDN图片URL格式：https://cbu01.alicdn.com/img/ibank/O1CN01xxx_.webp
-        if re.search(r'\.(jpg|jpeg|png|gif)(_\w+)?$', url, re.IGNORECASE):
-            # 移除扩展名及其后缀
-            url = re.sub(r'\.(jpg|jpeg|png|gif)(_\w+)?$', '', url, flags=re.IGNORECASE)
+        if self._RE_IMG_EXT.search(url):
+            url = self._RE_IMG_EXT.sub('', url)
         
         return url + '_.webp'
     
@@ -643,7 +650,7 @@ class AlibabaParser(BaseParser):
             if title_text and '阿里巴巴' not in title_text:
                 return title_text
         
-        title_match = re.search(r'"subject"\s*:\s*"([^"]+)"', self.html_content)
+        title_match = self._RE_SUBJECT.search(self.html_content)
         if title_match:
             return title_match.group(1)
         
@@ -676,7 +683,7 @@ class AlibabaParser(BaseParser):
         if og_url and og_url.get('content'):
             return og_url['content']
         
-        url_match = re.search(r'"offerUrl"\s*:\s*"([^"]+)"', self.html_content)
+        url_match = self._RE_OFFER_URL.search(self.html_content)
         if url_match:
             return url_match.group(1)
         
@@ -684,7 +691,7 @@ class AlibabaParser(BaseParser):
     
     def get_product_code(self) -> Optional[str]:
         """获取商品编码"""
-        code_match = re.search(r'"货号"\s*[:：]\s*["\']?([^"\'<>\s,]+)', self.html_content)
+        code_match = self._RE_PRODUCT_CODE.search(self.html_content)
         if code_match:
             return code_match.group(1)
         
@@ -714,19 +721,19 @@ class AlibabaParser(BaseParser):
             shop_info['shop_name'] = shop_link.get_text().strip()
             shop_info['shop_url'] = shop_link.get('href', '')
             
-            shop_id_match = re.search(r'shop/(\w+)', shop_info['shop_url'])
+            shop_id_match = self._RE_SHOP_ID_URL.search(shop_info['shop_url'])
             if shop_id_match:
                 shop_info['shop_id'] = shop_id_match.group(1)
         
         if not shop_info.get('shop_id'):
-            shop_id_match = re.search(r'"shopId"\s*:\s*"?(\d+)"?', self.html_content)
+            shop_id_match = self._RE_SHOP_ID_JSON.search(self.html_content)
             if shop_id_match:
                 shop_info['shop_id'] = shop_id_match.group(1)
         
         rating_elem = self.soup.select_one('span[class*="rating"]')
         if rating_elem:
             rating_text = rating_elem.get_text().strip()
-            rating_match = re.search(r'[\d.]+', rating_text)
+            rating_match = self._RE_NUMBER.search(rating_text)
             if rating_match:
                 shop_info['shop_rating'] = float(rating_match.group())
         
@@ -751,15 +758,15 @@ class AlibabaParser(BaseParser):
             except:
                 pass
         
-        ship_match = re.search(r'"sendGoodsAddress"\s*:\s*"([^"]+)"', self.html_content)
+        ship_match = self._RE_SEND_ADDRESS.search(self.html_content)
         if ship_match:
             return ship_match.group(1)
         
-        address_match = re.search(r'"address"\s*:\s*"([^"]+)"', self.html_content)
+        address_match = self._RE_ADDRESS.search(self.html_content)
         if address_match:
             return address_match.group(1)
         
-        city_match = re.search(r'"city"\s*:\s*"([^"]+)"', self.html_content)
+        city_match = self._RE_CITY.search(self.html_content)
         if city_match:
             return city_match.group(1)
         
@@ -773,31 +780,32 @@ class AlibabaParser(BaseParser):
                 parent = elem.parent
                 if parent:
                     parent_text = parent.get_text()
-                    match = re.search(r'发货[地地][：:]\s*([^\s<]+)', parent_text)
+                    match = self._RE_SHIP_FROM.search(parent_text)
                     if match:
                         return match.group(1)
         
         return None
     
+    def _parse_number(self, text: str) -> Optional[int]:
+        match = self._RE_NUMBER.search(text)
+        if not match:
+            return None
+        num_str = match.group()
+        if '万' in num_str:
+            return int(float(num_str.replace('万', '')) * 10000)
+        elif 'k' in num_str.lower():
+            return int(float(num_str.lower().replace('k', '')) * 1000)
+        return int(float(num_str))
+    
     def get_sales_count(self) -> int:
-        """获取销量"""
         for selector in ['span[class*="sales"]', 'span[class*="sold"]', 'span.offer-sales']:
             try:
                 elem = self.soup.select_one(selector)
                 if elem:
                     text = elem.get_text()
-                    match = re.search(r'[\d.]+[万kK]?', text)
-                    if match:
-                        num_str = match.group()
-                        if '万' in num_str:
-                            return int(float(num_str.replace('万', '')) * 10000)
-                        elif 'k' in num_str.lower():
-                            return int(float(num_str.lower().replace('k', '')) * 1000)
-                        else:
-                            num = int(float(num_str))
-                            if num > 1000000:
-                                continue
-                            return num
+                    num = self._parse_number(text)
+                    if num is not None and num <= 1000000:
+                        return num
             except:
                 pass
         
@@ -808,27 +816,18 @@ class AlibabaParser(BaseParser):
                 text = parent.get_text()
                 if '1688' in text and '成交' not in text[:10]:
                     return 0
-                match = re.search(r'[\d.]+[万kK]?', text)
-                if match:
-                    num_str = match.group()
-                    if '万' in num_str:
-                        return int(float(num_str.replace('万', '')) * 10000)
-                    elif 'k' in num_str.lower():
-                        return int(float(num_str.lower().replace('k', '')) * 1000)
-                    else:
-                        num = int(float(num_str))
-                        if num <= 1000000:
-                            return num
+                num = self._parse_number(text)
+                if num is not None and num <= 1000000:
+                    return num
         
         return 0
     
     def get_min_order(self) -> int:
-        """获取起批量"""
         try:
             elem = self.soup.select_one('span[class*="min-order"]')
             if elem:
                 text = elem.get_text()
-                match = re.search(r'(\d+)', text)
+                match = self._RE_DIGITS.search(text)
                 if match:
                     return int(match.group(1))
         except:
@@ -840,7 +839,7 @@ class AlibabaParser(BaseParser):
                 parent = elem.parent
                 if parent:
                     parent_text = parent.get_text()
-                    match = re.search(r'(\d+)', parent_text)
+                    match = self._RE_DIGITS.search(parent_text)
                     if match:
                         return int(match.group(1))
         
@@ -959,11 +958,11 @@ class AlibabaParser(BaseParser):
                 for span in spans:
                     text = span.get_text(strip=True)
                     if '最早上架时间' in text:
-                        match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                        match = self._RE_DATE.search(text)
                         if match:
                             data['first_listing_date'] = match.group(1)
                     elif '最新发布时间' in text:
-                        match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                        match = self._RE_DATE.search(text)
                         if match:
                             data['latest_publish_date'] = match.group(1)
         

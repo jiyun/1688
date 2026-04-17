@@ -15,6 +15,7 @@ import glob
 from datetime import datetime
 from typing import List, Optional
 from utils.extension_manager import find_chrome_executable, find_edge_executable
+from utils.exceptions import BrowserError
 
 try:
     from selenium import webdriver
@@ -46,31 +47,7 @@ def get_product_id_from_url(url: str) -> Optional[str]:
         return match.group(1)
     return None
 
-def find_chrome_executable():
-    """查找 Chrome 浏览器可执行文件"""
-    chrome_paths = [
-        os.path.join(os.environ.get('PROGRAMFILES', ''), 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        os.path.join(os.environ.get('PROGRAMFILES(X86)', ''), 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Google', 'Chrome', 'Application', 'chrome.exe'),
-    ]
-    
-    for path in chrome_paths:
-        if os.path.exists(path):
-            return path
-    return None
 
-def find_edge_executable():
-    """查找 Edge 浏览器可执行文件"""
-    edge_paths = [
-        os.path.join(os.environ.get('PROGRAMFILES', ''), 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-        os.path.join(os.environ.get('PROGRAMFILES(X86)', ''), 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    ]
-    
-    for path in edge_paths:
-        if os.path.exists(path):
-            return path
-    return None
 
 class AutoCollector:
     """自动采集器 - Selenium 版本"""
@@ -170,7 +147,7 @@ class AutoCollector:
                 options.binary_location = edge_path
             else:
                 print("未找到 Edge 浏览器，请安装 Microsoft Edge")
-                raise RuntimeError("Edge 浏览器未安装")
+                raise BrowserError("Edge 浏览器未安装")
             
             try:
                 from selenium.webdriver.edge.service import Service as EdgeService
@@ -218,7 +195,7 @@ class AutoCollector:
                         return
                     except Exception as e:
                         print(f"Edge 启动失败: {e}")
-                        raise RuntimeError("Chrome 和 Edge 浏览器均不可用，请安装 Chrome 浏览器")
+                        raise BrowserError("Chrome 和 Edge 浏览器均不可用，请安装 Chrome 浏览器")
                 else:
                     print("使用 Chrome 浏览器...")
             

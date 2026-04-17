@@ -53,10 +53,27 @@ class AppLogger:
         self.name = name
         self._console_enabled = True
         self._gui_enabled = False
+        self._context = {}
+    
+    def bind(self, **kwargs) -> 'AppLogger':
+        """添加上下文信息，返回新实例"""
+        new_logger = AppLogger(self.name)
+        new_logger._console_enabled = self._console_enabled
+        new_logger._gui_enabled = self._gui_enabled
+        new_logger._context = {**self._context, **kwargs}
+        return new_logger
     
     def _format_message(self, level: str, message: str) -> str:
         """格式化日志消息"""
-        return f"[{level}] {message}"
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        parts = [f"[{timestamp}]", f"[{level}]"]
+        if self.name != "App":
+            parts.append(f"[{self.name}]")
+        if self._context:
+            ctx = " ".join(f"{k}={v}" for k, v in self._context.items())
+            parts.append(f"[{ctx}]")
+        parts.append(message)
+        return " ".join(parts)
     
     def _log(self, level: str, message: str, gui_level: str = "info"):
         """内部日志方法"""

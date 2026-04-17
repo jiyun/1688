@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from utils.config_manager import get_config_manager
 
 
 class ColumnMappingConfig:
@@ -20,18 +21,8 @@ class ColumnMappingConfig:
             self._load_config()
     
     def _load_config(self):
-        """加载配置文件"""
-        config_path = Path(__file__).parent.parent / "config" / "column_mapping.json"
-        
-        if not config_path.exists():
-            self._config = self._get_default_config()
-            return
-        
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                self._config = json.load(f)
-        except Exception as e:
-            print(f"加载列映射配置失败: {e}")
+        self._config = get_config_manager().get_json_config("column_mapping")
+        if not self._config:
             self._config = self._get_default_config()
     
     def _get_default_config(self) -> Dict:
@@ -135,7 +126,7 @@ class ColumnMappingConfig:
         return self._config.get("special_markers", {}).get(marker_name)
     
     def reload(self):
-        """重新加载配置"""
+        get_config_manager().invalidate("column_mapping")
         self._config = None
         self._load_config()
 

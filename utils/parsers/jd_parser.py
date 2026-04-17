@@ -9,6 +9,9 @@ class JDParser(BaseParser):
     
     PLATFORM = 'jd'
     
+    _RE_JFS_SIZE = re.compile(r'/s\d+x\d+_jfs/')
+    _RE_PRICE_NUM = re.compile(r'[\d.]+')
+    
     def __init__(self, html_content: str, keep_avif: bool = False):
         super().__init__(html_content)
         self.keep_avif = keep_avif
@@ -41,9 +44,9 @@ class JDParser(BaseParser):
         # 去除尺寸参数获取原图: /s228x228_jfs/ -> /jfs/
         # 或替换为高清尺寸: /s228x228_jfs/ -> /s1600x1600_jfs/
         if size > 0:
-            url = re.sub(r'/s\d+x\d+_jfs/', f'/s{size}x{size}_jfs/', url)
+            url = self._RE_JFS_SIZE.sub(f'/s{size}x{size}_jfs/', url)
         else:
-            url = re.sub(r'/s\d+x\d+_jfs/', '/jfs/', url)
+            url = self._RE_JFS_SIZE.sub('/jfs/', url)
         
         # AVIF格式处理：默认移除.avif后缀获取jpg
         # 京东图片URL格式: xxx.jpg.avif 或 xxx.png.avif
@@ -167,7 +170,7 @@ class JDParser(BaseParser):
         price_elem = self.soup.select_one('.summary-price .price')
         if price_elem:
             price_text = price_elem.get_text(strip=True)
-            price_match = re.search(r'[\d.]+', price_text)
+            price_match = self._RE_PRICE_NUM.search(price_text)
             if price_match:
                 price_info['price'] = float(price_match.group())
         

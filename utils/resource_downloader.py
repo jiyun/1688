@@ -12,9 +12,17 @@ from typing import List, Dict, Optional, Callable
 from datetime import datetime
 
 try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+try:
     from utils.database import Database, HAS_DUCKDB
 except ImportError:
     HAS_DUCKDB = False
+
+from utils.exceptions import DownloadError, DatabaseError
 
 
 def get_aria2c_path() -> Optional[str]:
@@ -34,7 +42,7 @@ class ResourceDownloader:
     
     def __init__(self, db: Database = None, output_base_dir: str = None):
         if not HAS_DUCKDB:
-            raise ImportError("DuckDB未安装")
+            raise DatabaseError("DuckDB未安装")
         
         self.db = db or Database()
         self.output_base_dir = output_base_dir or os.getcwd()
@@ -144,6 +152,66 @@ class ResourceDownloader:
         print(f"下载完成: 成功 {success_count}, 失败 {failed_count}")
         return failed_count == 0
     
+    def download_with_requests(self, resources: List[Dict], output_dir: str,
+                                progress_callback: Callable = None,
+                                force: bool = False) -> bool:
+        if not HAS_REQUESTS:
+            print("requests库未安装")
+            return False
+        
+        if not resources:
+            return True
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        success_count = 0
+        failed_count = 0
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://detail.1688.com/',
+        }
+        
+        for r in resources:
+            url = r['resource_url']
+            filename = r.get('output_filename') or r.get('resource_name', 'file')
+            filepath = os.path.join(output_dir, filename)
+            
+            if not force and os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                if file_size > 0:
+                    self.db.mark_resource_downloaded(r['id'], file_size)
+                    success_count += 1
+                    continue
+            
+            if force and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
+            
+            self.db.mark_resource_pending(r['id'])
+            
+            try:
+                resp = requests.get(url, headers=headers, timeout=60, stream=True)
+                resp.raise_for_status()
+                
+                with open(filepath, 'wb') as f:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                file_size = os.path.getsize(filepath)
+                self.db.mark_resource_downloaded(r['id'], file_size)
+                success_count += 1
+                
+            except Exception as e:
+                print(f"下载失败: {filename} - {e}")
+                failed_count += 1
+        
+        print(f"下载完成: 成功 {success_count}, 失败 {failed_count}")
+        return failed_count == 0
+    
     def download_product_resources(self, product_id: str, output_dir: str = None,
                                      resource_type: str = None,
                                      progress_callback: Callable = None,
@@ -175,7 +243,11 @@ class ResourceDownloader:
             self._create_url_shortcut(product_id, platform, output_dir)
             return {'success': True, 'message': '没有待下载的资源', 'count': 0}
         
-        success = self.download_with_aria2c(resources, output_dir, progress_callback, force=force)
+        if self.aria2c_path:
+            success = self.download_with_aria2c(resources, output_dir, progress_callback, force=force)
+        else:
+            print("aria2c未找到，使用requests下载")
+            success = self.download_with_requests(resources, output_dir, progress_callback, force=force)
         
         if success:
             self._create_url_shortcut(product_id, platform, output_dir)
@@ -186,7 +258,7 @@ class ResourceDownloader:
             'count': len(resources)
         }
     
-    def _create_url_shortcut(self, product_id: str, platform: str, output_dir: str):
+    def _create_url_shortcut(self, product_id: str, platform: str, output_dir: str) -> None:
         """创建URL快捷方式文件"""
         try:
             if platform == '京东':
@@ -262,7 +334,7 @@ IconFile=C:\\WINDOWS\\system32\\shell32.dll
             'resources': resources
         }
     
-    def clean_small_files(self, min_size: int = 1024):
+    def clean_small_files(self, min_size: int = 1024) -> int:
         """清理小文件"""
         cleaned = 0
         for f in os.listdir(self.output_base_dir):

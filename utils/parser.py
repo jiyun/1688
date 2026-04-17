@@ -1,7 +1,5 @@
 # HTML解析工具 - 兼容层
-import re
 from bs4 import BeautifulSoup
-from os.path import splitext
 from typing import List, Tuple, Optional, Dict
 
 from utils.parsers.factory import ParserFactory
@@ -23,27 +21,14 @@ class HTMLParser:
         """获取当前HTML的平台标识"""
         return self._platform
     
-    def _extract_image_id(self, url: str) -> Optional[str]:
-        """从URL中提取图片唯一标识ID"""
-        match = re.search(r'O1CN01\w+', url)
-        return match.group() if match else None
-    
-    def _normalize_url(self, url: str) -> str:
-        """标准化URL，移除后缀参数"""
-        if url.endswith('_.webp'):
-            url = url[:-6]
-        if '.jpg_sum' in url:
-            url = url.replace('.jpg_sum', '')
-        return url
-    
     def _get_color_card_urls(self) -> Tuple[List[str], set]:
         """获取色卡区所有图片URL（优先完整获取）"""
-        if self._parser:
+        if self._parser and hasattr(self._parser, '_extract_image_id'):
             color_options = self._parser.get_color_options()
             urls = [img for name, img in color_options if img]
             ids = set()
             for url in urls:
-                img_id = self._extract_image_id(url)
+                img_id = self._parser._extract_image_id(url)
                 if img_id:
                     ids.add(img_id)
             return urls, ids

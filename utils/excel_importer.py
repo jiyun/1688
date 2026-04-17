@@ -26,6 +26,8 @@ except ImportError:
     def log_warning(msg): print(f"[WARNING] {msg}")
     def log_success(msg): print(f"[SUCCESS] {msg}")
 
+from utils.exceptions import ImportError_ as ImportDataError
+
 
 FULL_SHOP_MAPPING = {
     '序号': 'seq_no',
@@ -225,6 +227,8 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
                        'consult_score', 'return_score', 'quality_score',
                        'dispute_score', 'logistics_score']
         
+        shop_data_extracted = False
+        
         for idx, row in df_renamed.iterrows():
             try:
                 product_id = str(row.get('product_id', '')).strip()
@@ -262,10 +266,12 @@ def parse_excel_file(file_path: str, export_type: str = None) -> Tuple[List[Dict
                 
                 products.append(product)
                 
-                if not shop_data.get('shop_name'):
+                if not shop_data_extracted and not shop_data.get('shop_name'):
                     for shop_col in shop_columns:
                         if shop_col in row and not pd.isna(row.get(shop_col)):
                             shop_data[shop_col] = _safe_str(row.get(shop_col))
+                    if shop_data.get('shop_name'):
+                        shop_data_extracted = True
                 
             except Exception as e:
                 errors.append(f"第{idx+2}行解析错误: {e}")
@@ -345,9 +351,12 @@ def parse_shop_url(shop_url: str) -> Dict:
     """解析店铺链接，提取店铺ID和平台
     
     支持的URL格式：
-    - https://shop5x1481695p964.1688.com/ (子域名形式)
-    - https://m.1688.com/winport/b2b-2203732271454a73fd.html (移动端形式)
+    - https://m.1688.com/winport/b2b-2203732271454a73fd.html (移动端形式，优先)
     - https://winport.1688.com/company/xxx.html
+    - https://shop5x1481695p964.1688.com/ (子域名形式，自定义域名)
+    
+    注意：移动端链接中的 b2b-xxx 才是真正的店铺ID
+    自定义域名（如 nigaozhenzhi.1688.com）中的部分不是店铺ID
     
     Returns:
         {'shop_id': 'xxx', 'platform': 'alibaba'}
@@ -362,11 +371,6 @@ def parse_shop_url(shop_url: str) -> Dict:
     if '1688.com' in shop_url or 'alibaba.com' in shop_url:
         result['platform'] = 'alibaba'
         
-        shop_match = re.search(r'shop([a-z0-9]+)\.1688\.com', shop_url)
-        if shop_match:
-            result['shop_id'] = shop_match.group(1)
-            return result
-        
         winport_match = re.search(r'winport/([^/]+)\.html', shop_url)
         if winport_match:
             result['shop_id'] = winport_match.group(1)
@@ -375,6 +379,11 @@ def parse_shop_url(shop_url: str) -> Dict:
         company_match = re.search(r'company/([^/]+)\.html', shop_url)
         if company_match:
             result['shop_id'] = company_match.group(1)
+            return result
+        
+        shop_match = re.search(r'shop([a-z0-9]+)\.1688\.com', shop_url)
+        if shop_match:
+            result['shop_id'] = shop_match.group(1)
             return result
             
     elif 'jd.com' in shop_url:
@@ -452,8 +461,30 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
     if shop_data is None:
         shop_data = {}
     
+    from datetime import datetime
+    
+    product_ids = [p.get('product_id') for p in products if p and p.get('product_id')]
+    
+    if not product_ids:
+        return 0, ["没有有效的商品ID"]
+    
+    existing_products = {}
+    if not shop_id:
+        placeholders = ','.join(['?' for _ in product_ids])
+        existing_rows = db.query(
+            f"SELECT product_id FROM shop_products WHERE product_id IN ({placeholders})",
+            product_ids
+        )
+        existing_products = {row['product_id'] for row in existing_rows} if existing_rows else set()
+    
+    new_products = []
+    update_products = []
+    
     for product in products:
         try:
+            if product is None:
+                continue
+            
             product_id = product.get('product_id')
             if not product_id:
                 continue
@@ -488,16 +519,10 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
                 shop_product_data['support_dropship'] = support_dropship
             
             if shop_id:
-                db.save_shop_product(shop_id, shop_product_data)
+                new_products.append(shop_product_data)
             else:
-                from datetime import datetime
-                existing_shop_product = db.query_one(
-                    "SELECT * FROM shop_products WHERE product_id = ?",
-                    [product_id]
-                )
-                
-                if existing_shop_product:
-                    update_data = {'updated_at': datetime.now()}
+                if product_id in existing_products:
+                    update_data = {'product_id': product_id, 'updated_at': datetime.now()}
                     
                     for key, new_value in shop_product_data.items():
                         if key == 'product_id':
@@ -509,17 +534,35 @@ def import_to_database(products: List[Dict], db, shop_id: str = None, shop_name:
                     if support_dropship is not None:
                         update_data['support_dropship'] = support_dropship
                     
-                    db.update('shop_products', update_data, 'product_id = ?', [product_id])
+                    update_products.append(update_data)
                 else:
                     shop_product_data['collect_time'] = datetime.now()
-                    db.insert('shop_products', shop_product_data)
+                    new_products.append(shop_product_data)
             
             imported += 1
             
         except Exception as e:
             errors.append(f"导入商品 {product.get('product_id', '未知')} 失败: {e}")
     
-    log_success(f"导入完成: {imported}/{len(products)} 条商品数据")
+    for product_data in new_products:
+        try:
+            if shop_id:
+                db.save_shop_product(shop_id, product_data)
+            else:
+                db.insert('shop_products', product_data)
+        except Exception as e:
+            errors.append(f"插入商品 {product_data.get('product_id', '未知')} 失败: {e}")
+    
+    for update_data in update_products:
+        try:
+            product_id = update_data.pop('product_id')
+            db.update('shop_products', update_data, 'product_id = ?', [product_id])
+        except Exception as e:
+            errors.append(f"更新商品 {product_id} 失败: {e}")
+    
+    db.conn.execute('CHECKPOINT')
+    
+    log_success(f"导入完成: {imported}/{len(products)} 条商品数据 (新增 {len(new_products)} 条, 更新 {len(update_products)} 条)")
     
     if shop_data and shop_data.get('shop_name'):
         try:
@@ -542,11 +585,10 @@ def _ensure_supplier_record(db, shop_data: Dict):
         return
     
     shop_url = shop_data.get('shop_url', '')
-    redirected_info = get_redirected_shop_url(shop_url) if shop_url else {}
+    parsed_info = parse_shop_url(shop_url) if shop_url else {}
     
-    final_shop_url = redirected_info.get('redirected_url', shop_url)
-    shop_id = redirected_info.get('shop_id', '') or f"supplier_{shop_name}"
-    platform = redirected_info.get('platform', 'alibaba') or 'alibaba'
+    shop_id = parsed_info.get('shop_id', '') or f"supplier_{shop_name}"
+    platform = parsed_info.get('platform', 'alibaba') or 'alibaba'
     
     existing = db.query_one(
         "SELECT * FROM ds_shops WHERE ds_shop_name = ?",
@@ -555,8 +597,8 @@ def _ensure_supplier_record(db, shop_data: Dict):
     
     if existing:
         update_data = {}
-        if final_shop_url and not existing.get('ds_shop_url'):
-            update_data['ds_shop_url'] = final_shop_url
+        if shop_url and not existing.get('ds_shop_url'):
+            update_data['ds_shop_url'] = shop_url
         if shop_id and (not existing.get('ds_shop_id') or existing.get('ds_shop_id', '').startswith('supplier_')):
             update_data['ds_shop_id'] = shop_id
         if shop_data.get('location') and not existing.get('remark'):
@@ -571,7 +613,7 @@ def _ensure_supplier_record(db, shop_data: Dict):
             'ds_shop_id': shop_id,
             'ds_shop_name': shop_name,
             'ds_platform': platform,
-            'ds_shop_url': final_shop_url,
+            'ds_shop_url': shop_url,
             'shop_type': 'supplier',
             'shop_status': 'active',
             'remark': f"来源: Excel导入 | 所在地: {shop_data.get('location', '')}"

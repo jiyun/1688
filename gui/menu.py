@@ -509,14 +509,21 @@ class ContextMenuCommands:
         if sku_prices:
             for sku_data in sku_prices:
                 try:
-                    sku_id = sku_data['skuId']
-                    color = sku_data['color']
-                    size = sku_data['size']
-                    price = float(sku_data['price']) if sku_data['price'] else None
-                    discount_price = float(sku_data['discountPrice']) if sku_data['discountPrice'] else None
-                    can_book_count = int(sku_data['canBookCount']) if sku_data['canBookCount'] else None
-                    sale_count = int(sku_data['saleCount']) if sku_data['saleCount'] else None
-                    spec_id = sku_data['specId']
+                    if sku_data is None:
+                        continue
+                    
+                    color = sku_data.get('color', '') or ''
+                    size = sku_data.get('size', '') or ''
+                    
+                    sku_id = sku_data.get('skuId')
+                    if not sku_id:
+                        continue
+                    
+                    price = float(sku_data['price']) if sku_data.get('price') else None
+                    discount_price = float(sku_data['discountPrice']) if sku_data.get('discountPrice') else None
+                    can_book_count = int(sku_data['canBookCount']) if sku_data.get('canBookCount') else None
+                    sale_count = int(sku_data['saleCount']) if sku_data.get('saleCount') else None
+                    spec_id = sku_data.get('specId')
                     
                     db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
                     saved_sku_count += 1
