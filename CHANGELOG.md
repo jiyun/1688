@@ -4,6 +4,123 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [0.6.2] - 2026-04-16
+
+### 新增
+
+#### 统一异常体系
+- 新增 `utils/exceptions.py`，建立领域异常层级：ScraperError → ParseError / DownloadError / DatabaseError / ConfigError / BrowserError / ImageProcessError / ImportError_
+- ParseError 支持 url 属性，DownloadError 支持 url 和 retryable 属性
+
+#### 统一配置管理
+- 新增 `utils/config_manager.py`，单例模式 ConfigManager，统一管理 JSON 配置文件的读写和缓存
+- column_config.py 和 column_mapping.py 委托 ConfigManager 处理 JSON 操作
+
+#### 下载模块增强
+- resource_downloader 新增 `download_with_requests` 方法，作为 aria2c 不可用时的备选下载方式
+- `download_product_resources` 自动检测 aria2c 可用性并选择下载方式
+
+#### GUI 模块化
+- 从 app.py 提取 AnalysisDialog、ImportDialog、DSStatusDialog 到 dialog.py
+- 提取 ExcelImportDialog 到 dialog.py
+- 提取 parse_import_line 工具函数到 dialog.py
+
+#### 单元测试
+- 新增 `tests/test_core.py`，48 个测试用例覆盖：
+  - 异常体系层级和属性
+  - ConfigManager 单例、读写、缓存失效
+  - Logger 上下文绑定和格式化
+  - ParserFactory 平台检测和解析器创建
+  - BaseParser 抽象类约束
+  - AlibabaParser 图片ID提取和URL标准化
+  - 导入行解析（URL/价格/DSID）
+
+### 优化
+
+#### 解析器性能
+- AlibabaParser 预编译正则表达式（_IMAGE_ID_PATTERN、_URL_SUFFIX_PATTERN 等）
+- AlibabaParser 添加 LRU 缓存到 _normalize_url 方法
+- AlibabaParser 重构数字解析为可复用的 _parse_number 方法
+- JDParser 预编译正则表达式并添加类型注解
+
+#### 数据库索引
+- 合并分散的索引创建到 _create_indexes 方法
+- 新增 24 个优化索引覆盖 products、resources、sku_prices、attributes 等表
+
+#### 日志系统
+- AppLogger 新增 bind() 方法支持上下文绑定（product_id 等）
+- 日志格式增加时间戳、模块名和上下文信息
+- get_logger() 按名称返回单例
+
+#### 代码重复消除
+- 合并 auto_collector.py 中重复的 find_chrome_executable 和 find_edge_executable 到 extension_manager.py
+- 移除 parser.py 中重复的 _extract_image_id 和 _normalize_url，委托平台解析器
+
+#### 错误处理一致性
+- database.py 和 resource_downloader.py 中替换通用 Exception 为自定义异常类型
+
+#### 类型注解补充
+- database.py 关键方法添加返回类型注解（close、get_setting、save_setting、update、delete 等）
+- resource_downloader.py 添加 _create_url_shortcut → None、clean_small_files → int
+- config_manager.py 添加 invalidate → None
+
+### 变更
+
+- app.py 从 ~3280 行减少到 ~2943 行（-10%）
+- dialog.py 承载提取的对话框组件
+
+## [0.6.1] - 2026-04-15
+
+### 新增
+
+#### 店铺信息页重构
+- 店铺信息页重构和供应商自动创建
+- 添加店铺功能明确为用户店铺类型
+- 店铺链接HTTP跳转获取和供应商筛选功能
+
+#### 列操作增强
+- 列拖拽添加动画效果
+- 商品ID自然排序、导入不覆盖已有数据、列操作扩展到所有页面
+
+### 修复
+
+- 修复店铺信息页双击访问链接和导入数据错误
+
+## [0.6.0] - 2026-04-14
+
+### 新增
+
+#### Excel导入增强
+- 扩展Excel导入支持、列映射配置、一件代发标记
+- 导入对话框添加一件代发标记选项
+- 店铺商品导入支持店铺名称关联
+
+#### 列配置管理
+- 添加通用列配置管理和拖放功能模块
+- 实现列拖放重排和配置自动保存功能
+
+#### Edge浏览器适配
+- 完成Edge浏览器适配和工具自动下载
+- 优化浏览器检查逻辑 - Chrome和Edge任一可用即可
+- 优化依赖配置和添加扩展自动下载
+
+#### 视频生成修复
+- 修复视频生成功能，输出720p 9:16 MP4格式
+- 修复moviepy 2.x兼容性 - 支持新版API导入路径
+- 完全修复moviepy 2.x兼容性问题
+
+### 修复
+
+- 修复Excel导入对话框返回值解析问题
+- 修复商品列表导出Excel列名匹配问题
+- 调整导入对话框高度确保按钮可见
+- 店铺商品列表排序和列选择菜单优化
+
+### 变更
+
+- 更新README - SingleFile标记为可选、添加在线采集性能说明
+- 补充README模块说明 - 添加图片编辑器和视频生成器模块说明
+
 ## [0.5.0] - 2026-04-11
 
 ### 新增
@@ -60,6 +177,21 @@
 - 修复主图拖放目标计算问题
 - 修复列模式涂抹坐标转换问题
 - 修复污点去除功能未正确应用问题
+- 修复数据库右键菜单 - 打开输出路径始终显示、访问DSID页改名为访问店铺商品页
+- 修复定价工具SKU加载问题 - 使用discount_price、允许size为空、移除默认规格过滤
+- 修复DS店铺列编辑无法保存的问题，分离数据库字段名和表格列名
+- 移除对缺失的image_utils模块的引用，改用image_processor
+- 添加duckdb到requirements.txt，修复数据库迁移检查错误处理
+
+### 变更
+
+- 改为双击表格列内联编辑DS店铺和DSID，移除弹窗方式
+- 将右键菜单'打开资源目录'改名为'打开输出路径'
+- 清理未使用的extensions目录和__pycache__目录
+
+### 新增（0.4.4 → 0.5.0 期间）
+
+- 资源下载完成后自动生成URL快捷方式文件(#URL.url)
 
 ## [0.4.4] - 2026-04-09
 
