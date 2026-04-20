@@ -13,6 +13,7 @@ from typing import Optional, Callable
 import customtkinter as ctk
 
 from .tools import PLATFORM_PRESETS, SUPPORTED_FORMATS
+from gui.utils import create_button
 
 
 class PlatformPresetSelector(ctk.CTkFrame):
@@ -165,11 +166,11 @@ class BrushSizeSelector(ctk.CTkFrame):
         self._level_var = tk.IntVar(value=self._default_level)
         
         for level in range(1, 6):
-            btn = ctk.CTkButton(
+            btn = create_button(
                 self,
-                text=str(level),
-                width=30,
-                command=lambda l=level: self._on_level_change(l)
+                str(level),
+                lambda l=level: self._on_level_change(l),
+                'secondary', size='compact', width=30
             )
             btn.pack(side='left', padx=2)
         
@@ -216,11 +217,11 @@ class VideoDurationSelector(ctk.CTkFrame):
         self._duration_var = tk.IntVar(value=self._default_duration)
         
         for duration in self._duration_options:
-            btn = ctk.CTkButton(
+            btn = create_button(
                 self,
-                text=f"{duration}秒",
-                width=50,
-                command=lambda d=duration: self._on_duration_change(d)
+                f"{duration}秒",
+                lambda d=duration: self._on_duration_change(d),
+                'secondary', size='compact', width=50
             )
             btn.pack(side='left', padx=2)
     

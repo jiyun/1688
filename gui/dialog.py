@@ -12,7 +12,8 @@ from tkinter import ttk
 import customtkinter as ctk
 import re
 from typing import Optional, Callable, List, Dict, Any
-from gui.utils import create_button
+from gui.utils import create_button, center_window
+from config import get_font
 
 DIALOG_COLORS = {
     'info': {
@@ -81,6 +82,7 @@ class CustomDialog:
         style = DIALOG_COLORS.get(self.dialog_type, DIALOG_COLORS['info'])
         
         self.dialog.geometry("400x200")
+        self.dialog.minsize(300, 150)
         self.dialog.resizable(False, False)
         
         self._center_dialog()
@@ -102,7 +104,7 @@ class CustomDialog:
         title_label = ctk.CTkLabel(
             content_frame,
             text=self.title,
-            font=(self.font_name, self.font_size + 4, 'bold'),
+            font=get_font(self.font_name, 'xl', 'bold'),
             text_color=style['text_color']
         )
         title_label.pack(anchor='w')
@@ -110,7 +112,7 @@ class CustomDialog:
         message_label = ctk.CTkLabel(
             content_frame,
             text=self.message,
-            font=(self.font_name, self.font_size + 2),
+            font=get_font(self.font_name, 'lg'),
             text_color=style['text_color'],
             wraplength=280,
             justify=tk.LEFT
@@ -128,7 +130,7 @@ class CustomDialog:
                 'primary',
                 fg_color=style['button_fg_color'],
                 hover_color=style['button_hover_color'],
-                font=(self.font_name, self.font_size + 1)
+                font_family=self.font_name
             )
             btn.pack(side=tk.RIGHT, padx=5)
         
@@ -220,10 +222,12 @@ class ImportDialog:
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title("智能导入")
         self.dialog.geometry("900x600")
+        self.dialog.minsize(700, 450)
         self.dialog.resizable(True, True)
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_force()
+        center_window(self.dialog, parent, 900, 600)
         self.dialog.lift()
         
         self._create_widgets()
@@ -251,7 +255,7 @@ class ImportDialog:
         input_frame = ctk.CTkFrame(main_frame)
         input_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ctk.CTkLabel(input_frame, text="粘贴混合文本:", font=("", 12, "bold")).pack(anchor=tk.W, padx=5, pady=5)
+        ctk.CTkLabel(input_frame, text="粘贴混合文本:", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=5, pady=5)
         
         self.input_text = ctk.CTkTextbox(input_frame, height=120)
         self.input_text.pack(fill=tk.X, padx=5, pady=5)
@@ -262,15 +266,15 @@ class ImportDialog:
         preview_frame = ctk.CTkFrame(main_frame)
         preview_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        ctk.CTkLabel(preview_frame, text="解析结果预览 (点击勾选确认导入):", font=("", 12, "bold")).pack(anchor=tk.W, padx=5, pady=5)
+        ctk.CTkLabel(preview_frame, text="解析结果预览 (点击勾选确认导入):", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=5, pady=5)
         
         select_frame = ctk.CTkFrame(preview_frame, fg_color="transparent")
         select_frame.pack(fill=tk.X, padx=5, pady=2)
         
-        select_all_btn = create_button(select_frame, "全选", self._select_all, 'secondary', width=60)
+        select_all_btn = create_button(select_frame, "全选", self._select_all, 'secondary', size='compact')
         select_all_btn.pack(side=tk.LEFT, padx=3)
         
-        deselect_all_btn = create_button(select_frame, "全不选", self._deselect_all, 'secondary', width=60)
+        deselect_all_btn = create_button(select_frame, "全不选", self._deselect_all, 'secondary', size='compact')
         deselect_all_btn.pack(side=tk.LEFT, padx=3)
         
         tree_container = ctk.CTkFrame(preview_frame, fg_color="transparent")
@@ -496,6 +500,7 @@ class PathLocatorDialog:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_force()
+        center_window(self.dialog, parent, 700, dialog_height)
         self.dialog.lift()
         
         self._create_widgets()
@@ -511,13 +516,13 @@ class PathLocatorDialog:
         self.status_label = ctk.CTkLabel(button_frame, text="", text_color="gray")
         self.status_label.pack(side=tk.LEFT, padx=5)
         
-        skip_btn = create_button(button_frame, "跳过", self._on_skip, 'secondary', width=80)
+        skip_btn = create_button(button_frame, "跳过", self._on_skip, 'secondary', size='compact', width=80)
         skip_btn.pack(side=tk.RIGHT, padx=5)
         
-        confirm_btn = create_button(button_frame, "确认", self._on_confirm, 'primary', width=80)
+        confirm_btn = create_button(button_frame, "确认", self._on_confirm, 'primary', size='compact', width=80)
         confirm_btn.pack(side=tk.RIGHT, padx=5)
         
-        cancel_btn = create_button(button_frame, "取消", self._on_cancel, 'secondary', width=80)
+        cancel_btn = create_button(button_frame, "取消", self._on_cancel, 'secondary', size='compact', width=80)
         cancel_btn.pack(side=tk.RIGHT, padx=5)
         
         main_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
@@ -529,13 +534,13 @@ class PathLocatorDialog:
         ctk.CTkLabel(
             info_frame, 
             text=f"商品ID: {self.product_id}", 
-            font=("", 12, "bold")
+            font=get_font('', 'lg', 'bold')
         ).pack(anchor=tk.W, padx=10, pady=3)
         
         ctk.CTkLabel(
             info_frame, 
             text=f"原始路径: {self.original_path}", 
-            font=("", 10),
+            font=get_font('', 'base'),
             text_color="gray"
         ).pack(anchor=tk.W, padx=10, pady=2)
         
@@ -544,14 +549,14 @@ class PathLocatorDialog:
         ctk.CTkLabel(
             info_frame, 
             text=status_text, 
-            font=("", 11),
+            font=get_font('', 'lg'),
             text_color=status_color
         ).pack(anchor=tk.W, padx=10, pady=3)
         
         manual_frame = ctk.CTkFrame(main_frame)
         manual_frame.pack(fill=tk.X, pady=5)
         
-        ctk.CTkLabel(manual_frame, text="手动选择路径:", font=("", 11, "bold")).pack(anchor=tk.W, padx=10, pady=3)
+        ctk.CTkLabel(manual_frame, text="手动选择路径:", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=10, pady=3)
         
         path_input_frame = ctk.CTkFrame(manual_frame, fg_color="transparent")
         path_input_frame.pack(fill=tk.X, padx=10, pady=3)
@@ -560,7 +565,7 @@ class PathLocatorDialog:
         self.path_entry = ctk.CTkEntry(path_input_frame, textvariable=self.path_var, width=500)
         self.path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
-        browse_btn = create_button(path_input_frame, "浏览...", self._browse_path, 'secondary', width=80)
+        browse_btn = create_button(path_input_frame, "浏览...", self._browse_path, 'secondary', size='compact', width=80)
         browse_btn.pack(side=tk.LEFT)
         
         if self.suggestions:
@@ -570,7 +575,7 @@ class PathLocatorDialog:
             ctk.CTkLabel(
                 suggest_frame, 
                 text=f"智能匹配建议 (找到 {len(self.suggestions)} 个，双击选择):", 
-                font=("", 11, "bold")
+                font=get_font('', 'lg', 'bold')
             ).pack(anchor=tk.W, padx=10, pady=3)
             
             tree_container = ctk.CTkFrame(suggest_frame, fg_color="transparent")
@@ -604,7 +609,7 @@ class PathLocatorDialog:
             ctk.CTkLabel(
                 no_suggest_frame, 
                 text="未找到智能匹配建议，请手动选择路径", 
-                font=("", 10),
+                font=get_font('', 'base'),
                 text_color="orange"
             ).pack(anchor=tk.W, padx=10, pady=5)
     
@@ -683,6 +688,7 @@ class DSIDLinkDialog:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_force()
+        center_window(self.dialog, parent, 550, 400)
         self.dialog.lift()
         
         self._create_widgets()
@@ -697,10 +703,10 @@ class DSIDLinkDialog:
         self.status_label = ctk.CTkLabel(button_frame, text="", text_color="gray")
         self.status_label.pack(side=tk.LEFT, padx=5)
         
-        cancel_btn = create_button(button_frame, "取消", self._on_cancel, 'secondary', width=80)
+        cancel_btn = create_button(button_frame, "取消", self._on_cancel, 'secondary', size='compact', width=80)
         cancel_btn.pack(side=tk.RIGHT, padx=5)
         
-        confirm_btn = create_button(button_frame, "确认", self._on_confirm, 'primary', width=80)
+        confirm_btn = create_button(button_frame, "确认", self._on_confirm, 'primary', size='compact', width=80)
         confirm_btn.pack(side=tk.RIGHT, padx=5)
         
         main_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
@@ -712,20 +718,20 @@ class DSIDLinkDialog:
         ctk.CTkLabel(
             info_frame, 
             text=f"商品ID: {self.product_id}", 
-            font=("", 12, "bold")
+            font=get_font('', 'lg', 'bold')
         ).pack(anchor=tk.W, padx=10, pady=5)
         
         ctk.CTkLabel(
             info_frame, 
             text="支持输入：纯数字ID、1688编辑链接、京麦编辑链接",
-            font=("", 10),
+            font=get_font('', 'base'),
             text_color="gray"
         ).pack(anchor=tk.W, padx=10, pady=2)
         
         input_frame = ctk.CTkFrame(main_frame)
         input_frame.pack(fill=tk.X, pady=5)
         
-        ctk.CTkLabel(input_frame, text="输入内容:", font=("", 11, "bold")).pack(anchor=tk.W, padx=10, pady=3)
+        ctk.CTkLabel(input_frame, text="输入内容:", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=10, pady=3)
         
         self.input_var = tk.StringVar(value=self.current_dsid)
         self.input_entry = ctk.CTkEntry(input_frame, textvariable=self.input_var, width=500)
@@ -735,7 +741,7 @@ class DSIDLinkDialog:
         parse_frame = ctk.CTkFrame(main_frame)
         parse_frame.pack(fill=tk.X, pady=5)
         
-        ctk.CTkLabel(parse_frame, text="解析结果:", font=("", 11, "bold")).pack(anchor=tk.W, padx=10, pady=3)
+        ctk.CTkLabel(parse_frame, text="解析结果:", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=10, pady=3)
         
         result_frame = ctk.CTkFrame(parse_frame, fg_color="transparent")
         result_frame.pack(fill=tk.X, padx=10, pady=3)
@@ -755,7 +761,7 @@ class DSIDLinkDialog:
         remark_frame = ctk.CTkFrame(main_frame)
         remark_frame.pack(fill=tk.X, pady=5)
         
-        ctk.CTkLabel(remark_frame, text="备注 (自动更新):", font=("", 11, "bold")).pack(anchor=tk.W, padx=10, pady=3)
+        ctk.CTkLabel(remark_frame, text="备注 (自动更新):", font=get_font('', 'lg', 'bold')).pack(anchor=tk.W, padx=10, pady=3)
         
         self.remark_var = tk.StringVar(value=self.current_remark)
         self.remark_entry = ctk.CTkEntry(remark_frame, textvariable=self.remark_var, width=500)
@@ -946,8 +952,10 @@ class ExcelImportDialog:
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("导入Excel数据")
         self.dialog.geometry("1000x750")
+        self.dialog.minsize(800, 600)
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
+        center_window(self.dialog, self.parent, 1000, 750)
         
         main_frame = ctk.CTkFrame(self.dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
@@ -958,13 +966,13 @@ class ExcelImportDialog:
         ctk.CTkLabel(
             title_frame, 
             text="导入1688采购助手导出的全店商品Excel文件",
-            font=(self.font_name, self.font_size_large, "bold")
+            font=get_font(self.font_name, 'lg', 'bold')
         ).pack(anchor="w", padx=8)
         
         ctk.CTkLabel(
             title_frame, 
             text="支持格式：1688采购助手导出的xlsx文件，包含商品标题、宝贝ID、价格、销量等信息",
-            font=(self.font_name, self.font_size),
+            font=get_font(self.font_name, 'base'),
             text_color="gray"
         ).pack(anchor="w", padx=20)
         
@@ -977,12 +985,12 @@ class ExcelImportDialog:
         file_entry = ctk.CTkEntry(file_frame, textvariable=self._file_path_var, width=500)
         file_entry.pack(side="left", padx=5)
         
-        create_button(file_frame, "浏览...", self._browse_file, 'primary', width=80).pack(side="left", padx=5)
+        create_button(file_frame, "浏览...", self._browse_file, 'primary', size='compact', width=80).pack(side="left", padx=5)
         
         preview_frame = ctk.CTkFrame(main_frame)
         preview_frame.pack(fill="both", expand=True, pady=10)
         
-        ctk.CTkLabel(preview_frame, text="数据预览:", font=(self.font_name, self.font_size)).pack(anchor="w", padx=5)
+        ctk.CTkLabel(preview_frame, text="数据预览:", font=get_font(self.font_name, 'base')).pack(anchor="w", padx=5)
         
         preview_columns = ("product_id", "title", "price", "dropship_price", "sales_count", "review_count", "monthly_orders", "monthly_dropship", "ship_time", "list_time", "category", "tags")
         self._preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=12)
@@ -1029,14 +1037,14 @@ class ExcelImportDialog:
             option_frame, 
             text="(如果是从'支持一件代发'筛选后导出的数据，请勾选此项)", 
             text_color="gray",
-            font=(self.font_name, self.font_size_small)
+            font=get_font(self.font_name, 'sm')
         ).pack(side="left", padx=5)
         
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", pady=10)
         
-        create_button(btn_frame, "导入数据", self._do_import, 'success', width=100).pack(side="left", padx=10)
-        create_button(btn_frame, "取消", self._on_cancel, 'secondary', width=80).pack(side="left", padx=5)
+        create_button(btn_frame, "导入数据", self._do_import, 'success', size='compact', width=100).pack(side="left", padx=10)
+        create_button(btn_frame, "取消", self._on_cancel, 'secondary', size='compact', width=80).pack(side="left", padx=5)
     
     def _browse_file(self):
         from tkinter import filedialog
@@ -1182,8 +1190,10 @@ class AnalysisDialog:
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("商品分析 - 战力图")
         self.dialog.geometry("900x700")
+        self.dialog.minsize(700, 550)
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
+        center_window(self.dialog, self.parent, 900, 700)
         
         main_frame = ctk.CTkFrame(self.dialog)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1191,7 +1201,7 @@ class AnalysisDialog:
         top_frame = ctk.CTkFrame(main_frame)
         top_frame.pack(fill="x", pady=5)
         
-        ctk.CTkLabel(top_frame, text="商品分析", font=(self.font_name, 16, "bold")).pack(side="left", padx=10)
+        ctk.CTkLabel(top_frame, text="商品分析", font=get_font(self.font_name, '2xl', 'bold')).pack(side="left", padx=10)
         
         canvas_frame = ctk.CTkFrame(main_frame)
         canvas_frame.pack(fill="both", expand=True, pady=10)
@@ -1204,14 +1214,14 @@ class AnalysisDialog:
         list_frame = ctk.CTkFrame(main_frame)
         list_frame.pack(fill="x", pady=5)
         
-        ctk.CTkLabel(list_frame, text="Top 10 商品:", font=(self.font_name, 12, "bold")).pack(anchor="w", padx=5)
+        ctk.CTkLabel(list_frame, text="Top 10 商品:", font=get_font(self.font_name, 'lg', 'bold')).pack(anchor="w", padx=5)
         
         for i, p in enumerate(self.products[:10], 1):
             title = p.get('title', '')
             if len(title) > 25:
                 title = title[:25] + '...'
             text = f"{i}. [{p.get('product_id')}] {title} - 销量:{p.get('monthly_sales', 0)} 评论:{p.get('review_count', 0)}"
-            ctk.CTkLabel(list_frame, text=text, font=(self.font_name, 10)).pack(anchor="w", padx=20)
+            ctk.CTkLabel(list_frame, text=text, font=get_font(self.font_name, 'base')).pack(anchor="w", padx=20)
     
     def _draw_radar_chart(self):
         canvas = self._canvas
@@ -1397,8 +1407,10 @@ class ImportDialog:
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("导入数据")
         self.dialog.geometry("950x850")
+        self.dialog.minsize(750, 650)
         self.dialog.transient(self.parent)
         self.dialog.grab_set()
+        center_window(self.dialog, self.parent, 950, 850)
         
         main_frame = ctk.CTkFrame(self.dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
@@ -1409,35 +1421,35 @@ class ImportDialog:
         ctk.CTkLabel(
             format_frame,
             text="导入格式说明",
-            font=(self.font_name, self.font_size_large, "bold")
+            font=get_font(self.font_name, 'lg', 'bold')
         ).pack(anchor="w", padx=8)
         
         ctk.CTkLabel(
             format_frame,
             text="• 格式：URL [中间内容] DSID（空格分隔）\n• URL：商品链接，从中解析商品ID\n• 中间内容：可选，包含价格数字的文本\n• DSID：店铺商品ID（主要目的）",
-            font=(self.font_name, self.font_size),
+            font=get_font(self.font_name, 'base'),
             justify="left"
         ).pack(anchor="w", padx=20)
         
         ctk.CTkLabel(
             format_frame,
             text="示例：\n  https://detail.1688.com/offer/123456789.html ABC123\n  https://detail.1688.com/offer/123456789.html 【¥25.00】 ABC123",
-            font=(self.font_name, self.font_size),
+            font=get_font(self.font_name, 'base'),
             text_color="gray"
         ).pack(anchor="w", padx=20, pady=5)
         
         input_frame = ctk.CTkFrame(main_frame)
         input_frame.pack(fill="both", expand=True, pady=8)
         
-        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=(self.font_name, self.font_size)).pack(anchor="w", padx=8)
+        ctk.CTkLabel(input_frame, text="请粘贴数据（每行一条）：", font=get_font(self.font_name, 'base')).pack(anchor="w", padx=8)
         
-        self._text_input = ctk.CTkTextbox(input_frame, height=200, font=(self.font_name, self.font_size))
+        self._text_input = ctk.CTkTextbox(input_frame, height=200, font=get_font(self.font_name, 'base'))
         self._text_input.pack(fill="both", expand=True, padx=8, pady=8)
         
         preview_frame = ctk.CTkFrame(main_frame)
         preview_frame.pack(fill="both", expand=True, pady=8)
         
-        ctk.CTkLabel(preview_frame, text="解析预览：", font=(self.font_name, self.font_size)).pack(anchor="w", padx=8)
+        ctk.CTkLabel(preview_frame, text="解析预览：", font=get_font(self.font_name, 'base')).pack(anchor="w", padx=8)
         
         preview_columns = ("行号", "商品ID", "目标售价", "DSID", "状态")
         self._preview_tree = ttk.Treeview(preview_frame, columns=preview_columns, show="headings", height=8)
@@ -1462,12 +1474,12 @@ class ImportDialog:
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", pady=10)
         
-        self._count_label = ctk.CTkLabel(btn_frame, text="共 0 行", font=(self.font_name, self.font_size_small))
+        self._count_label = ctk.CTkLabel(btn_frame, text="共 0 行", font=get_font(self.font_name, 'sm'))
         self._count_label.pack(side="left", padx=10)
         
-        ctk.CTkButton(btn_frame, text="解析预览", command=self._parse_input).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="确认导入", command=self._confirm_import).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="取消", command=self.dialog.destroy).pack(side="right", padx=5)
+        create_button(btn_frame, "解析预览", self._parse_input, 'primary', size='compact').pack(side="left", padx=5)
+        create_button(btn_frame, "确认导入", self._confirm_import, 'success', size='compact').pack(side="left", padx=5)
+        create_button(btn_frame, "取消", self.dialog.destroy, 'secondary', size='compact').pack(side="right", padx=5)
     
     def _parse_input(self):
         self.parsed_data = []
@@ -1593,7 +1605,9 @@ class DSStatusDialog:
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title(f"DS关联状态 - {self.product_id}")
         self.dialog.geometry("700x400")
+        self.dialog.minsize(550, 300)
         self.dialog.transient(self.parent)
+        center_window(self.dialog, self.parent, 700, 400)
         
         main_frame = ctk.CTkFrame(self.dialog)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1602,7 +1616,7 @@ class DSStatusDialog:
         info_frame.pack(fill="x", pady=5)
         
         ctk.CTkLabel(info_frame, text=f"商品ID: {self.product_id}",
-                     font=(self.font_name, 12, "bold")).pack(side="left", padx=10)
+                     font=get_font(self.font_name, 'lg', 'bold')).pack(side="left", padx=10)
         ctk.CTkLabel(info_frame,
                      text=f"关联店铺: {self.status['total_shops']} | 已上架: {self.status['listed_count']} | 待处理: {self.status['pending_count']}"
                      ).pack(side="left", padx=10)
@@ -1643,7 +1657,7 @@ class DSStatusDialog:
                 shop.get('remark', '')
             ))
         
-        create_button(main_frame, "关闭", self.dialog.destroy, 'secondary', width=60).pack(pady=10)
+        create_button(main_frame, "关闭", self.dialog.destroy, 'secondary', size='compact').pack(pady=10)
 
 
 def show_ds_status_dialog(parent, product_id: str, status: Dict,

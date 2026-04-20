@@ -9,11 +9,12 @@ import os
 import sys
 import tkinter as tk
 import customtkinter as ctk
-from config import get_button_config, BUTTON_CONF
+from config import get_button_config, BUTTON_CONF, UI_TYPOGRAPHY, get_font_size, get_font
 
 
-def create_button(master, text, command=None, style_type='primary', **kwargs):
-    config = get_button_config(style_type)
+def create_button(master, text, command=None, style_type='primary', size='default',
+                  font_family=None, **kwargs):
+    config = get_button_config(style_type, size)
     width = kwargs.pop('width', config['width'])
     height = kwargs.pop('height', config['height'])
     corner_radius = kwargs.pop('corner_radius', config['corner_radius'])
@@ -22,9 +23,16 @@ def create_button(master, text, command=None, style_type='primary', **kwargs):
     hover_color = kwargs.pop('hover_color', config['hover_color'])
     text_color = kwargs.pop('text_color', config['text_color'])
     
-    return ctk.CTkButton(
-        master, 
-        text=text, 
+    font_size_key = config.get('font_size_key', 'base')
+    font_size = get_font_size(font_size_key)
+    if font_family:
+        font = (font_family, font_size)
+    else:
+        font = kwargs.pop('font', None)
+    
+    btn_kwargs = dict(
+        master=master,
+        text=text,
         command=command,
         width=width,
         height=height,
@@ -33,8 +41,11 @@ def create_button(master, text, command=None, style_type='primary', **kwargs):
         fg_color=fg_color,
         hover_color=hover_color,
         text_color=text_color,
-        **kwargs
     )
+    if font:
+        btn_kwargs['font'] = font
+    
+    return ctk.CTkButton(**btn_kwargs, **kwargs)
 
 
 def set_button_theme(theme_name):
@@ -42,6 +53,30 @@ def set_button_theme(theme_name):
         BUTTON_CONF['current_theme'] = theme_name
         return True
     return False
+
+
+def center_window(window, parent=None, width=None, height=None):
+    if width is None:
+        width = window.winfo_reqwidth()
+    if height is None:
+        height = window.winfo_reqheight()
+    
+    if parent:
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
+        parent_w = parent.winfo_width()
+        parent_h = parent.winfo_height()
+        x = parent_x + (parent_w - width) // 2
+        y = parent_y + (parent_h - height) // 2
+    else:
+        screen_w = window.winfo_screenwidth()
+        screen_h = window.winfo_screenheight()
+        x = (screen_w - width) // 2
+        y = (screen_h - height) // 2
+    
+    x = max(x, 0)
+    y = max(y, 0)
+    window.geometry(f'{width}x{height}+{x}+{y}')
 
 
 def hide_console():

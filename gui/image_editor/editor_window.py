@@ -15,7 +15,9 @@ from PIL import Image, ImageTk
 from .editor_canvas import EditorCanvas
 from .image_block import ImageBlock
 from .tools import convert_aspect_ratio, detect_image_ratio
-from config import IMAGE_EDITOR_CONF, IMAGE_PROCESSING, FILE_NAMING
+from config import IMAGE_EDITOR_CONF, IMAGE_PROCESSING, FILE_NAMING, get_font
+from gui.utils import create_button
+from gui.context_menu import ContextMenuManager, MenuItem, SEPARATOR
 
 
 class ImageEditorWindow(ctk.CTkToplevel):
@@ -28,9 +30,11 @@ class ImageEditorWindow(ctk.CTkToplevel):
         
         self.product_id = product_id
         self.output_path = None
+        self._editor_menu = ContextMenuManager(self)
         
         self.title("商品图片编辑器")
         self.geometry("1400x900")
+        self.minsize(1000, 700)
         
         self._setup_ui()
         self._setup_bindings()
@@ -86,7 +90,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
         resource_frame.pack(side="right", fill="y", padx=5, pady=5)
         resource_frame.pack_propagate(False)
         
-        ctk.CTkLabel(resource_frame, text="可用资源", font=("", 11, "bold")).pack(pady=5)
+        ctk.CTkLabel(resource_frame, text="可用资源", font=get_font('', 'lg', 'bold')).pack(pady=5)
         
         self._detail_resource_scroll = ctk.CTkScrollableFrame(resource_frame, width=140)
         self._detail_resource_scroll.pack(fill="both", expand=True, padx=2, pady=2)
@@ -105,8 +109,8 @@ class ImageEditorWindow(ctk.CTkToplevel):
         product_entry = ctk.CTkEntry(input_frame, textvariable=self._product_var, width=150)
         product_entry.pack(side="top", padx=5, pady=2)
         
-        ctk.CTkButton(input_frame, text="载入", width=60, command=self._on_load).pack(side="left", padx=2)
-        ctk.CTkButton(input_frame, text="保存", width=60, command=self._on_save).pack(side="left", padx=2)
+        create_button(input_frame, "载入", self._on_load, 'primary', size='compact', width=60).pack(side="left", padx=2)
+        create_button(input_frame, "保存", self._on_save, 'secondary', size='compact', width=60).pack(side="left", padx=2)
     
     def _create_tool_buttons(self, parent):
         """创建工具按钮"""
@@ -125,13 +129,13 @@ class ImageEditorWindow(ctk.CTkToplevel):
         ]
         
         for text, command in tools:
-            btn = ctk.CTkButton(btn_frame, text=text, width=60, height=28, command=command)
+            btn = create_button(btn_frame, text, command, 'secondary', size='compact', width=60)
             btn.pack(pady=2)
         
         column_tools_frame = ctk.CTkFrame(parent)
         column_tools_frame.pack(side="top", padx=5, pady=5)
         
-        ctk.CTkLabel(column_tools_frame, text="列模式工具", font=("", 10)).pack(pady=2)
+        ctk.CTkLabel(column_tools_frame, text="列模式工具", font=get_font('', 'base')).pack(pady=2)
         
         column_tools = [
             ("删行", self._on_delete_row),
@@ -141,7 +145,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
         ]
         
         for text, command in column_tools:
-            btn = ctk.CTkButton(column_tools_frame, text=text, width=60, height=24, command=command)
+            btn = create_button(column_tools_frame, text, command, 'secondary', size='compact', width=60)
             btn.pack(pady=1)
     
     def _create_mode_switch(self, parent):
@@ -162,10 +166,10 @@ class ImageEditorWindow(ctk.CTkToplevel):
         history_frame = ctk.CTkFrame(parent)
         history_frame.pack(side="top", padx=5, pady=5)
         
-        self._undo_btn = ctk.CTkButton(history_frame, text="撤销 (Ctrl+Z)", width=80, command=self._on_undo)
+        self._undo_btn = create_button(history_frame, "撤销 (Ctrl+Z)", self._on_undo, 'secondary', size='compact', width=80)
         self._undo_btn.pack(pady=2)
         
-        self._redo_btn = ctk.CTkButton(history_frame, text="重做 (Ctrl+Y)", width=80, command=self._on_redo)
+        self._redo_btn = create_button(history_frame, "重做 (Ctrl+Y)", self._on_redo, 'secondary', size='compact', width=80)
         self._redo_btn.pack(pady=2)
     
     def _setup_main_image_tab(self):
@@ -182,14 +186,14 @@ class ImageEditorWindow(ctk.CTkToplevel):
         header = ctk.CTkFrame(main_frame)
         header.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(header, text="主图管理 (可拖放调整顺序)", font=("", 14, "bold")).pack(side="left", padx=5)
-        ctk.CTkButton(header, text="自动填充", width=80, command=self._auto_fill_main_images).pack(side="left", padx=5)
-        ctk.CTkButton(header, text="保存全部", width=80, command=self._save_all_main_images).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="主图管理 (可拖放调整顺序)", font=get_font('', 'xl', 'bold')).pack(side="left", padx=5)
+        create_button(header, "自动填充", self._auto_fill_main_images, 'primary', size='compact', width=80).pack(side="left", padx=5)
+        create_button(header, "保存全部", self._save_all_main_images, 'success', size='compact', width=80).pack(side="left", padx=5)
         
         row_1_1_frame = ctk.CTkFrame(main_frame)
         row_1_1_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(row_1_1_frame, text="1:1 主图", font=("", 12, "bold")).pack(anchor="w", padx=5)
+        ctk.CTkLabel(row_1_1_frame, text="1:1 主图", font=get_font('', 'lg', 'bold')).pack(anchor="w", padx=5)
         
         images_1_1_frame = ctk.CTkFrame(row_1_1_frame)
         images_1_1_frame.pack(fill="x", padx=5, pady=5)
@@ -203,25 +207,22 @@ class ImageEditorWindow(ctk.CTkToplevel):
             frame.pack(side="left", padx=5, pady=2)
             self._main_1_1_frames.append(frame)
             
-            ctk.CTkLabel(frame, text=f"主图{i+1}", font=("", 10)).pack()
+            ctk.CTkLabel(frame, text=f"主图{i+1}", font=get_font('', 'base')).pack()
             
             label = ctk.CTkLabel(frame, text="未设置", width=100, height=100)
             label.pack(pady=2)
             self._main_1_1_labels.append(label)
             
-            ratio_label = ctk.CTkLabel(frame, text="-", font=("", 9))
+            ratio_label = ctk.CTkLabel(frame, text="-", font=get_font('', 'sm'))
             ratio_label.pack()
             self._main_1_1_ratio_labels.append(ratio_label)
             
             btn_frame = ctk.CTkFrame(frame)
             btn_frame.pack(fill="x")
             
-            ctk.CTkButton(btn_frame, text="选择", width=40, height=24,
-                         command=lambda idx=i: self._select_main_image_1_1(idx)).pack(side="left", padx=1)
-            ctk.CTkButton(btn_frame, text="生成", width=40, height=24,
-                         command=lambda idx=i: self._generate_1_1_from_3_4(idx)).pack(side="left", padx=1)
-            ctk.CTkButton(btn_frame, text="清除", width=40, height=24,
-                         command=lambda idx=i: self._clear_main_image_1_1(idx)).pack(side="left", padx=1)
+            create_button(btn_frame, "选择", lambda idx=i: self._select_main_image_1_1(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
+            create_button(btn_frame, "生成", lambda idx=i: self._generate_1_1_from_3_4(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
+            create_button(btn_frame, "清除", lambda idx=i: self._clear_main_image_1_1(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
             
             label.bind('<Button-1>', lambda e, idx=i: self._on_main_drag_start(e, idx))
             label.bind('<B1-Motion>', self._on_main_drag_motion)
@@ -230,7 +231,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
         row_3_4_frame = ctk.CTkFrame(main_frame)
         row_3_4_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(row_3_4_frame, text="3:4 主图", font=("", 12, "bold")).pack(anchor="w", padx=5)
+        ctk.CTkLabel(row_3_4_frame, text="3:4 主图", font=get_font('', 'lg', 'bold')).pack(anchor="w", padx=5)
         
         images_3_4_frame = ctk.CTkFrame(row_3_4_frame)
         images_3_4_frame.pack(fill="x", padx=5, pady=5)
@@ -245,25 +246,22 @@ class ImageEditorWindow(ctk.CTkToplevel):
             self._main_3_4_frames.append(frame)
             
             title = f"主图{i+1}" if i < 4 else f"主图{i+1}(白底)"
-            ctk.CTkLabel(frame, text=title, font=("", 10)).pack()
+            ctk.CTkLabel(frame, text=title, font=get_font('', 'base')).pack()
             
             label = ctk.CTkLabel(frame, text="未设置", width=100, height=100)
             label.pack(pady=2)
             self._main_3_4_labels.append(label)
             
-            ratio_label = ctk.CTkLabel(frame, text="-", font=("", 9))
+            ratio_label = ctk.CTkLabel(frame, text="-", font=get_font('', 'sm'))
             ratio_label.pack()
             self._main_3_4_ratio_labels.append(ratio_label)
             
             btn_frame = ctk.CTkFrame(frame)
             btn_frame.pack(fill="x")
             
-            ctk.CTkButton(btn_frame, text="选择", width=40, height=24,
-                         command=lambda idx=i: self._select_main_image_3_4(idx)).pack(side="left", padx=1)
-            ctk.CTkButton(btn_frame, text="生成", width=40, height=24,
-                         command=lambda idx=i: self._generate_3_4_from_1_1(idx)).pack(side="left", padx=1)
-            ctk.CTkButton(btn_frame, text="清除", width=40, height=24,
-                         command=lambda idx=i: self._clear_main_image_3_4(idx)).pack(side="left", padx=1)
+            create_button(btn_frame, "选择", lambda idx=i: self._select_main_image_3_4(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
+            create_button(btn_frame, "生成", lambda idx=i: self._generate_3_4_from_1_1(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
+            create_button(btn_frame, "清除", lambda idx=i: self._clear_main_image_3_4(idx), 'secondary', size='compact', width=40).pack(side="left", padx=1)
             
             label.bind('<Button-1>', lambda e, idx=i: self._on_main_drag_start(e, idx))
             label.bind('<B1-Motion>', self._on_main_drag_motion)
@@ -275,9 +273,9 @@ class ImageEditorWindow(ctk.CTkToplevel):
         resource_header = ctk.CTkFrame(resource_frame)
         resource_header.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(resource_header, text="可用资源 (点击设为主图)", font=("", 11)).pack(side="left", padx=5)
-        ctk.CTkButton(resource_header, text="从文件添加", width=70, height=24, command=self._add_main_from_file).pack(side="left", padx=2)
-        ctk.CTkButton(resource_header, text="刷新", width=50, height=24, command=self._refresh_main_resources).pack(side="left", padx=2)
+        ctk.CTkLabel(resource_header, text="可用资源 (点击设为主图)", font=get_font('', 'lg')).pack(side="left", padx=5)
+        create_button(resource_header, "从文件添加", self._add_main_from_file, 'secondary', size='compact', width=70).pack(side="left", padx=2)
+        create_button(resource_header, "刷新", self._refresh_main_resources, 'secondary', size='compact', width=50).pack(side="left", padx=2)
         
         self._main_resource_scroll = ctk.CTkScrollableFrame(resource_frame, height=120, orientation="horizontal")
         self._main_resource_scroll.pack(fill="x", padx=5, pady=5)
@@ -297,10 +295,10 @@ class ImageEditorWindow(ctk.CTkToplevel):
         header = ctk.CTkFrame(color_frame)
         header.pack(fill="x", padx=10, pady=10)
         
-        ctk.CTkLabel(header, text="色卡图管理", font=("", 14, "bold")).pack(side="left", padx=5)
-        ctk.CTkButton(header, text="添加", width=60, command=self._add_color_image).pack(side="left", padx=2)
-        ctk.CTkButton(header, text="全部转1:1", width=80, command=self._convert_all_color_1_1).pack(side="left", padx=2)
-        ctk.CTkButton(header, text="保存全部", width=80, command=self._save_all_color).pack(side="left", padx=2)
+        ctk.CTkLabel(header, text="色卡图管理", font=get_font('', 'xl', 'bold')).pack(side="left", padx=5)
+        create_button(header, "添加", self._add_color_image, 'primary', size='compact', width=60).pack(side="left", padx=2)
+        create_button(header, "全部转1:1", self._convert_all_color_1_1, 'secondary', size='compact', width=80).pack(side="left", padx=2)
+        create_button(header, "保存全部", self._save_all_color, 'success', size='compact', width=80).pack(side="left", padx=2)
         
         self._color_scroll_frame = ctk.CTkScrollableFrame(color_frame, height=300)
         self._color_scroll_frame.pack(fill="both", expand=True, padx=10, pady=5)
@@ -314,8 +312,8 @@ class ImageEditorWindow(ctk.CTkToplevel):
         resource_header = ctk.CTkFrame(resource_frame)
         resource_header.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(resource_header, text="可用资源 (点击添加为色卡)", font=("", 12)).pack(side="left", padx=5)
-        ctk.CTkButton(resource_header, text="从文件添加", width=80, command=self._add_color_from_file).pack(side="left", padx=2)
+        ctk.CTkLabel(resource_header, text="可用资源 (点击添加为色卡)", font=get_font('', 'lg')).pack(side="left", padx=5)
+        create_button(resource_header, "从文件添加", self._add_color_from_file, 'secondary', size='compact', width=80).pack(side="left", padx=2)
         
         self._color_resource_scroll = ctk.CTkScrollableFrame(resource_frame, height=120, orientation="horizontal")
         self._color_resource_scroll.pack(fill="x", padx=5, pady=5)
@@ -346,13 +344,13 @@ class ImageEditorWindow(ctk.CTkToplevel):
         
         ctk.CTkLabel(control_frame, text="秒").pack(side="left", padx=5)
         
-        ctk.CTkButton(control_frame, text="生成视频", width=100, command=self._generate_video).pack(side="left", padx=20)
-        ctk.CTkButton(control_frame, text="打开输出目录", width=100, command=self._open_output_dir).pack(side="left", padx=5)
+        create_button(control_frame, "生成视频", self._generate_video, 'success', size='compact', width=100).pack(side="left", padx=20)
+        create_button(control_frame, "打开输出目录", self._open_output_dir, 'secondary', size='compact', width=100).pack(side="left", padx=5)
         
         existing_videos_frame = ctk.CTkFrame(video_frame)
         existing_videos_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(existing_videos_frame, text="已有视频 (点击预览)", font=("", 12, "bold")).pack(anchor="w", padx=5, pady=5)
+        ctk.CTkLabel(existing_videos_frame, text="已有视频 (点击预览)", font=get_font('', 'lg', 'bold')).pack(anchor="w", padx=5, pady=5)
         
         self._existing_videos_scroll = ctk.CTkScrollableFrame(existing_videos_frame, height=100, orientation="horizontal")
         self._existing_videos_scroll.pack(fill="x", padx=5, pady=5)
@@ -365,7 +363,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
         preview_frame = ctk.CTkFrame(video_frame)
         preview_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        ctk.CTkLabel(preview_frame, text="视频预览", font=("", 14, "bold")).pack(pady=10)
+        ctk.CTkLabel(preview_frame, text="视频预览", font=get_font('', 'xl', 'bold')).pack(pady=10)
         
         self._video_preview_label = ctk.CTkLabel(preview_frame, text="点击\"生成视频\"开始", height=300)
         self._video_preview_label.pack(fill="both", expand=True, padx=10, pady=10)
@@ -373,7 +371,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
         image_list_frame = ctk.CTkFrame(video_frame)
         image_list_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(image_list_frame, text="参与视频的图片 (从详情图页加载)", font=("", 12)).pack(anchor="w", padx=5, pady=5)
+        ctk.CTkLabel(image_list_frame, text="参与视频的图片 (从详情图页加载)", font=get_font('', 'lg')).pack(anchor="w", padx=5, pady=5)
         
         self._video_image_scroll = ctk.CTkScrollableFrame(image_list_frame, height=120, orientation="horizontal")
         self._video_image_scroll.pack(fill="x", padx=5, pady=5)
@@ -464,10 +462,11 @@ class ImageEditorWindow(ctk.CTkToplevel):
             self._update_status("请先选择图片")
             return
         
-        menu = tk.Menu(self, tearoff=0)
-        menu.add_command(label="转换为 1:1 (正方形)", command=lambda: self._do_convert_ratio("1:1"))
-        menu.add_command(label="转换为 3:4 (竖图)", command=lambda: self._do_convert_ratio("3:4"))
-        menu.tk_popup(self.winfo_pointerx(), self.winfo_pointery())
+        items = [
+            MenuItem("转换为 1:1 (正方形)", command=lambda: self._do_convert_ratio("1:1")),
+            MenuItem("转换为 3:4 (竖图)", command=lambda: self._do_convert_ratio("3:4")),
+        ]
+        self._editor_menu.show_at(self.winfo_pointerx(), self.winfo_pointery(), items)
     
     def _do_convert_ratio(self, ratio: str):
         self._canvas.convert_aspect_ratio(ratio)
@@ -773,8 +772,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 label.pack()
                 label.bind('<Button-1>', lambda e, p=video_path: self._preview_video(p))
                 
-                ctk.CTkButton(frame, text="打开", width=60, height=24,
-                             command=lambda p=video_path: self._open_video_file(p)).pack(pady=2)
+                create_button(frame, "打开", lambda p=video_path: self._open_video_file(p), 'secondary', size='compact', width=60).pack(pady=2)
                 
                 self._existing_video_thumbs.append(frame)
             except:
@@ -842,17 +840,19 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 
                 ratio = detect_image_ratio(img)
                 
-                menu = tk.Menu(frame, tearoff=0)
+                menu_items = []
                 for i in range(self.MAIN_IMAGE_COUNT):
-                    menu.add_command(label=f"设为1:1主图{i+1}", 
-                                   command=lambda p=path, idx=i: self._set_main_image_1_1(idx, p))
+                    menu_items.append(MenuItem(f"设为1:1主图{i+1}", command=lambda p=path, idx=i: self._set_main_image_1_1(idx, p)))
                 for i in range(self.MAIN_IMAGE_COUNT):
-                    menu.add_command(label=f"设为3:4主图{i+1}", 
-                                   command=lambda p=path, idx=i: self._set_main_image_3_4(idx, p))
-                label.bind('<Button-1>', lambda e, m=menu: m.tk_popup(e.widget.winfo_pointerx(), e.widget.winfo_pointery()))
+                    menu_items.append(MenuItem(f"设为3:4主图{i+1}", command=lambda p=path, idx=i: self._set_main_image_3_4(idx, p)))
+                
+                def _show_img_menu(event, items=menu_items):
+                    self._editor_menu.show_at(event.widget.winfo_pointerx(), event.widget.winfo_pointery(), items)
+                
+                label.bind('<Button-1>', _show_img_menu)
                 
                 name = os.path.basename(path)
-                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:8]}\n{ratio}", font=("", 7)).pack()
+                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:8]}\n{ratio}", font=get_font('', 'xs')).pack()
             except:
                 pass
     
@@ -919,7 +919,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 label.bind('<Button-1>', lambda e, p=path: self._add_to_color_images(p))
                 
                 name = os.path.basename(path)
-                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:10]}", font=("", 7)).pack()
+                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:10]}", font=get_font('', 'xs')).pack()
             except:
                 pass
     
@@ -1046,13 +1046,12 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 label.pack()
                 
                 ratio = detect_image_ratio(img)
-                ctk.CTkLabel(frame, text=ratio, font=("", 10)).pack()
+                ctk.CTkLabel(frame, text=ratio, font=get_font('', 'base')).pack()
                 
                 btn_frame = ctk.CTkFrame(frame)
                 btn_frame.pack(fill="x")
                 
-                ctk.CTkButton(btn_frame, text="删除", width=50,
-                             command=lambda i=idx: self._remove_color_image(i)).pack(side="left", padx=1)
+                create_button(btn_frame, "删除", lambda i=idx: self._remove_color_image(i), 'danger', size='compact', width=50).pack(side="left", padx=1)
             except:
                 pass
     
@@ -1145,7 +1144,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 label = ctk.CTkLabel(frame, text="", image=photo)
                 label.pack()
                 
-                ctk.CTkLabel(frame, text=f"#{idx+1}", font=("", 9)).pack()
+                ctk.CTkLabel(frame, text=f"#{idx+1}", font=get_font('', 'sm')).pack()
             except:
                 pass
     
@@ -1450,7 +1449,7 @@ class ImageEditorWindow(ctk.CTkToplevel):
                 label.bind('<Button-1>', lambda e, p=path: self._add_to_detail_canvas(p))
                 
                 name = os.path.basename(path)
-                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:10]}", font=("", 7)).pack(side="left")
+                ctk.CTkLabel(frame, text=f"[{resource_type}]\n{name[:10]}", font=get_font('', 'xs')).pack(side="left")
             except:
                 pass
     

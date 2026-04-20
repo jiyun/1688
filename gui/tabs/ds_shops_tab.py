@@ -6,6 +6,8 @@ from tkinter import ttk
 import webbrowser
 
 from gui.utils import create_button
+from gui.context_menu import ContextMenuManager, MenuItem, SEPARATOR, build_column_menu_items
+from config import get_font
 
 
 class DsShopsTabMixin:
@@ -14,6 +16,7 @@ class DsShopsTabMixin:
         """初始化店铺信息子选项卡"""
         from utils.column_config import get_column_config
         
+        self._ds_shops_menu = ContextMenuManager(self.root)
         self._ds_shops_all_columns = {
             'ds_shop_id': {'text': '店铺ID', 'width': 100, 'anchor': 'center', 'default': True},
             'ds_shop_name': {'text': '店铺名称', 'width': 150, 'anchor': 'w', 'default': True},
@@ -211,16 +214,11 @@ class DsShopsTabMixin:
     
 
     def _show_ds_shops_column_menu(self, event):
-        menu = tk.Menu(self.ds_shops_tree, tearoff=0)
-        menu.add_command(label="显示/隐藏列", state="disabled")
-        menu.add_separator()
-        
-        for col_name, cfg in self._ds_shops_all_columns.items():
-            is_visible = col_name in self._ds_shops_visible_columns
-            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
-            menu.add_command(label=label, command=lambda c=col_name: self._toggle_ds_shops_column(c))
-        
-        menu.post(event.x_root, event.y_root)
+        items = build_column_menu_items(
+            self._ds_shops_all_columns, self._ds_shops_visible_columns,
+            self._toggle_ds_shops_column
+        )
+        self._ds_shops_menu.show(event, items)
     
 
     def _toggle_ds_shops_column(self, column_name):
@@ -306,13 +304,14 @@ class DsShopsTabMixin:
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("添加用户店铺")
         dialog.geometry("500x450")
+        dialog.minsize(400, 350)
         dialog.transient(self.root)
         dialog.grab_set()
         
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
-        ctk.CTkLabel(main_frame, text="添加用户店铺", font=(self.available_font, 16, "bold")).pack(pady=10)
+        ctk.CTkLabel(main_frame, text="添加用户店铺", font=get_font(self.available_font, '2xl', 'bold')).pack(pady=10)
         
         ctk.CTkLabel(main_frame, text="输入店铺链接将自动识别平台和店铺ID", text_color="gray").pack()
         
@@ -334,7 +333,7 @@ class DsShopsTabMixin:
         
         ctk.CTkLabel(form_frame, text="平台:").grid(row=3, column=0, padx=5, pady=5, sticky="e")
         ds_platform_var = ctk.StringVar(value="alibaba")
-        platform_label = ctk.CTkLabel(form_frame, text="1688", font=(self.available_font, 12, "bold"))
+        platform_label = ctk.CTkLabel(form_frame, text="1688", font=get_font(self.available_font, 'lg', 'bold'))
         platform_label.grid(row=3, column=1, padx=5, pady=5, sticky="w")
         
         ctk.CTkLabel(form_frame, text="备注:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
@@ -481,16 +480,16 @@ class DsShopsTabMixin:
         ds_shop_name = values[name_col_idx] if len(values) > name_col_idx else ''
         ds_shop_url = values[url_col_idx] if len(values) > url_col_idx else ''
         
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label=f"店铺: {ds_shop_name}", state="disabled")
-        menu.add_separator()
-        menu.add_command(label="打开店铺", command=lambda: self._open_url(ds_shop_url) if ds_shop_url else None)
-        menu.add_command(label="查看关联商品", command=lambda: self._show_ds_shop_products(ds_shop_id))
-        menu.add_separator()
-        menu.add_command(label="编辑", command=lambda: self._edit_ds_shop(ds_shop_id))
-        menu.add_command(label="删除", command=lambda: self._delete_ds_shop(ds_shop_id, ds_shop_name))
-        
-        menu.post(event.x_root, event.y_root)
+        items = [
+            MenuItem(f"店铺: {ds_shop_name}", state="disabled"),
+            SEPARATOR,
+            MenuItem("打开店铺", command=lambda: self._open_url(ds_shop_url) if ds_shop_url else None),
+            MenuItem("查看关联商品", command=lambda: self._show_ds_shop_products(ds_shop_id)),
+            SEPARATOR,
+            MenuItem("编辑", command=lambda: self._edit_ds_shop(ds_shop_id)),
+            MenuItem("删除", command=lambda: self._delete_ds_shop(ds_shop_id, ds_shop_name)),
+        ]
+        self._ds_shops_menu.show(event, items)
     
 
     def _show_ds_shop_products(self, ds_shop_id):
@@ -498,12 +497,13 @@ class DsShopsTabMixin:
         dialog = ctk.CTkToplevel(self.root)
         dialog.title(f"店铺商品 - {ds_shop_id}")
         dialog.geometry("800x500")
+        dialog.minsize(600, 400)
         dialog.transient(self.root)
         
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        ctk.CTkLabel(main_frame, text=f"DS店铺: {ds_shop_id}", font=(self.available_font, 14, "bold")).pack(anchor="w", pady=5)
+        ctk.CTkLabel(main_frame, text=f"DS店铺: {ds_shop_id}", font=get_font(self.available_font, 'xl', 'bold')).pack(anchor="w", pady=5)
         
         tree_frame = ctk.CTkFrame(main_frame)
         tree_frame.pack(fill="both", expand=True, pady=5)
@@ -567,13 +567,14 @@ class DsShopsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"编辑DS店铺 - {ds_shop_id}")
             dialog.geometry("500x400")
+            dialog.minsize(400, 300)
             dialog.transient(self.root)
             dialog.grab_set()
             
             main_frame = ctk.CTkFrame(dialog)
             main_frame.pack(fill="both", expand=True, padx=15, pady=15)
             
-            ctk.CTkLabel(main_frame, text=f"编辑DS店铺: {ds_shop_id}", font=(self.available_font, 16, "bold")).pack(pady=10)
+            ctk.CTkLabel(main_frame, text=f"编辑DS店铺: {ds_shop_id}", font=get_font(self.available_font, '2xl', 'bold')).pack(pady=10)
             
             form_frame = ctk.CTkFrame(main_frame)
             form_frame.pack(fill="x", pady=10)

@@ -74,13 +74,11 @@ Thumbs.db
 down.txt
 down_log.txt
 拼接结果.jpg
-tools/aria2c.exe
 
 # GUI config
 gui/.output_path
-.trae/rules/bat.md
 
-# 商品处理输出（10-12位数字ID）
+ 商品处理输出（10-12位数字ID）
 [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*.html
 [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*/
 sync.ffs_db
@@ -94,24 +92,15 @@ updates/
 
 # 开发工具目录（不作为项目文件）
 tools/
-rules/bat.md
-CHANGELOG_recovered.md
 
 # 数据库文件
 products.duckdb
 
-# 测试数据
-old-0306/
-
-# 浏览器数据目录
-browser_data/
-browser_data_new/
-
-# 扩展目录
-extensions/
-
 # 采集输出目录
 products/
 
-# 文档目录
+# 文档目录（规划文档不提交）
 docs/
+
+# 调试数据目录
+debug_data/

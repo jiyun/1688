@@ -21,10 +21,11 @@ ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 from gui.utils import hide_console, ScrolledText, create_button
-from config import GUI_CONF
+from config import GUI_CONF, get_font
 from gui.logging import GUILogger
 from gui.queue import QueueManager
 from gui.menu import ContextMenuManager, ContextMenuCommands
+from gui.context_menu import ContextMenuManager as CtxMenuMgr, MenuItem, SEPARATOR, build_column_menu_items
 from gui.dnd import DynamicDropOverlay, HAS_DND
 from gui.tabs.products_tab import ProductsTabMixin
 from gui.tabs.shop_products_tab import ShopProductsTabMixin
@@ -70,6 +71,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.root = root
         self.root.title(GUI_CONF['window_title'])
         self.root.geometry(GUI_CONF['window_geometry'])
+        self.root.minsize(800, 600)
         self.root.resizable(GUI_CONF['window_resizable'], GUI_CONF['window_resizable'])
         
         # 初始化共享内存
@@ -100,18 +102,30 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.notebook = ttk.Notebook(self.main_frame)
         self.notebook.pack(fill="both", expand=True)
         
+        # 选项卡顺序：1.处理队列 2.在线采集(需登录) 3.使用说明 4.关于
         self.queue_tab = ctk.CTkFrame(self.notebook)
         self.notebook.add(self.queue_tab, text="处理队列")
+        
+        # 在线采集选项卡（默认隐藏，登录后显示）
+        self.online_collect_tab = ctk.CTkFrame(self.notebook)
+        self.online_collect_tab_visible = False
         
         self.help_tab = ctk.CTkFrame(self.notebook)
         self.notebook.add(self.help_tab, text="使用说明")
         
-        self.db_tab = ctk.CTkFrame(self.notebook)
-        
         self.about_tab = ctk.CTkFrame(self.notebook)
         self.notebook.add(self.about_tab, text="关于")
         
+        # 数据库页（彩蛋激活，不显示在选项卡中）
+        self.db_tab = ctk.CTkFrame(self.notebook)
+        
+        # 登录状态
+        self.is_user_logged_in = False
+        
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        
+        # 绑定窗口关闭事件，清理看板服务
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
         
         # 绑定Shift键事件
         self.root.bind("<KeyPress-Shift_L>", self._on_shift_press)
@@ -127,6 +141,8 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.last_tab_index = -1
         
         self._init_db_tab()
+        # 在线采集选项卡初始化延迟到登录后
+        self._online_collect_tab_initialized = False
         self._init_about_tab()
         
         self.button_frame = ctk.CTkFrame(self.queue_tab, fg_color="transparent")
@@ -328,8 +344,8 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         for key, label in stats_items:
             frame = ctk.CTkFrame(self.db_stats_frame)
             frame.pack(side="left", padx=5, pady=2)
-            ctk.CTkLabel(frame, text=label, font=(self.available_font, self.font_size_small)).pack(side="left", padx=2)
-            self.db_stats_labels[key] = ctk.CTkLabel(frame, text="0", font=(self.available_font, self.font_size_small, "bold"))
+            ctk.CTkLabel(frame, text=label, font=(self.available_font, self.font_size)).pack(side="left", padx=2)
+            self.db_stats_labels[key] = ctk.CTkLabel(frame, text="0", font=(self.available_font, self.font_size_large, "bold"))
             self.db_stats_labels[key].pack(side="left", padx=2)
         
         self.db_sub_notebook = ttk.Notebook(self.db_content_frame)
@@ -367,7 +383,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.db_search_entry.pack(side="left", padx=2)
         self.db_search_entry.bind('<Return>', lambda e: self._search_db_records())
         
-        self.db_search_btn = create_button(self.db_search_frame, "搜索", self._search_db_records, 'primary', width=60)
+        self.db_search_btn = create_button(self.db_search_frame, "搜索", self._search_db_records, 'primary', size='compact')
         self.db_search_btn.pack(side="left", padx=2)
         
         self.db_filter_frame = ctk.CTkFrame(self.db_btn_frame, fg_color="transparent")
@@ -391,10 +407,10 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             values=["全部", "完成", "待处理"], width=80, command=self._filter_by_status)
         self.db_status_menu.pack(side="left", padx=2)
         
-        self.db_refresh_btn = create_button(self.db_btn_frame, "刷新", self._refresh_db_data, 'secondary', width=60)
+        self.db_refresh_btn = create_button(self.db_btn_frame, "刷新", self._refresh_db_data, 'secondary', size='compact')
         self.db_refresh_btn.pack(side="left", padx=5)
         
-        self.db_close_btn = create_button(self.db_btn_frame, "关闭数据库", self._close_db_tab, 'secondary', width=80)
+        self.db_close_btn = create_button(self.db_btn_frame, "关闭数据库", self._close_db_tab, 'secondary', size='compact', width=80)
         self.db_close_btn.pack(side="right", padx=5)
         
         self.db_status_label = ctk.CTkLabel(self.db_btn_frame, text="")
@@ -544,16 +560,13 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
     
     def _show_column_visibility_menu(self, event):
         """显示列可见性菜单"""
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="显示/隐藏列", state="disabled")
-        menu.add_separator()
-        
-        for col_name, cfg in self._shop_products_all_columns.items():
-            is_visible = col_name in self._shop_products_visible_columns
-            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
-            menu.add_command(label=label, command=lambda c=col_name: self._toggle_column_visibility(c))
-        
-        menu.post(event.x_root, event.y_root)
+        if not hasattr(self, '_col_menu'):
+            self._col_menu = CtxMenuMgr(self.root)
+        items = build_column_menu_items(
+            self._shop_products_all_columns, self._shop_products_visible_columns,
+            self._toggle_column_visibility
+        )
+        self._col_menu.show(event, items)
     
     def _toggle_column_visibility(self, column_name):
         """切换列可见性"""
@@ -601,6 +614,447 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         
         for index, (val, item) in enumerate(items):
             self.ds_shops_tree.move(item, '', index)
+    
+    def _init_online_collect_tab(self):
+        """初始化在线采集选项卡"""
+        from utils.online_queue import CoreQueue, OnlineQueueItem, ItemType, QueueType, ItemStatus, parse_batch_input
+        
+        self._online_queue = CoreQueue()
+        self._online_queue.set_save_fn(self._save_online_collect_data)
+        self._online_queue.set_collect_fn(self._online_queue_collect)
+        self._online_queue.register_callback(self._on_online_queue_event)
+        self._online_collector_instance = None
+        self._oc_tree_item_map = {}
+        
+        tab = self.online_collect_tab
+        
+        top_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        top_frame.pack(fill="x", padx=10, pady=(10, 5))
+        
+        platform_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        platform_frame.pack(side="left", padx=(0, 10))
+        
+        ctk.CTkLabel(platform_frame, text="平台:", font=(self.available_font, self.font_size)).pack(side="left")
+        self._oc_platform_var = ctk.StringVar(value="1688")
+        ctk.CTkRadioButton(platform_frame, text="1688", variable=self._oc_platform_var, value="1688").pack(side="left", padx=5)
+        ctk.CTkRadioButton(platform_frame, text="京东", variable=self._oc_platform_var, value="jd").pack(side="left", padx=5)
+        
+        input_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        input_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(input_frame, text="URL或商品ID（每行一个，支持批量）:", font=(self.available_font, self.font_size)).pack(anchor="w")
+        
+        self._oc_input_text = ctk.CTkTextbox(input_frame, height=80)
+        self._oc_input_text.pack(fill="x", pady=3)
+        
+        hint_label = ctk.CTkLabel(
+            input_frame,
+            text="支持格式: 商品ID / https://detail.1688.com/offer/ID.html  |  自动识别URL和ID，无效行自动过滤",
+            font=get_font('', 'sm'), text_color="gray"
+        )
+        hint_label.pack(anchor="w", pady=(0, 3))
+        
+        btn_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=10, pady=3)
+        
+        self._oc_add_btn = create_button(btn_frame, "添加到队列", self._oc_add_single, 'primary', size='compact', width=110)
+        self._oc_add_btn.pack(side="left", padx=3)
+        
+        self._oc_batch_btn = create_button(btn_frame, "批量添加", self._oc_add_batch, 'success', size='compact', width=100)
+        self._oc_batch_btn.pack(side="left", padx=3)
+        
+        self._oc_import_btn = create_button(btn_frame, "从文件导入", self._oc_import_file, 'secondary', size='compact', width=100)
+        self._oc_import_btn.pack(side="left", padx=3)
+        
+        self._oc_clear_input_btn = create_button(btn_frame, "清空输入", self._oc_clear_input, 'secondary', size='compact', width=80)
+        self._oc_clear_input_btn.pack(side="left", padx=3)
+        
+        # 供应商数据导入按钮
+        self._oc_supplier_import_btn = create_button(btn_frame, "供应商导入", self._oc_import_supplier_excel, 'info', size='compact', width=100)
+        self._oc_supplier_import_btn.pack(side="left", padx=10)
+        
+        status_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        status_frame.pack(fill="x", padx=10, pady=3)
+        
+        self._oc_status_label = ctk.CTkLabel(
+            status_frame,
+            text="等待中: 0 | 处理中: 0 | 已完成: 0 | 失败: 0",
+            font=(self.available_font, self.font_size)
+        )
+        self._oc_status_label.pack(side="left")
+        
+        list_frame = ctk.CTkFrame(tab)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        columns = ("status", "type", "source", "product_id", "title", "error")
+        self._oc_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=10)
+        
+        self._oc_tree.heading("status", text="状态")
+        self._oc_tree.heading("type", text="类型")
+        self._oc_tree.heading("source", text="来源")
+        self._oc_tree.heading("product_id", text="商品ID")
+        self._oc_tree.heading("title", text="标题")
+        self._oc_tree.heading("error", text="错误")
+        
+        self._oc_tree.column("status", width=70, minwidth=60)
+        self._oc_tree.column("type", width=60, minwidth=50)
+        self._oc_tree.column("source", width=160, minwidth=100)
+        self._oc_tree.column("product_id", width=120, minwidth=80)
+        self._oc_tree.column("title", width=200, minwidth=100)
+        self._oc_tree.column("error", width=150, minwidth=80)
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self._oc_tree.yview)
+        self._oc_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self._oc_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        self._oc_tree.tag_configure("pending", foreground="#888888")
+        self._oc_tree.tag_configure("processing", foreground="#0066cc")
+        self._oc_tree.tag_configure("completed", foreground="#00aa00")
+        self._oc_tree.tag_configure("failed", foreground="#cc0000")
+        self._oc_tree.tag_configure("retrying", foreground="#cc8800")
+        
+        control_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        control_frame.pack(fill="x", padx=10, pady=(3, 10))
+        
+        self._oc_start_btn = create_button(control_frame, "开始处理", self._oc_start, 'success', size='compact', width=100)
+        self._oc_start_btn.pack(side="left", padx=3)
+        
+        self._oc_pause_btn = create_button(control_frame, "暂停", self._oc_pause, 'secondary', size='compact', width=80)
+        self._oc_pause_btn.pack(side="left", padx=3)
+        self._oc_pause_btn.configure(state="disabled")
+        
+        self._oc_stop_btn = create_button(control_frame, "停止", self._oc_stop, 'danger', size='compact', width=80)
+        self._oc_stop_btn.pack(side="left", padx=3)
+        self._oc_stop_btn.configure(state="disabled")
+        
+        self._oc_remove_btn = create_button(control_frame, "移除选中", self._oc_remove_selected, 'secondary', size='compact', width=80)
+        self._oc_remove_btn.pack(side="left", padx=3)
+        
+        self._oc_clear_completed_btn = create_button(control_frame, "清空已完成", self._oc_clear_completed, 'secondary', size='compact', width=100)
+        self._oc_clear_completed_btn.pack(side="left", padx=3)
+        
+        self._oc_retry_failed_btn = create_button(control_frame, "重试失败", self._oc_retry_failed, 'secondary', size='compact', width=80)
+        self._oc_retry_failed_btn.pack(side="left", padx=3)
+        
+        self._oc_clear_all_btn = create_button(control_frame, "清空全部", self._oc_clear_all, 'danger', size='compact', width=80)
+        self._oc_clear_all_btn.pack(side="right", padx=3)
+    
+    def _oc_add_single(self):
+        """单条添加到队列"""
+        from utils.online_queue import OnlineQueueItem, ItemType, QueueType, validate_input
+        
+        text = self._oc_input_text.get("1.0", "end").strip()
+        if not text:
+            return
+        
+        first_line = text.split('\n')[0].strip()
+        product_id = validate_input(first_line)
+        if not product_id:
+            self.log(f"无效输入: {first_line}", "warning")
+            return
+        
+        platform = self._oc_platform_var.get()
+        item_type = ItemType.PRODUCT_ID
+        queue_type = QueueType.ONLINE_ID
+        
+        item = OnlineQueueItem(
+            item_type=item_type,
+            source=product_id,
+            queue_type=queue_type,
+        )
+        
+        self._online_queue.add_item(item)
+        self.log(f"已添加到队列: {product_id}")
+        
+        remaining = '\n'.join(text.split('\n')[1:])
+        self._oc_input_text.delete("1.0", "end")
+        self._oc_input_text.insert("1.0", remaining)
+        
+        self._refresh_online_queue_display()
+    
+    def _oc_add_batch(self):
+        """批量添加到队列"""
+        from utils.online_queue import OnlineQueueItem, ItemType, QueueType, parse_batch_input
+        
+        text = self._oc_input_text.get("1.0", "end").strip()
+        if not text:
+            return
+        
+        platform = self._oc_platform_var.get()
+        product_ids = parse_batch_input(text, platform)
+        
+        if not product_ids:
+            self.log("未找到有效的商品ID", "warning")
+            return
+        
+        items = []
+        for pid in product_ids:
+            item = OnlineQueueItem(
+                item_type=ItemType.PRODUCT_ID,
+                source=pid,
+                queue_type=QueueType.ONLINE_ID,
+            )
+            items.append(item)
+        
+        self._online_queue.add_items_batch(items)
+        self.log(f"已批量添加 {len(items)} 个项目到队列")
+        
+        self._oc_input_text.delete("1.0", "end")
+        self._refresh_online_queue_display()
+    
+    def _oc_import_file(self):
+        """从文件导入"""
+        from tkinter import filedialog
+        from utils.online_queue import parse_batch_input, OnlineQueueItem, ItemType, QueueType
+        
+        files = filedialog.askopenfilenames(
+            title="选择导入文件",
+            filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")]
+        )
+        if not files:
+            return
+        
+        all_ids = []
+        for filepath in files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                platform = self._oc_platform_var.get()
+                ids = parse_batch_input(content, platform)
+                all_ids.extend(ids)
+            except Exception as e:
+                self.log(f"读取文件失败: {filepath} - {e}", "warning")
+        
+        if not all_ids:
+            self.log("文件中未找到有效的商品ID", "warning")
+            return
+        
+        seen = set()
+        unique_ids = []
+        for pid in all_ids:
+            if pid not in seen:
+                seen.add(pid)
+                unique_ids.append(pid)
+        
+        items = []
+        for pid in unique_ids:
+            item = OnlineQueueItem(
+                item_type=ItemType.PRODUCT_ID,
+                source=pid,
+                queue_type=QueueType.ONLINE_ID,
+            )
+            items.append(item)
+        
+        self._online_queue.add_items_batch(items)
+        self.log(f"从文件导入 {len(items)} 个项目到队列")
+        self._refresh_online_queue_display()
+    
+    def _oc_clear_input(self):
+        """清空输入框"""
+        self._oc_input_text.delete("1.0", "end")
+    
+    def _oc_import_supplier_excel(self):
+        """从Excel导入供应商数据 - 使用对话框预览后导入"""
+        from gui.supplier_import_dialog import show_supplier_import_dialog
+        from utils.online_queue import OnlineQueueItem, ItemType, QueueType
+        
+        def on_import_confirmed(products):
+            """用户确认导入后的回调"""
+            if not products:
+                return
+            
+            # 创建队列项目
+            items = []
+            for product in products:
+                product_id = product.get('product_id')
+                if product_id:
+                    item = OnlineQueueItem(
+                        item_type=ItemType.PRODUCT_ID,
+                        source=product_id,
+                        queue_type=QueueType.ONLINE_ID,
+                    )
+                    items.append(item)
+            
+            if items:
+                self._online_queue.add_items_batch(items)
+                self.log(f"供应商数据导入完成: {len(items)} 个商品已添加到队列")
+                self._refresh_online_queue_display()
+        
+        # 显示导入对话框
+        show_supplier_import_dialog(
+            self.root,
+            on_import_callback=on_import_confirmed,
+            log_callback=self.log,
+            font_name=self.available_font,
+            font_size=self.font_size
+        )
+    
+    def _oc_start(self):
+        """开始处理队列"""
+        status = self._online_queue.get_queue_status()
+        if status['pending'] == 0 and status['processing'] == 0:
+            self.log("队列为空，请先添加项目", "warning")
+            return
+        
+        self._online_queue.start_processing()
+        self._oc_start_btn.configure(state="disabled")
+        self._oc_pause_btn.configure(state="normal")
+        self._oc_stop_btn.configure(state="normal")
+        self.log("在线采集队列已启动")
+    
+    def _oc_pause(self):
+        """暂停/恢复处理"""
+        if self._online_queue.is_paused:
+            self._online_queue.start_processing()
+            self._oc_pause_btn.configure(text="暂停")
+            self.log("在线采集队列已恢复")
+        else:
+            self._online_queue.pause_processing()
+            self._oc_pause_btn.configure(text="恢复")
+            self.log("在线采集队列已暂停")
+    
+    def _oc_stop(self):
+        """停止处理"""
+        self._online_queue.stop_processing()
+        self._oc_start_btn.configure(state="normal")
+        self._oc_pause_btn.configure(state="disabled", text="暂停")
+        self._oc_stop_btn.configure(state="disabled")
+        self.log("在线采集队列已停止")
+        
+        if self._online_collector_instance:
+            try:
+                self._online_collector_instance.close_browser()
+            except Exception:
+                pass
+            self._online_collector_instance = None
+    
+    def _oc_remove_selected(self):
+        """移除选中的项目"""
+        selected = self._oc_tree.selection()
+        if not selected:
+            return
+        
+        for item_id in selected:
+            values = self._oc_tree.item(item_id, 'values')
+            if values:
+                queue_item_id = self._oc_tree_item_map.get(item_id)
+                if queue_item_id:
+                    self._online_queue.remove_item(queue_item_id)
+        
+        self._refresh_online_queue_display()
+    
+    def _oc_clear_completed(self):
+        """清空已完成项目"""
+        self._online_queue.clear_completed()
+        self._refresh_online_queue_display()
+        self.log("已清空已完成项目")
+    
+    def _oc_retry_failed(self):
+        """重试失败项目"""
+        self._online_queue.clear_failed()
+        self._refresh_online_queue_display()
+        self.log("已将失败项目重新加入队列")
+    
+    def _oc_clear_all(self):
+        """清空全部"""
+        if not self.ask_yes_no("确认", "是否清空在线采集队列？"):
+            return
+        self._online_queue.clear_all()
+        self._oc_start_btn.configure(state="normal")
+        self._oc_pause_btn.configure(state="disabled", text="暂停")
+        self._oc_stop_btn.configure(state="disabled")
+        
+        if self._online_collector_instance:
+            try:
+                self._online_collector_instance.close_browser()
+            except Exception:
+                pass
+            self._online_collector_instance = None
+        
+        self._refresh_online_queue_display()
+        self.log("已清空在线采集队列")
+    
+    def _online_queue_collect(self, source: str, item_type) -> dict:
+        """队列采集执行函数"""
+        from utils.online_queue import ItemType
+        
+        if not self._online_collector_instance:
+            from gui.online_collector_gui import OnlineCollector
+            self._online_collector_instance = OnlineCollector(self.log)
+            if not self._online_collector_instance.start_browser():
+                self._online_collector_instance = None
+                raise Exception("启动浏览器失败")
+        
+        product_id = source
+        result = self._online_collector_instance.collect_data_direct(product_id)
+        
+        if result:
+            result['product_title'] = result.get('product_info', {}).get('subject', '')
+        return result
+    
+    def _on_online_queue_event(self, item=None, event: str = "update"):
+        """队列事件回调"""
+        try:
+            self.root.after(0, self._refresh_online_queue_display)
+        except Exception:
+            pass
+    
+    def _refresh_online_queue_display(self):
+        """刷新在线采集队列显示"""
+        try:
+            if not hasattr(self, '_oc_tree') or not self._oc_tree.winfo_exists():
+                return
+        except Exception:
+            return
+        
+        from utils.online_queue import ItemStatus
+        
+        status = self._online_queue.get_queue_status()
+        try:
+            self._oc_status_label.configure(
+                text=f"等待中: {status['pending']} | "
+                     f"处理中: {status['processing']} | "
+                     f"已完成: {status['completed']} | "
+                     f"失败: {status['failed']}"
+            )
+        except Exception:
+            pass
+        
+        for item in self._oc_tree.get_children():
+            self._oc_tree.delete(item)
+        
+        self._oc_tree_item_map = {}
+        
+        status_icons = {
+            ItemStatus.PENDING: "⏳等待",
+            ItemStatus.PROCESSING: "🔄处理",
+            ItemStatus.COMPLETED: "✅完成",
+            ItemStatus.FAILED: "❌失败",
+            ItemStatus.RETRYING: "🔁重试",
+        }
+        
+        type_labels = {
+            "product_id": "ID",
+            "url": "URL",
+        }
+        
+        all_items = self._online_queue.get_all_items()
+        
+        for q_item in all_items:
+            status_text = status_icons.get(q_item.status, str(q_item.status.value))
+            type_text = type_labels.get(q_item.item_type.value, q_item.item_type.value)
+            source_text = q_item.source if len(q_item.source) <= 30 else q_item.source[:27] + "..."
+            product_id_text = q_item.product_id or ""
+            title_text = (q_item.product_title[:30] + "...") if q_item.product_title and len(q_item.product_title) > 30 else (q_item.product_title or "")
+            error_text = (q_item.error_message[:40] + "...") if q_item.error_message and len(q_item.error_message) > 40 else (q_item.error_message or "")
+            
+            tree_id = self._oc_tree.insert("", "end", values=(
+                status_text, type_text, source_text, product_id_text, title_text, error_text
+            ), tags=(q_item.status.value,))
+            
+            self._oc_tree_item_map[tree_id] = q_item.id
     
     def _init_about_tab(self):
         """初始化关于选项卡"""
@@ -672,13 +1126,34 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         )
         self.reinstall_btn.pack(side="left", padx=10)
         
+        self.dashboard_btn = create_button(
+            btn_frame,
+            "数据看板",
+            self._open_dashboard,
+            'info',
+            width=120,
+            height=35
+        )
+        self.dashboard_btn.pack(side="left", padx=10)
+        
+        self.stop_dashboard_btn = create_button(
+            btn_frame,
+            "停止看板",
+            self._stop_dashboard,
+            'danger',
+            width=120,
+            height=35
+        )
+        self.stop_dashboard_btn.pack(side="left", padx=10)
+        self.stop_dashboard_btn.configure(state="disabled")
+        
         online_collect_frame = ctk.CTkFrame(about_frame, fg_color="transparent")
         online_collect_frame.pack(pady=15)
         
         self.online_collect_btn = create_button(
             online_collect_frame,
             "在线采集",
-            self._show_online_collect_dialog,
+            self._switch_to_online_collect_tab,
             'success',
             width=150,
             height=40
@@ -764,25 +1239,26 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.update_progress_label = ctk.CTkLabel(
             self.update_status_frame,
             text="",
-            font=("", 11)
+            font=get_font('', 'lg')
         )
         
         self.update_action_frame = ctk.CTkFrame(self.update_status_frame, fg_color="transparent")
         
-        self.install_update_btn = ctk.CTkButton(
+        self.install_update_btn = create_button(
             self.update_action_frame,
-            text="安装更新",
-            command=self._install_downloaded_update,
-            width=100,
-            fg_color="#28a745"
+            "安装更新",
+            self._install_downloaded_update,
+            'success',
+            width=100
         )
         
-        self.cancel_update_btn = ctk.CTkButton(
+        self.cancel_update_btn = create_button(
             self.update_action_frame,
-            text="取消",
-            command=self._cancel_update,
-            width=80,
-            fg_color="gray"
+            "取消",
+            self._cancel_update,
+            'secondary',
+            size='compact',
+            width=80
         )
         
         self._update_download_filepath = None
@@ -860,14 +1336,51 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         import webbrowser
         webbrowser.open(url)
     
+    def _switch_to_online_collect_tab(self):
+        """切换到在线采集选项卡（需要登录）"""
+        if not self.is_user_logged_in:
+            self.log("请先登录平台后再使用在线采集功能", "warning")
+            self.show_info("提示", "请先点击登录按钮（1688或京东）完成登录\n登录成功后即可使用在线采集功能")
+            return
+        
+        # 确保在线采集选项卡已显示
+        if not self.online_collect_tab_visible:
+            self._show_online_collect_tab()
+        
+        self.notebook.select(self.online_collect_tab)
+    
+    def _show_online_collect_tab(self):
+        """显示在线采集选项卡（固定在第二页）"""
+        if self.online_collect_tab_visible:
+            return
+        
+        # 初始化选项卡内容（只初始化一次）
+        if not self._online_collect_tab_initialized:
+            self._init_online_collect_tab()
+            self._online_collect_tab_initialized = True
+        
+        # 插入到第二页（索引1）
+        self.notebook.insert(1, self.online_collect_tab, text="在线采集")
+        self.online_collect_tab_visible = True
+        self.log("在线采集功能已激活", "success")
+    
+    def _hide_online_collect_tab(self):
+        """隐藏在线采集选项卡"""
+        if not self.online_collect_tab_visible:
+            return
+        
+        # 隐藏选项卡
+        self.notebook.hide(self.online_collect_tab)
+        self.online_collect_tab_visible = False
+    
     def _show_online_collect_dialog(self):
         """显示在线采集对话框"""
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("在线采集")
-        dialog.geometry("500x200")
+        dialog.geometry("550x350")
+        dialog.minsize(450, 250)
         dialog.transient(self.root)
         dialog.grab_set()
-        dialog.resizable(False, False)
         
         dialog.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_width()) // 2
@@ -891,71 +1404,166 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         platform_jd.pack(side="left", padx=5)
         
         input_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        input_frame.pack(fill="x", pady=10)
+        input_frame.pack(fill="both", expand=True, pady=5)
         
-        ctk.CTkLabel(input_frame, text="URL或商品ID:", font=(self.available_font, self.font_size)).pack(anchor="w")
+        ctk.CTkLabel(input_frame, text="URL或商品ID（每行一个，支持批量）:", font=(self.available_font, self.font_size)).pack(anchor="w")
         
-        input_var = ctk.StringVar()
-        input_entry = ctk.CTkEntry(input_frame, textvariable=input_var, width=400, height=35)
-        input_entry.pack(fill="x", pady=5)
-        input_entry.focus_set()
+        input_text = ctk.CTkTextbox(input_frame, height=120, width=500)
+        input_text.pack(fill="both", expand=True, pady=5)
+        input_text.focus_set()
         
-        hint_label = ctk.CTkLabel(input_frame, text="输入商品详情页URL或商品ID", 
-                         font=("", 9), text_color="gray")
+        hint_label = ctk.CTkLabel(input_frame, text="支持格式: 商品ID / https://detail.1688.com/offer/ID.html", 
+                         font=get_font('', 'sm'), text_color="gray")
         hint_label.pack(anchor="w", pady=(0, 5))
         
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=15)
+        btn_frame.pack(fill="x", pady=10)
+        
+        def import_from_file():
+            from tkinter import filedialog
+            files = filedialog.askopenfilenames(
+                title="选择导入文件",
+                filetypes=[("文本文件", "*.txt"), ("CSV文件", "*.csv"), ("所有文件", "*.*")]
+            )
+            if not files:
+                return
+            content_parts = []
+            for filepath in files:
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content_parts.append(f.read())
+                except Exception:
+                    pass
+            if content_parts:
+                current = input_text.get("1.0", "end").strip()
+                new_content = '\n'.join(content_parts)
+                if current:
+                    new_content = current + '\n' + new_content
+                input_text.delete("1.0", "end")
+                input_text.insert("1.0", new_content)
+        
+        import_btn = create_button(btn_frame, "从文件导入", import_from_file, 'secondary', size='compact', width=100)
+        import_btn.pack(side="left", padx=5)
+        
+        def parse_inputs():
+            text = input_text.get("1.0", "end").strip()
+            if not text:
+                return []
+            platform = platform_var.get()
+            items = []
+            for line in text.split('\n'):
+                line = line.strip()
+                if ',' in line:
+                    line = line.split(',')[0].strip()
+                if not line:
+                    continue
+                product_id = None
+                if line.isdigit() and 10 <= len(line) <= 15:
+                    product_id = line
+                else:
+                    import re
+                    if platform == "1688":
+                        match = re.search(r'offer/(\d+)\.html', line)
+                    else:
+                        match = re.search(r'(?:item/|jd\.com/)(\d+)', line)
+                    if match:
+                        product_id = match.group(1)
+                if product_id:
+                    items.append(product_id)
+            return items
         
         def do_collect():
-            input_text = input_var.get().strip()
-            
-            if not input_text:
+            items = parse_inputs()
+            if not items:
+                self.show_warning("提示", "未找到有效的商品ID，请检查输入")
                 return
-            
-            platform = platform_var.get()
-            
-            product_id = None
-            if input_text.isdigit():
-                product_id = input_text
-            else:
-                import re
-                if platform == "1688":
-                    match = re.search(r'offer/(\d+)\.html', input_text)
-                    if match:
-                        product_id = match.group(1)
-                elif platform == "jd":
-                    match = re.search(r'item/(\d+)\.html', input_text)
-                    if match:
-                        product_id = match.group(1)
-                    if not match:
-                        match = re.search(r'jd\.com/(\d+)', input_text)
-                        if match:
-                            product_id = match.group(1)
-            
-            if not product_id:
-                self.show_warning("提示", "无法识别商品ID，请检查输入")
-                return
-            
             dialog.destroy()
-            
+            self._start_batch_online_collect(items, platform_var.get())
+        
+        cancel_btn = create_button(btn_frame, "取消", dialog.destroy, 'secondary', size='compact', width=100)
+        cancel_btn.pack(side="right", padx=5)
+        
+        collect_btn = create_button(btn_frame, "开始采集", do_collect, 'success', size='compact', width=100)
+        collect_btn.pack(side="right", padx=5)
+    
+    def _start_batch_online_collect(self, product_ids: list, platform: str):
+        """批量在线采集 - 顺序执行"""
+        if len(product_ids) == 1:
+            product_id = product_ids[0]
             if platform == "1688":
                 url = f"https://detail.1688.com/offer/{product_id}.html"
             else:
                 url = f"https://item.jd.com/{product_id}.html"
-            
             self._start_online_collect(product_id, url, platform)
+            return
         
-        def on_enter(event):
-            do_collect()
+        self.log(f"批量采集: 共 {len(product_ids)} 个商品")
         
-        input_entry.bind('<Return>', on_enter)
+        def batch_thread():
+            success_count = 0
+            fail_count = 0
+            # 复用同一个 Chrome 进程进行批量采集
+            collector = None
+            try:
+                from gui.online_collector_gui import OnlineCollector
+                # 传入日志回调函数（包装器）
+                def log_callback(msg):
+                    self.log(msg)
+                collector = OnlineCollector(log_callback)
+                
+                # 启动浏览器（只启动一次）
+                if not collector.start_browser():
+                    self.log("启动浏览器失败，批量采集终止", "error")
+                    return
+                
+                for i, product_id in enumerate(product_ids):
+                    if platform == "1688":
+                        url = f"https://detail.1688.com/offer/{product_id}.html"
+                    else:
+                        url = f"https://item.jd.com/{product_id}.html"
+                    
+                    self.log(f"[{i+1}/{len(product_ids)}] 采集: {product_id}")
+                    
+                    # 记录开始时间
+                    import time
+                    start_time = time.time()
+                    
+                    try:
+                        # 使用同一个浏览器实例采集数据
+                        result = collector.collect_data_direct(product_id)
+                        
+                        # 计算耗时
+                        elapsed_time = time.time() - start_time
+                        
+                        if result:
+                            self._save_online_collect_data(result)
+                            success_count += 1
+                            self.log(f"[{i+1}/{len(product_ids)}] 完成: {product_id} (耗时: {elapsed_time:.1f}秒)")
+                        else:
+                            fail_count += 1
+                            self.log(f"[{i+1}/{len(product_ids)}] 无数据: {product_id} (耗时: {elapsed_time:.1f}秒)", "warning")
+                    except Exception as e:
+                        # 计算耗时（即使失败也报告）
+                        elapsed_time = time.time() - start_time
+                        fail_count += 1
+                        self.log(f"[{i+1}/{len(product_ids)}] 失败: {product_id} - {e} (耗时: {elapsed_time:.1f}秒)", "error")
+                    
+                    if i < len(product_ids) - 1:
+                        time.sleep(2)  # 商品之间短暂等待
+                
+            finally:
+                # 批量采集完成后关闭浏览器
+                if collector:
+                    try:
+                        collector.close_browser()
+                        self.log("批量采集完成，浏览器已关闭")
+                    except Exception as e:
+                        self.log(f"关闭浏览器失败: {e}", "warning")
+            
+            self.log(f"批量采集完成: 成功 {success_count}, 失败 {fail_count}")
         
-        cancel_btn = create_button(btn_frame, "取消", dialog.destroy, 'secondary', width=100)
-        cancel_btn.pack(side="right", padx=5)
-        
-        collect_btn = create_button(btn_frame, "开始采集", do_collect, 'success', width=100)
-        collect_btn.pack(side="right", padx=5)
+        thread = threading.Thread(target=batch_thread, daemon=True)
+        thread.start()
     
     def _start_online_collect(self, product_id: str, url: str, platform: str):
         """开始在线采集"""
@@ -1023,6 +1631,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("采集完成")
         dialog.geometry("350x200")
+        dialog.minsize(300, 150)
         dialog.transient(self.root)
         dialog.grab_set()
         dialog.resizable(False, False)
@@ -1060,10 +1669,10 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             result[0] = False
             dialog.destroy()
         
-        yes_btn = create_button(btn_frame, "是", on_yes, 'success', width=80)
+        yes_btn = create_button(btn_frame, "是", on_yes, 'success', size='compact', width=80)
         yes_btn.pack(side="left", padx=20, expand=True)
         
-        no_btn = create_button(btn_frame, "否", on_no, 'secondary', width=80)
+        no_btn = create_button(btn_frame, "否", on_no, 'secondary', size='compact', width=80)
         no_btn.pack(side="right", padx=20, expand=True)
         
         dialog.wait_window()
@@ -1101,6 +1710,9 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
                     self._login_collector.driver.get(url)
                     self.log(f"已打开 {platform} 登录页面，请在浏览器中完成登录")
                     
+                    # 标记用户已登录并激活在线采集选项卡
+                    self._on_user_logged_in(platform)
+                    
                 except Exception as e:
                     self.log(f"打开登录页面失败: {e}", "error")
                     self._login_collector = None
@@ -1110,6 +1722,23 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             
         except Exception as e:
             self.log(f"启动登录浏览器失败: {e}", "error")
+    
+    def _on_user_logged_in(self, platform: str):
+        """用户登录成功后的处理"""
+        # 标记登录状态
+        self.is_user_logged_in = True
+        
+        # 更新登录状态显示
+        if platform == "1688":
+            self.login_1688_status.configure(text="✓ 已登录", text_color="green")
+        else:
+            self.login_jd_status.configure(text="✓ 已登录", text_color="green")
+        
+        # 激活在线采集选项卡
+        if not self.online_collect_tab_visible:
+            self._show_online_collect_tab()
+        
+        self.log(f"{platform} 登录成功，在线采集功能已激活！", "success")
     
     def _check_update(self):
         """检查更新"""
@@ -1251,6 +1880,112 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.log(f"正在下载 v{__version__} 安装包...")
         self._start_download_update(version_info)
     
+    def _open_dashboard(self):
+        """打开数据看板（使用系统浏览器）"""
+        import subprocess
+        import os
+        import sys
+        import time
+        import urllib.request
+        import webbrowser
+        
+        try:
+            # 获取项目根目录
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            dashboard_path = os.path.join(base_dir, 'gui', 'dashboard.py')
+            
+            if not os.path.exists(dashboard_path):
+                self.log(f"看板文件不存在: {dashboard_path}", "error")
+                return
+            
+            # 检查服务是否已在运行
+            url = "http://localhost:8501"
+            try:
+                urllib.request.urlopen(url, timeout=1)
+                # 服务已运行，直接打开浏览器
+                webbrowser.open(url)
+                self.log(f"数据看板已在运行，打开浏览器: {url}")
+                return
+            except:
+                pass
+            
+            self.log("正在启动数据看板服务...")
+            
+            # 启动streamlit服务（隐藏窗口）
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            self._dashboard_process = subprocess.Popen(
+                [sys.executable, '-m', 'streamlit', 'run', dashboard_path, 
+                 '--server.port', '8501', '--server.headless', 'true'],
+                cwd=base_dir,
+                startupinfo=startupinfo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            
+            # 等待服务启动
+            max_retries = 30
+            for i in range(max_retries):
+                try:
+                    urllib.request.urlopen(url, timeout=1)
+                    break
+                except:
+                    time.sleep(0.5)
+            else:
+                self.log("看板服务启动超时", "error")
+                return
+            
+            self.log("数据看板服务已启动，正在打开浏览器...")
+            
+            # 使用系统默认浏览器打开
+            webbrowser.open(url)
+            
+            self.log(f"数据看板已在浏览器中打开: {url}")
+            self.log("提示：关闭浏览器后，看板服务会在后台运行，可点击'停止看板'按钮关闭服务")
+            
+            # 启用停止按钮
+            self.stop_dashboard_btn.configure(state="normal")
+            
+        except Exception as e:
+            self.log(f"启动看板失败: {e}", "error")
+    
+    def _stop_dashboard(self):
+        """停止数据看板服务"""
+        try:
+            if hasattr(self, '_dashboard_process') and self._dashboard_process:
+                self.log("正在停止数据看板服务...")
+                try:
+                    # 获取子进程并终止
+                    import psutil
+                    parent = psutil.Process(self._dashboard_process.pid)
+                    for child in parent.children(recursive=True):
+                        child.terminate()
+                    parent.terminate()
+                    # 等待进程结束
+                    gone, alive = psutil.wait_procs([parent], timeout=3)
+                    # 强制结束未终止的进程
+                    for p in alive:
+                        p.kill()
+                except Exception as e:
+                    # psutil 失败时使用原始方法
+                    self._dashboard_process.terminate()
+                    try:
+                        self._dashboard_process.wait(timeout=3)
+                    except:
+                        self._dashboard_process.kill()
+                self._dashboard_process = None
+                self.log("数据看板服务已停止")
+                self.stop_dashboard_btn.configure(state="disabled")
+            else:
+                self.log("看板服务未运行")
+        except Exception as e:
+            self.log(f"停止看板失败: {e}", "error")
+    
     def _confirm_db_access(self):
         """确认数据库访问"""
         confirm = self.ask_yes_no("确认", "确定要进入数据库管理界面吗？\n\n请注意：删除操作不可撤销！")
@@ -1388,11 +2123,36 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         shop_info = data.get('shop_info', {})
         attributes = data.get('attributes', [])
         rate_info = data.get('rate_info', {})
+        extended_data = data.get('extended_data')
         
         try:
-            db.update_product(product_id, {
+            update_data = {
                 'title': product_info.get('subject', ''),
-            })
+                'product_url': f"https://detail.1688.com/offer/{product_id}.html",
+            }
+            if product_info.get('saledCount'):
+                try:
+                    update_data['sales_count'] = int(product_info['saledCount'])
+                except (ValueError, TypeError):
+                    pass
+            if product_info.get('location'):
+                update_data['ship_from'] = product_info['location']
+            if product_info.get('minOrderQuantity'):
+                try:
+                    update_data['min_order'] = int(product_info['minOrderQuantity'])
+                except (ValueError, TypeError):
+                    pass
+            if product_info.get('priceBegin'):
+                try:
+                    update_data['unit_price'] = float(product_info['priceBegin'])
+                except (ValueError, TypeError):
+                    pass
+            if product_info.get('shippingFee'):
+                try:
+                    update_data['shipping_cost'] = float(product_info['shippingFee'])
+                except (ValueError, TypeError):
+                    pass
+            db.update_product(product_id, update_data)
         except Exception:
             pass
         
@@ -1453,6 +2213,11 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
                     if sku_data is None:
                         continue
                     
+                    # 检查数据类型
+                    if not isinstance(sku_data, dict):
+                        self.log(f"SKU数据格式错误: 期望dict, 实际{type(sku_data)}, 值={sku_data}", "warning")
+                        continue
+                    
                     color = sku_data.get('color', '') or ''
                     size = sku_data.get('size', '') or ''
                     
@@ -1460,16 +2225,25 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
                     if not sku_id:
                         continue
                     
-                    price = float(sku_data['price']) if sku_data.get('price') else None
-                    discount_price = float(sku_data['discountPrice']) if sku_data.get('discountPrice') else None
-                    can_book_count = int(sku_data['canBookCount']) if sku_data.get('canBookCount') else None
-                    sale_count = int(sku_data['saleCount']) if sku_data.get('saleCount') else None
+                    # 安全获取价格，处理空字符串情况
+                    price_str = sku_data.get('price', '')
+                    price = float(price_str) if price_str and price_str.strip() else None
+                    
+                    discount_price_str = sku_data.get('discountPrice', '')
+                    discount_price = float(discount_price_str) if discount_price_str and discount_price_str.strip() else None
+                    
+                    # 安全获取库存和销量
+                    can_book_count_str = str(sku_data.get('canBookCount', ''))
+                    can_book_count = int(can_book_count_str) if can_book_count_str and can_book_count_str.strip() else 0
+                    
+                    sale_count_str = str(sku_data.get('saleCount', ''))
+                    sale_count = int(sale_count_str) if sale_count_str and sale_count_str.strip() else 0
                     spec_id = sku_data.get('specId')
                     
                     db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
                     saved_sku_count += 1
                 except Exception as e:
-                    self.log(f"保存SKU价格失败: {e}", "warning")
+                    self.log(f"保存SKU价格失败: {e}, sku_data类型={type(sku_data)}, 内容={sku_data}", "warning")
         
         saved_main_count = 0
         if main_images:
@@ -1547,6 +2321,64 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         self.log(f"已保存 {saved_detail_count} 条详情图")
         self.log(f"已保存 {saved_video_count} 条视频")
         self.log(f"已保存 {saved_attr_count} 条属性")
+        
+        if extended_data:
+            try:
+                plugin_nav = extended_data.get('plugin_nav', {})
+                core_container = extended_data.get('core_container', {})
+                shop_ext = extended_data.get('shop_info', {})
+                
+                ext_row = {}
+                if plugin_nav.get('category'):
+                    ext_row['category'] = plugin_nav['category']
+                if plugin_nav.get('listing_date'):
+                    ext_row['listing_date'] = plugin_nav['listing_date']
+                if plugin_nav.get('monthly_sales') is not None:
+                    ext_row['monthly_sales'] = plugin_nav['monthly_sales']
+                if plugin_nav.get('monthly_dropship') is not None:
+                    ext_row['monthly_dropship'] = plugin_nav['monthly_dropship']
+                if plugin_nav.get('yearly_volume') is not None:
+                    ext_row['yearly_volume'] = plugin_nav['yearly_volume']
+                if plugin_nav.get('yearly_orders') is not None:
+                    ext_row['yearly_orders'] = plugin_nav['yearly_orders']
+                if plugin_nav.get('review_count') is not None:
+                    ext_row['review_count'] = plugin_nav['review_count']
+                if plugin_nav.get('positive_rate') is not None:
+                    ext_row['positive_rate'] = plugin_nav['positive_rate']
+                if plugin_nav.get('pickup_rate') is not None:
+                    ext_row['pickup_rate'] = plugin_nav['pickup_rate']
+                
+                if core_container.get('procurement_trend'):
+                    ext_row['procurement_trend'] = core_container['procurement_trend']
+                if core_container.get('features'):
+                    ext_row['features'] = core_container['features']
+                if core_container.get('supplier_highlights'):
+                    ext_row['supplier_highlights'] = core_container['supplier_highlights']
+                
+                if shop_ext.get('shop_name'):
+                    ext_row['shop_name'] = shop_ext['shop_name']
+                if shop_ext.get('shop_years') is not None:
+                    ext_row['shop_years'] = shop_ext['shop_years']
+                if shop_ext.get('shop_category'):
+                    ext_row['shop_category'] = shop_ext['shop_category']
+                if shop_ext.get('shop_return_rate') is not None:
+                    ext_row['shop_return_rate'] = shop_ext['shop_return_rate']
+                if shop_ext.get('shop_service_score') is not None:
+                    ext_row['shop_service_score'] = shop_ext['shop_service_score']
+                if shop_ext.get('shop_delivery_rate') is not None:
+                    ext_row['shop_delivery_rate'] = shop_ext['shop_delivery_rate']
+                if shop_ext.get('shop_positive_rate') is not None:
+                    ext_row['shop_positive_rate'] = shop_ext['shop_positive_rate']
+                
+                shipping = extended_data.get('shipping', {})
+                if shipping.get('estimated_delivery'):
+                    ext_row['estimated_delivery'] = shipping['estimated_delivery']
+                
+                if ext_row:
+                    db.save_product_extended(product_id, ext_row)
+                    self.log(f"已保存扩展数据 ({len(ext_row)} 项)")
+            except Exception as e:
+                self.log(f"保存扩展数据失败: {e}", "warning")
         
         db.close()
         
@@ -1637,6 +2469,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"关联DS店铺 - {product_id}")
             dialog.geometry("500x350")
+            dialog.minsize(400, 280)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -1703,8 +2536,8 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             btn_frame = ctk.CTkFrame(main_frame)
             btn_frame.pack(fill="x", pady=10)
             
-            create_button(btn_frame, "保存", save_link, 'success', width=80).pack(side="left", padx=10)
-            create_button(btn_frame, "取消", dialog.destroy, 'secondary', width=60).pack(side="left", padx=5)
+            create_button(btn_frame, "保存", save_link, 'success', size='compact', width=80).pack(side="left", padx=10)
+            create_button(btn_frame, "取消", dialog.destroy, 'secondary', size='compact').pack(side="left", padx=5)
             
         except Exception as e:
             self.log(f"获取DS店铺列表失败: {e}", "error")
@@ -2275,6 +3108,9 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             else:
                 self._unload_help_frame()
             
+            if current_index == 2:
+                self._refresh_online_queue_display()
+            
             if not self.db_tab_visible:
                 if self.last_tab_index != -1 and current_index != self.last_tab_index:
                     if (current_index == 0 and self.last_tab_index == 1) or (current_index == 1 and self.last_tab_index == 0):
@@ -2379,6 +3215,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             dialog.transient(self.root)
             dialog.grab_set()
             dialog.geometry("350x220")
+            dialog.minsize(300, 180)
             dialog.resizable(False, False)
             
             dialog.update_idletasks()
@@ -2602,6 +3439,50 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         """Shift键释放"""
         self._shift_pressed = False
     
+    def _on_closing(self):
+        """窗口关闭时清理资源"""
+        self.log("程序正在关闭，清理资源...")
+        
+        # 停止看板服务
+        if hasattr(self, '_dashboard_process') and self._dashboard_process:
+            try:
+                self.log("正在停止数据看板服务...")
+                try:
+                    import psutil
+                    parent = psutil.Process(self._dashboard_process.pid)
+                    for child in parent.children(recursive=True):
+                        child.terminate()
+                    parent.terminate()
+                    gone, alive = psutil.wait_procs([parent], timeout=3)
+                    for p in alive:
+                        p.kill()
+                except:
+                    self._dashboard_process.terminate()
+                    try:
+                        self._dashboard_process.wait(timeout=3)
+                    except:
+                        self._dashboard_process.kill()
+                self._dashboard_process = None
+                self.log("数据看板服务已停止")
+            except Exception as e:
+                self.log(f"停止看板服务时出错: {e}")
+        
+        # 停止在线采集队列
+        if hasattr(self, '_online_queue') and self._online_queue:
+            try:
+                self._online_queue.stop_processing()
+            except Exception:
+                pass
+        if hasattr(self, '_online_collector_instance') and self._online_collector_instance:
+            try:
+                self._online_collector_instance.close_browser()
+            except Exception:
+                pass
+            self._online_collector_instance = None
+        
+        # 销毁窗口
+        self.root.destroy()
+    
     def _on_middle_click(self, event):
         """鼠标中键点击事件"""
         # 实时检测Shift键状态（通过event.state）
@@ -2620,76 +3501,53 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
         menu_active_bg = "#3B8ED0"  # customtkinter 按钮色
         menu_active_fg = "#ffffff"
         
-        # 创建菜单并设置样式
-        menu = tk.Menu(self.root, tearoff=0, 
-                       bg=menu_bg, fg=menu_fg,
-                       activebackground=menu_active_bg, activeforeground=menu_active_fg,
-                       font=(self.available_font, 10),
-                       relief="flat", borderwidth=0)
+        menu_kwargs = {
+            'bg': menu_bg, 'fg': menu_fg,
+            'activebackground': menu_active_bg, 'activeforeground': menu_active_fg,
+            'font': (self.available_font, 10),
+            'relief': "flat", 'borderwidth': 0,
+        }
         
-        # 获取配置中的字体列表
         font_families = GUI_CONF.get('font_families', [])
         available_fonts = tkfont.families()
         
-        # 筛选可用的字体
         usable_fonts = []
         for font_name in font_families:
             if font_name in available_fonts or f'@{font_name}' in available_fonts:
                 usable_fonts.append(font_name)
         
-        # 添加标题
-        menu.add_command(label="🎨 字体设置", state="disabled")
-        menu.add_separator()
-        
-        # 添加字体选项
-        font_menu = tk.Menu(menu, tearoff=0,
-                           bg=menu_bg, fg=menu_fg,
-                           activebackground=menu_active_bg, activeforeground=menu_active_fg,
-                           font=(self.available_font, 10),
-                           relief="flat", borderwidth=0)
+        font_items = []
         for font_name in usable_fonts:
             is_current = (font_name == self.available_font)
             label = f"✓ {font_name}" if is_current else f"   {font_name}"
-            font_menu.add_command(
-                label=label,
-                command=lambda f=font_name: self._apply_font(f)
-            )
+            font_items.append(MenuItem(label, command=lambda f=font_name: self._apply_font(f)))
         
-        menu.add_cascade(label="📝 选择字体", menu=font_menu)
-        
- # 添加字体缩放选项
-        scale_menu = tk.Menu(menu, tearoff=0,
-                            bg=menu_bg, fg=menu_fg,
-                            activebackground=menu_active_bg, activeforeground=menu_active_fg,
-                            font=(self.available_font, 10),
-                            relief="flat", borderwidth=0)
         scale_options = [
             ("🔍 -3 (最小)", -3), ("🔍 -2", -2), ("🔍 -1", -1),
             ("✓ 0 (默认)", 0),
             ("🔍 +1", 1), ("🔍 +2", 2), ("🔍 +3", 3), ("🔍 +4", 4), ("🔍 +5 (最大)", 5)
         ]
-        
+        scale_items = []
         for label, scale in scale_options:
             is_current = (scale == self.font_scale)
             display_label = label if is_current else label.replace("✓", " ")
-            scale_menu.add_command(
-                label=display_label,
-                command=lambda s=scale: self._apply_font_scale(s)
-            )
+            scale_items.append(MenuItem(display_label, command=lambda s=scale: self._apply_font_scale(s)))
         
-        menu.add_cascade(label="🔤 字体缩放", menu=scale_menu)
-        
-        # 添加分隔线
-        menu.add_separator()
-        
-        # 显示当前设置
-        menu.add_command(label=f"📍 当前字体: {self.available_font}", state="disabled")
         scale_text = f"{self.font_scale:+d}" if self.font_scale != 0 else "0 (默认)"
-        menu.add_command(label=f"📍 当前缩放: {scale_text}", state="disabled")
-        menu.add_command(label=f"📍 实际大小: {self.font_size}px", state="disabled")
+        items = [
+            MenuItem("🎨 字体设置", state="disabled"),
+            SEPARATOR,
+            MenuItem("📝 选择字体", submenu=font_items),
+            MenuItem("🔤 字体缩放", submenu=scale_items),
+            SEPARATOR,
+            MenuItem(f"📍 当前字体: {self.available_font}", state="disabled"),
+            MenuItem(f"📍 当前缩放: {scale_text}", state="disabled"),
+            MenuItem(f"📍 实际大小: {self.font_size}px", state="disabled"),
+        ]
         
-        # 显示菜单
-        menu.post(event.x_root, event.y_root)
+        if not hasattr(self, '_font_menu'):
+            self._font_menu = CtxMenuMgr(self.root)
+        self._font_menu.show(event, items, menu_kwargs=menu_kwargs)
     
     def _apply_font(self, font_name):
         """应用选中的字体"""
@@ -2843,6 +3701,7 @@ class AlibabaScraperGUI(ProductsTabMixin, ShopProductsTabMixin, DsShopsTabMixin,
             else:
                 pricing_window.title("商品定价计算工具")
             pricing_window.geometry("1000x780")
+            pricing_window.minsize(800, 650)
             pricing_window.transient(self.root)
             pricing_window.grab_set()
             pricing_window.focus_force()

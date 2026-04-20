@@ -236,6 +236,32 @@ class OnlineCollector:
                 attributes = extract_attributes(data)
                 shop_info = extract_shop_info(data)
                 
+                extended_data = None
+                if html_content:
+                    try:
+                        from utils.extended_extractor import ExtendedDataExtractor
+                        extractor = ExtendedDataExtractor(html_content)
+                        extended_data = extractor.extract_all()
+                        self.log(f"  扩展数据: 已提取")
+                    except Exception as e:
+                        self.log(f"  扩展数据提取失败: {e}")
+                
+                # 提取商品成交趋势数据
+                trend_data = None
+                if html_content:
+                    try:
+                        from utils.trend_extractor import TrendDataExtractor
+                        trend_extractor = TrendDataExtractor(html_content)
+                        trend_data = trend_extractor.extract_all()
+                        sales_stats = trend_data.get('sales_stats', {})
+                        if any(sales_stats.values()):
+                            self.log(f"  趋势数据: 已提取")
+                            self.log(f"    - 年销量: {sales_stats.get('yearly_sales')}")
+                            self.log(f"    - 30天销量: {sales_stats.get('monthly_sales_30d')}")
+                            self.log(f"    - 复购率: {sales_stats.get('repurchase_rate')}%")
+                    except Exception as e:
+                        self.log(f"  趋势数据提取失败: {e}")
+                
                 self.log(f"  SKU数量: {len(sku_prices)}")
                 self.log(f"  色卡数量: {len(color_images)}")
                 self.log(f"  主图数量: {len(main_images)}")
@@ -253,6 +279,8 @@ class OnlineCollector:
                     'video_info': video_info,
                     'attributes': attributes,
                     'shop_info': shop_info,
+                    'extended_data': extended_data,
+                    'trend_data': trend_data,
                 }
             else:
                 self.log(f"数据采集失败: {product_id}")

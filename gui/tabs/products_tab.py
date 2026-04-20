@@ -7,6 +7,8 @@ from tkinter import ttk
 import webbrowser
 
 from gui.utils import create_button
+from gui.context_menu import ContextMenuManager, MenuItem, SEPARATOR, build_column_menu_items
+from config import get_font
 
 
 class ProductsTabMixin:
@@ -14,6 +16,7 @@ class ProductsTabMixin:
     def _init_db_products_tab(self):
         from utils.column_config import get_column_config
         
+        self._products_menu = ContextMenuManager(self.root)
         self._products_all_columns = {
             'platform': {'text': '平台', 'width': 60, 'anchor': 'center', 'default': True},
             'product_id': {'text': '商品ID', 'width': 105, 'anchor': 'center', 'default': True},
@@ -49,6 +52,7 @@ class ProductsTabMixin:
         products_btn_frame.pack(fill="x", pady=5)
         
         create_button(products_btn_frame, "导入", self._show_import_dialog, 'success', width=60).pack(side="left", padx=5)
+        create_button(products_btn_frame, "导入扩展数据", self._import_extended_data, 'info', width=90).pack(side="left", padx=5)
         create_button(products_btn_frame, "刷新", self._refresh_db_data, 'secondary', width=60).pack(side="left", padx=5)
         
         self.products_status_label = ctk.CTkLabel(products_btn_frame, text="")
@@ -199,16 +203,11 @@ class ProductsTabMixin:
             self._show_db_context_menu(event)
     
     def _show_products_column_menu(self, event):
-        menu = tk.Menu(self.db_tree, tearoff=0)
-        menu.add_command(label="显示/隐藏列", state="disabled")
-        menu.add_separator()
-        
-        for col_name, cfg in self._products_all_columns.items():
-            is_visible = col_name in self._products_visible_columns
-            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
-            menu.add_command(label=label, command=lambda c=col_name: self._toggle_products_column(c))
-        
-        menu.post(event.x_root, event.y_root)
+        items = build_column_menu_items(
+            self._products_all_columns, self._products_visible_columns,
+            self._toggle_products_column
+        )
+        self._products_menu.show(event, items)
     
     def _toggle_products_column(self, column_name):
         from utils.column_config import get_column_config
@@ -225,6 +224,70 @@ class ProductsTabMixin:
         self._create_products_tree()
         self._refresh_db_data()
     
+    def _import_extended_data(self):
+        from tkinter import filedialog
+        files = filedialog.askopenfilenames(
+            title="选择HTML文件",
+            filetypes=[("HTML文件", "*.html"), ("所有文件", "*.*")]
+        )
+        if not files:
+            return
+        
+        from utils.extended_extractor import ExtendedDataExtractor
+        from utils.database import get_shared_db
+        
+        db = get_shared_db()
+        success_count = 0
+        fail_count = 0
+        
+        for filepath in files:
+            try:
+                import re
+                filename = os.path.basename(filepath)
+                match = re.search(r'(\d+)', filename)
+                if not match:
+                    continue
+                product_id = match.group(1)
+                
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                
+                extractor = ExtendedDataExtractor(html_content)
+                data = extractor.extract_all()
+                
+                plugin_nav = data.get('plugin_nav', {})
+                core_container = data.get('core_container', {})
+                shop_ext = data.get('shop_info', {})
+                
+                ext_row = {}
+                for key in ['category', 'listing_date', 'monthly_sales', 'monthly_dropship',
+                           'yearly_volume', 'yearly_orders', 'review_count', 'positive_rate', 'pickup_rate']:
+                    if plugin_nav.get(key) is not None:
+                        ext_row[key] = plugin_nav[key]
+                
+                for key in ['procurement_trend', 'features', 'supplier_highlights']:
+                    if core_container.get(key):
+                        ext_row[key] = core_container[key]
+                
+                for key in ['shop_name', 'shop_years', 'shop_category', 'shop_return_rate',
+                           'shop_service_score', 'shop_delivery_rate', 'shop_positive_rate']:
+                    if shop_ext.get(key) is not None:
+                        ext_row[key] = shop_ext[key]
+                
+                if ext_row:
+                    db.save_product_extended(product_id, ext_row)
+                    success_count += 1
+                else:
+                    fail_count += 1
+            except Exception as e:
+                fail_count += 1
+        
+        db.close()
+        
+        if hasattr(self, 'log'):
+            self.log(f"扩展数据导入完成: 成功 {success_count}, 失败 {fail_count}")
+        self._refresh_db_data()
+
     def _refresh_db_data(self):
         for item in self.db_tree.get_children():
             self.db_tree.delete(item)
@@ -246,16 +309,17 @@ class ProductsTabMixin:
                 
                 for product in products:
                     row_values = []
-                    
+
                     for col in self._products_visible_columns:
                         if col == 'platform':
                             platform = product.get('platform', 'alibaba')
-                            if platform == 'alibaba':
+                            # 统一平台名称显示
+                            if platform in ('alibaba', '1688'):
                                 row_values.append('1688')
                             elif platform == 'jd':
                                 row_values.append('京东')
                             else:
-                                row_values.append(platform)
+                                row_values.append(platform or '未知')
                         elif col == 'product_id':
                             row_values.append(product.get('product_id', ''))
                         elif col == 'title':
@@ -675,47 +739,53 @@ class ProductsTabMixin:
         shop_product_id = values[columns.index('shop_product_id')] if 'shop_product_id' in columns else None
         output_path = values[columns.index('output_path')] if 'output_path' in columns and columns.index('output_path') < len(values) else None
         
-        context_menu = tk.Menu(self.root, tearoff=0)
-        
-        context_menu.add_command(label="查看商品详情", command=lambda: self._show_product_detail(product_id))
-        context_menu.add_command(label="查看店铺信息", command=lambda: self._show_shop_info(product_id))
-        context_menu.add_separator()
+        items = [
+            MenuItem("查看商品详情", command=lambda: self._show_product_detail(product_id)),
+            MenuItem("查看店铺信息", command=lambda: self._show_shop_info(product_id)),
+            SEPARATOR,
+        ]
         
         if platform == '1688':
-            context_menu.add_command(label="访问原址", command=lambda: self._open_product_page(product_id))
+            items.append(MenuItem("访问原址", command=lambda: self._open_product_page(product_id)))
         elif platform == '京东':
-            context_menu.add_command(label="访问原址", command=lambda: webbrowser.open(f"https://item.jd.com/{product_id}.html"))
+            items.append(MenuItem("访问原址", command=lambda: webbrowser.open(f"https://item.jd.com/{product_id}.html")))
         
-        context_menu.add_command(label="显示资源", command=lambda: self._show_resources_dialog(product_id))
-        context_menu.add_command(label="打开输出路径", command=lambda: self._open_output_directory(product_id, output_path))
-        context_menu.add_command(label="重新定位目录", command=lambda: self._relocate_output_directory(product_id, output_path))
+        items.extend([
+            MenuItem("显示资源", command=lambda: self._show_resources_dialog(product_id)),
+            MenuItem("打开输出路径", command=lambda: self._open_output_directory(product_id, output_path)),
+            MenuItem("重新定位目录", command=lambda: self._relocate_output_directory(product_id, output_path)),
+        ])
         
         if shop_product_id and shop_product_id != '-':
-            context_menu.add_command(label="访问店铺商品页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html?sk=consign"))
+            items.extend([MenuItem("访问店铺商品页", command=lambda: webbrowser.open(f"https://detail.1688.com/offer/{shop_product_id}.html?sk=consign"))])
         
-        context_menu.add_separator()
+        items.append(SEPARATOR)
         
         consign_url = f"https://detail.1688.com/offer/{product_id}.html?sk=consign"
-        context_menu.add_command(label="铺货页面", command=lambda: self._copy_url_to_clipboard(consign_url, "铺货页面"))
-        
         shop_new_url = f"https://item.upload.taobao.com/from1688/publish.htm?&sourceId={product_id}"
-        context_menu.add_command(label="店铺上新", command=lambda: self._copy_url_to_clipboard(shop_new_url, "店铺上新"))
+        items.extend([
+            MenuItem("铺货页面", command=lambda: self._copy_url_to_clipboard(consign_url, "铺货页面")),
+            MenuItem("店铺上新", command=lambda: self._copy_url_to_clipboard(shop_new_url, "店铺上新")),
+        ])
         
         if shop_product_id and shop_product_id != '-':
             edit_url = f"https://item.upload.taobao.com/sell/v2/publish.htm?itemId={shop_product_id}&fromAIPublish=true&newRouter=1&fromAICategory=true"
-            context_menu.add_command(label="编辑商品", command=lambda: self._copy_url_to_clipboard(edit_url, "编辑商品"))
+            items.append(MenuItem("编辑商品", command=lambda: self._copy_url_to_clipboard(edit_url, "编辑商品")))
         
-        context_menu.add_separator()
-        context_menu.add_command(label="价格计算", command=lambda: self.open_pricing_tool(product_id))
-        context_menu.add_command(label="图片编辑", command=lambda: self._open_image_editor(product_id))
-        context_menu.add_command(label="在线采集", command=lambda: self._db_online_collect_for_item(product_id))
-        context_menu.add_separator()
-        context_menu.add_command(label="关联DS店铺", command=lambda: self._link_to_ds_shop(product_id))
-        context_menu.add_command(label="查看DS关联", command=lambda: self._show_product_ds_status(product_id))
-        context_menu.add_separator()
-        context_menu.add_command(label="删除记录", command=self._delete_db_record)
+        items.extend([
+            SEPARATOR,
+            MenuItem("价格计算", command=lambda: self.open_pricing_tool(product_id)),
+            MenuItem("图片编辑", command=lambda: self._open_image_editor(product_id)),
+            MenuItem("在线采集", command=lambda: self._db_online_collect_for_item(product_id)),
+            MenuItem("导入扩展数据", command=lambda: self._import_extended_data_for_item(product_id)),
+            SEPARATOR,
+            MenuItem("关联DS店铺", command=lambda: self._link_to_ds_shop(product_id)),
+            MenuItem("查看DS关联", command=lambda: self._show_product_ds_status(product_id)),
+            SEPARATOR,
+            MenuItem("删除记录", command=self._delete_db_record),
+        ])
         
-        context_menu.post(event.x_root, event.y_root)
+        self._products_menu.show(event, items)
     
     def _copy_url_to_clipboard(self, url: str, name: str):
         try:
@@ -820,6 +890,7 @@ class ProductsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"商品详情 - {product_id}")
             dialog.geometry("900x500")
+            dialog.minsize(700, 400)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -904,8 +975,8 @@ class ProductsTabMixin:
             btn_frame = ctk.CTkFrame(dialog)
             btn_frame.pack(fill="x", pady=10)
             
-            ctk.CTkLabel(btn_frame, text="双击行可复制值，描述字段双击查看属性", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
-            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            ctk.CTkLabel(btn_frame, text="双击行可复制值，描述字段双击查看属性", font=get_font(self.available_font, 'sm')).pack(side="left", padx=10)
+            create_button(btn_frame, "关闭", dialog.destroy, 'secondary', size='compact', width=80).pack(side="right", padx=5)
             
         except Exception as e:
             self.log(f"获取商品详情失败: {e}", "error")
@@ -921,6 +992,7 @@ class ProductsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"商品属性 - {product_id}")
             dialog.geometry("600x400")
+            dialog.minsize(450, 300)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -975,8 +1047,8 @@ class ProductsTabMixin:
             btn_frame = ctk.CTkFrame(dialog)
             btn_frame.pack(fill="x", pady=10)
             
-            ctk.CTkLabel(btn_frame, text="双击行可复制", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
-            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            ctk.CTkLabel(btn_frame, text="双击行可复制", font=get_font(self.available_font, 'sm')).pack(side="left", padx=10)
+            create_button(btn_frame, "关闭", dialog.destroy, 'secondary', size='compact', width=80).pack(side="right", padx=5)
             
         except Exception as e:
             self.log(f"获取商品属性失败: {e}", "error")
@@ -1005,6 +1077,7 @@ class ProductsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"店铺信息 - {shop_id}")
             dialog.geometry("800x400")
+            dialog.minsize(600, 300)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -1059,8 +1132,8 @@ class ProductsTabMixin:
             btn_frame = ctk.CTkFrame(dialog)
             btn_frame.pack(fill="x", pady=10)
             
-            ctk.CTkLabel(btn_frame, text="双击行可复制值", font=(self.available_font, self.font_size_small)).pack(side="left", padx=10)
-            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            ctk.CTkLabel(btn_frame, text="双击行可复制值", font=get_font(self.available_font, 'sm')).pack(side="left", padx=10)
+            create_button(btn_frame, "关闭", dialog.destroy, 'secondary', size='compact', width=80).pack(side="right", padx=5)
             
         except Exception as e:
             self.log(f"获取店铺信息失败: {e}", "error")
@@ -1133,6 +1206,61 @@ class ProductsTabMixin:
         thread = threading.Thread(target=collect_thread, daemon=True)
         thread.start()
     
+    def _import_extended_data_for_item(self, product_id: str):
+        from tkinter import filedialog
+        files = filedialog.askopenfilenames(
+            title=f"选择 {product_id} 的HTML文件",
+            filetypes=[("HTML文件", "*.html"), ("所有文件", "*.*")]
+        )
+        if not files:
+            return
+        
+        from utils.extended_extractor import ExtendedDataExtractor
+        from utils.database import get_shared_db
+        
+        db = get_shared_db()
+        success = False
+        
+        for filepath in files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                
+                extractor = ExtendedDataExtractor(html_content)
+                data = extractor.extract_all()
+                
+                plugin_nav = data.get('plugin_nav', {})
+                core_container = data.get('core_container', {})
+                shop_ext = data.get('shop_info', {})
+                
+                ext_row = {}
+                for key in ['category', 'listing_date', 'monthly_sales', 'monthly_dropship',
+                           'yearly_volume', 'yearly_orders', 'review_count', 'positive_rate', 'pickup_rate']:
+                    if plugin_nav.get(key) is not None:
+                        ext_row[key] = plugin_nav[key]
+                for key in ['procurement_trend', 'features', 'supplier_highlights']:
+                    if core_container.get(key):
+                        ext_row[key] = core_container[key]
+                for key in ['shop_name', 'shop_years', 'shop_category', 'shop_return_rate',
+                           'shop_service_score', 'shop_delivery_rate', 'shop_positive_rate']:
+                    if shop_ext.get(key) is not None:
+                        ext_row[key] = shop_ext[key]
+                
+                if ext_row:
+                    db.save_product_extended(product_id, ext_row)
+                    success = True
+                    if hasattr(self, 'log'):
+                        self.log(f"扩展数据已导入: {product_id} ({len(ext_row)} 项)")
+                    break
+            except Exception as e:
+                if hasattr(self, 'log'):
+                    self.log(f"导入扩展数据失败: {e}", "error")
+        
+        db.close()
+        
+        if not success and hasattr(self, 'log'):
+            self.log(f"未提取到有效扩展数据: {product_id}", "warning")
+    
     def _show_resources_dialog(self, product_id: str):
         try:
             from utils.database import get_shared_db
@@ -1145,6 +1273,7 @@ class ProductsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"资源链接 - {product_id}")
             dialog.geometry("1100x650")
+            dialog.minsize(850, 500)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -1254,9 +1383,9 @@ class ProductsTabMixin:
                 dialog.destroy()
                 self._download_product_resources(product_id, force=True)
             
-            ctk.CTkButton(btn_frame, text="检查", command=check_resources, width=80).pack(side="left", padx=5)
-            ctk.CTkButton(btn_frame, text="重新下载", command=redownload_resources, width=80).pack(side="left", padx=5)
-            ctk.CTkButton(btn_frame, text="关闭", command=dialog.destroy, width=80).pack(side="right", padx=5)
+            create_button(btn_frame, "检查", check_resources, 'primary', size='compact', width=80).pack(side="left", padx=5)
+            create_button(btn_frame, "重新下载", redownload_resources, 'warning', size='compact', width=80).pack(side="left", padx=5)
+            create_button(btn_frame, "关闭", dialog.destroy, 'secondary', size='compact', width=80).pack(side="right", padx=5)
             
         except Exception as e:
             self.log(f"获取资源链接失败: {e}", "error")

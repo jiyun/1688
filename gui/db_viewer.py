@@ -8,6 +8,7 @@
 import tkinter as tk
 from tkinter import ttk
 import customtkinter as ctk
+from config import get_font
 from typing import Dict, List, Any, Optional
 
 
@@ -32,7 +33,7 @@ class DatabaseViewer:
         title_frame = ctk.CTkFrame(frame)
         title_frame.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(title_frame, text="商品信息", font=("Arial", 14, "bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(title_frame, text="商品信息", font=get_font('', 'xl', 'bold')).pack(side="left", padx=5)
         
         # 信息网格
         info_frame = ctk.CTkFrame(frame)
@@ -67,7 +68,7 @@ class DatabaseViewer:
         title_frame = ctk.CTkFrame(frame)
         title_frame.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(title_frame, text="资源链接", font=("Arial", 14, "bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(title_frame, text="资源链接", font=get_font('', 'xl', 'bold')).pack(side="left", padx=5)
         
         # 资源统计
         stats_frame = ctk.CTkFrame(frame)
@@ -85,8 +86,8 @@ class DatabaseViewer:
             item_frame = ctk.CTkFrame(stats_frame)
             item_frame.pack(side="left", padx=10)
             
-            ctk.CTkLabel(item_frame, text=label).pack(side="left")
-            self.resource_stats[key] = ctk.CTkLabel(item_frame, text="0")
+            ctk.CTkLabel(item_frame, text=label, font=get_font('', 'base')).pack(side="left")
+            self.resource_stats[key] = ctk.CTkLabel(item_frame, text="0", font=get_font('', 'lg', 'bold'))
             self.resource_stats[key].pack(side="left", padx=5)
         
         # 资源列表
@@ -116,7 +117,7 @@ class DatabaseViewer:
         title_frame = ctk.CTkFrame(frame)
         title_frame.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(title_frame, text="价格矩阵", font=("Arial", 14, "bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(title_frame, text="价格矩阵", font=get_font('', 'xl', 'bold')).pack(side="left", padx=5)
         
         # 价格统计
         stats_frame = ctk.CTkFrame(frame)
@@ -134,8 +135,8 @@ class DatabaseViewer:
             item_frame = ctk.CTkFrame(stats_frame)
             item_frame.pack(side="left", padx=10)
             
-            ctk.CTkLabel(item_frame, text=label).pack(side="left")
-            self.price_stats[key] = ctk.CTkLabel(item_frame, text="-")
+            ctk.CTkLabel(item_frame, text=label, font=get_font('', 'base')).pack(side="left")
+            self.price_stats[key] = ctk.CTkLabel(item_frame, text="-", font=get_font('', 'lg', 'bold'))
             self.price_stats[key].pack(side="left", padx=5)
         
         # 价格列表

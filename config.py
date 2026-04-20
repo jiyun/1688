@@ -193,6 +193,37 @@ BUTTON_CONF = {
     'corner_radius': 8,
     'border_width': 0,
     
+    'sizes': {
+        'compact': {
+            'width': 60,
+            'height': 28,
+            'font_size_key': 'xs',
+            'padding_x': 8,
+            'padding_y': 4,
+        },
+        'default': {
+            'width': 120,
+            'height': 40,
+            'font_size_key': 'base',
+            'padding_x': 12,
+            'padding_y': 6,
+        },
+        'large': {
+            'width': 140,
+            'height': 40,
+            'font_size_key': 'lg',
+            'padding_x': 16,
+            'padding_y': 8,
+        },
+        'icon': {
+            'width': 32,
+            'height': 32,
+            'font_size_key': 'base',
+            'padding_x': 4,
+            'padding_y': 4,
+        },
+    },
+    
     'themes': {
         'default': {
             'primary': {'fg_color': '#1F6AA5', 'hover_color': '#144870', 'text_color': 'white'},
@@ -219,20 +250,89 @@ BUTTON_CONF = {
     'current_theme': 'default',
 }
 
+UI_TYPOGRAPHY = {
+    'sizes': {
+        'xs': 8,
+        'sm': 9,
+        'base': 10,
+        'lg': 12,
+        'xl': 14,
+        '2xl': 16,
+        '3xl': 20,
+    },
+    'weights': {
+        'normal': 'normal',
+        'bold': 'bold',
+    },
+}
+
+UI_SPACING = {
+    'base_unit': 4,
+    'scale': {
+        '0': 0,
+        '1': 4,
+        '2': 8,
+        '3': 12,
+        '4': 16,
+        '5': 20,
+        '6': 24,
+        '8': 32,
+        '10': 40,
+    },
+    'common': {
+        'button_margin': (8, 4),
+        'frame_padding': (12, 12),
+        'dialog_padding': (20, 20),
+        'section_gap': 16,
+    }
+}
+
+UI_DIALOG = {
+    'position_mode': 'parent_center',
+    'default_size': {
+        'width': 400,
+        'height': 200,
+    },
+    'parent_padding': {
+        'top': 50,
+        'offset_x': 0,
+        'offset_y': 30,
+    },
+    'cascade_offset': {
+        'x': 30,
+        'y': 30,
+    },
+    'min_margin': {
+        'x': 20,
+        'y': 20,
+    }
+}
+
 def get_button_style(style_type='primary'):
     theme_name = BUTTON_CONF.get('current_theme', 'default')
     theme = BUTTON_CONF['themes'].get(theme_name, BUTTON_CONF['themes']['default'])
     return theme.get(style_type, theme['primary'])
 
-def get_button_config(style_type='primary'):
+def get_button_config(style_type='primary', size='default'):
     style = get_button_style(style_type)
+    size_conf = BUTTON_CONF['sizes'].get(size, BUTTON_CONF['sizes']['default'])
     return {
-        'width': BUTTON_CONF['width'],
-        'height': BUTTON_CONF['height'],
+        'width': size_conf['width'],
+        'height': size_conf['height'],
         'corner_radius': BUTTON_CONF['corner_radius'],
         'border_width': BUTTON_CONF['border_width'],
+        'font_size_key': size_conf['font_size_key'],
         **style
     }
+
+def get_font_size(size_key='base'):
+    return UI_TYPOGRAPHY['sizes'].get(size_key, UI_TYPOGRAPHY['sizes']['base'])
+
+def get_font(font_family, size_key='base', weight='normal'):
+    font_size = get_font_size(size_key)
+    if weight == 'bold':
+        return (font_family, font_size, 'bold')
+    return (font_family, font_size)
 
 import re
 

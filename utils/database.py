@@ -292,6 +292,7 @@ class Database:
         self._migrate_products_table()
         self._migrate_shop_products_table()
         self._migrate_ds_shops_table()
+        self._migrate_product_extended_table()
     
     def _create_indexes(self) -> None:
         indexes = [
@@ -344,7 +345,9 @@ class Database:
                 'ds_shop_url': 'VARCHAR',
                 'user_remark': 'VARCHAR',
                 'price_matrix': 'VARCHAR',
-                'target_price': 'DOUBLE'
+                'target_price': 'DOUBLE',
+                'shipping_cost': 'DOUBLE DEFAULT 0',
+                'unit_price': 'DOUBLE'
             }
             
             for col_name, col_type in new_columns.items():
@@ -425,6 +428,27 @@ class Database:
                         
         except Exception as e:
             log_warning(f"迁移 ds_shops 表失败: {e}")
+    
+    def _migrate_product_extended_table(self) -> None:
+        """迁移 product_extended 表，添加新字段"""
+        try:
+            columns = self.conn.execute("DESCRIBE product_extended").fetchall()
+            existing_columns = {col[0] for col in columns}
+            
+            new_columns = {
+                'estimated_delivery': 'VARCHAR',
+            }
+            
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE product_extended ADD COLUMN {col_name} {col_type}')
+                        log_info(f"已添加字段: product_extended.{col_name}")
+                    except Exception as e:
+                        log_warning(f"添加字段 product_extended.{col_name} 失败: {e}")
+                        
+        except Exception as e:
+            log_warning(f"迁移 product_extended 表失败: {e}")
     
     def _migrate_sku_prices_table(self) -> None:
         """迁移 sku_prices 表，重建表结构"""
@@ -529,6 +553,10 @@ class Database:
         else:
             result = self.conn.execute(sql)
         
+        # 检查结果是否有description（某些查询如INSERT可能没有）
+        if result.description is None:
+            return []
+        
         columns = [desc[0] for desc in result.description]
         rows = result.fetchall()
         return [dict(zip(columns, row)) for row in rows]
@@ -587,7 +615,8 @@ class Database:
         sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) RETURNING id"
         result = self.conn.execute(sql, list(data.values()))
         self.conn.execute('CHECKPOINT')
-        return result.fetchone()[0]
+        row = result.fetchone()
+        return row[0] if row else data.get('id')
     
     def update(self, table: str, data: Dict, where: str, where_params: List = None) -> None:
         """更新数据"""
@@ -802,7 +831,7 @@ class Database:
             self.insert('resources', data)
             return True
         except Exception as e:
-            log_info(f"插入资源失败: {e}")
+            log_warning(f"插入资源失败: {e}, product_id={product_id}, resource_type={resource_type}, url={resource_url}")
             return False
     
     def get_pending_resources(self, product_id: str = None, resource_type: str = None, 
@@ -1274,18 +1303,31 @@ class Database:
         stats = {}
         
         stats['total_products'] = self.query_one('SELECT COUNT(*) as count FROM products')['count']
-        stats['total_shops'] = self.query_one('SELECT COUNT(*) as count FROM shops')['count']
+        # 统计有商品的店铺数量（从products表中的shop_id统计）
+        stats['total_shops'] = self.query_one('''
+            SELECT COUNT(DISTINCT shop_id) as count 
+            FROM products 
+            WHERE shop_id IS NOT NULL AND shop_id != ''
+        ''')['count']
         stats['total_resources'] = self.query_one('SELECT COUNT(*) as count FROM resources')['count']
         stats['downloaded_resources'] = self.query_one(
             'SELECT COUNT(*) as count FROM resources WHERE downloaded = TRUE'
         )['count']
         
+        # 平台统计 - 统一平台名称格式
         platform_stats = self.query('''
-            SELECT platform, COUNT(*) as count 
+            SELECT 
+                CASE 
+                    WHEN platform = 'alibaba' OR platform = '1688' THEN '1688'
+                    WHEN platform = 'jd' THEN '京东'
+                    ELSE COALESCE(platform, '未知')
+                END as platform_name, 
+                COUNT(*) as count 
             FROM products 
-            GROUP BY platform
+            WHERE platform IS NOT NULL AND platform != ''
+            GROUP BY platform_name
         ''')
-        stats['by_platform'] = {p['platform']: p['count'] for p in platform_stats}
+        stats['by_platform'] = {p['platform_name']: p['count'] for p in platform_stats}
         
         ship_from_stats = self.query('''
             SELECT ship_from, COUNT(*) as count 
@@ -1497,6 +1539,62 @@ class Database:
         )
         return True
     
+    def save_product_extended(self, product_id: str, data: Dict) -> bool:
+        existing = self.query_one(
+            'SELECT id FROM product_extended WHERE product_id = ?',
+            [product_id]
+        )
+        
+        json_fields = ['procurement_trend', 'features', 'supplier_highlights']
+        for field in json_fields:
+            if field in data and not isinstance(data[field], str):
+                data[field] = json.dumps(data[field], ensure_ascii=False)
+        
+        if existing:
+            set_parts = []
+            params = []
+            for key, value in data.items():
+                if key == 'product_id':
+                    continue
+                set_parts.append(f'{key} = ?')
+                params.append(value)
+            set_parts.append('updated_at = CURRENT_TIMESTAMP')
+            params.append(product_id)
+            self.execute(
+                f"UPDATE product_extended SET {', '.join(set_parts)} WHERE product_id = ?",
+                params
+            )
+        else:
+            next_id = self.query_one('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM product_extended')['next_id']
+            insert_data = {'id': next_id, 'product_id': product_id}
+            for k, v in data.items():
+                if k != 'product_id':
+                    insert_data[k] = v
+            columns = ', '.join(insert_data.keys())
+            placeholders = ', '.join(['?'] * len(insert_data))
+            self.execute(
+                f"INSERT INTO product_extended ({columns}) VALUES ({placeholders})",
+                list(insert_data.values())
+            )
+        return True
+
+    def get_product_extended(self, product_id: str) -> Optional[Dict]:
+        row = self.query_one(
+            'SELECT * FROM product_extended WHERE product_id = ?',
+            [product_id]
+        )
+        if not row:
+            return None
+        result = dict(row)
+        json_fields = ['procurement_trend', 'features', 'supplier_highlights']
+        for field in json_fields:
+            if result.get(field) and isinstance(result[field], str):
+                try:
+                    result[field] = json.loads(result[field])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        return result
+
     def get_product_ds_status(self, product_id: str) -> Dict:
         mappings = self.get_product_ds_mappings(product_id)
         

@@ -512,6 +512,11 @@ class ContextMenuCommands:
                     if sku_data is None:
                         continue
                     
+                    # 检查数据类型
+                    if not isinstance(sku_data, dict):
+                        self.parent.log(f"SKU数据格式错误: 期望dict, 实际{type(sku_data)}, 值={sku_data}", "warning")
+                        continue
+                    
                     color = sku_data.get('color', '') or ''
                     size = sku_data.get('size', '') or ''
                     
@@ -519,16 +524,24 @@ class ContextMenuCommands:
                     if not sku_id:
                         continue
                     
-                    price = float(sku_data['price']) if sku_data.get('price') else None
-                    discount_price = float(sku_data['discountPrice']) if sku_data.get('discountPrice') else None
-                    can_book_count = int(sku_data['canBookCount']) if sku_data.get('canBookCount') else None
-                    sale_count = int(sku_data['saleCount']) if sku_data.get('saleCount') else None
+                    # 安全获取价格，处理空字符串情况
+                    price_str = sku_data.get('price', '')
+                    price = float(price_str) if price_str and price_str.strip() else None
+                    
+                    discount_price_str = sku_data.get('discountPrice', '')
+                    discount_price = float(discount_price_str) if discount_price_str and discount_price_str.strip() else None
+                    # 安全获取库存和销量
+                    can_book_count_str = str(sku_data.get('canBookCount', ''))
+                    can_book_count = int(can_book_count_str) if can_book_count_str and can_book_count_str.strip() else 0
+                    
+                    sale_count_str = str(sku_data.get('saleCount', ''))
+                    sale_count = int(sale_count_str) if sale_count_str and sale_count_str.strip() else 0
                     spec_id = sku_data.get('specId')
                     
                     db.insert_sku_price(product_id, sku_id, color, size, price, discount_price, can_book_count, sale_count, spec_id)
                     saved_sku_count += 1
                 except Exception as e:
-                    self.parent.log(f"保存SKU价格失败: {e}", "warning")
+                    self.parent.log(f"保存SKU价格失败: {e}, sku_data类型={type(sku_data)}, 内容={sku_data}", "warning")
         
         saved_color_count = 0
         if color_images:
@@ -1039,4 +1052,7 @@ class ContextMenuManager(ContextMenuCommands):
                     edit_product_state = tk.NORMAL if dsid and str(dsid).strip() else tk.DISABLED
                     self.context_menu.entryconfig("编辑商品 ©", state=edit_product_state)
                     
-                    self.context_menu.post(event.x_root, event.y_root)
+                    try:
+                        self.context_menu.tk_popup(event.x_root, event.y_root)
+                    finally:
+                        self.context_menu.grab_release()

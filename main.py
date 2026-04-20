@@ -40,7 +40,7 @@ class AlibabaScraper:
         self.webp_support = webp_support
         self.data_only = data_only
         self.resources_only = resources_only
-        self.product_id = self._extract_product_id()
+        self.product_id = self._extract_product_id_from_filename()
         self.parser = None
         self.downloader = Downloader({
             'DOWNLOAD_CONF': config.DOWNLOAD_CONF,
@@ -51,11 +51,26 @@ class AlibabaScraper:
             'FILE_NAMING': config.FILE_NAMING
         })
     
-    def _extract_product_id(self):
+    def _extract_product_id_from_filename(self):
         """从HTML文件名中提取商品ID"""
         base_name = os.path.basename(self.html_file)
-        product_id = os.path.splitext(base_name)[0]
-        return product_id
+        return os.path.splitext(base_name)[0]
+    
+    def _extract_product_id(self):
+        """从HTML内容中提取商品ID，文件名作为备选"""
+        if hasattr(self, 'parser') and self.parser and hasattr(self.parser, 'html_content'):
+            html = self.parser.html_content
+            patterns = [
+                r'url: https://detail\.1688\.com/offer/(\d+)\.html',
+                r'<link rel=canonical href=https://detail\.1688\.com/offer/(\d+)\.html',
+                r'url=https://m\.1688\.com/offer/(\d+)\.html',
+                r'offerId[=:]\s*["\']?(\d{10,})',
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, html)
+                if match:
+                    return match.group(1)
+        return self._extract_product_id_from_filename()
     
     def load_html(self):
         """加载HTML文件"""
@@ -63,6 +78,9 @@ class AlibabaScraper:
             with open(self.html_file, 'r', encoding='utf-8') as f:
                 html_content = f.read()
             self.parser = HTMLParser(html_content, keep_avif=self.keep_avif, webp_support=self.webp_support)
+            html_product_id = self._extract_product_id()
+            if html_product_id and html_product_id != self.product_id:
+                self.product_id = html_product_id
             return True
         except Exception as e:
             log_error(f"HTML文件加载失败: {e}", "Main")

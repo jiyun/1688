@@ -6,6 +6,7 @@ from tkinter import ttk
 import webbrowser
 
 from gui.utils import create_button
+from gui.context_menu import ContextMenuManager, MenuItem, SEPARATOR, build_column_menu_items
 
 
 class DsProductsTabMixin:
@@ -13,6 +14,7 @@ class DsProductsTabMixin:
     def _init_db_ds_products_tab(self):
         from utils.column_config import get_column_config
         
+        self._ds_products_menu = ContextMenuManager(self.root)
         self._ds_products_all_columns = {
             'product_id': {'text': '供应商商品ID', 'width': 105, 'anchor': 'center', 'default': True},
             'title': {'text': '商品标题', 'width': 180, 'anchor': 'w', 'default': True},
@@ -100,16 +102,11 @@ class DsProductsTabMixin:
             self._show_ds_products_context_menu(event)
     
     def _show_ds_products_column_menu(self, event):
-        menu = tk.Menu(self.ds_products_tree, tearoff=0)
-        menu.add_command(label="显示/隐藏列", state="disabled")
-        menu.add_separator()
-        
-        for col_name, cfg in self._ds_products_all_columns.items():
-            is_visible = col_name in self._ds_products_visible_columns
-            label = f"{'✓ ' if is_visible else '   '}{cfg['text']}"
-            menu.add_command(label=label, command=lambda c=col_name: self._toggle_ds_products_column(c))
-        
-        menu.post(event.x_root, event.y_root)
+        items = build_column_menu_items(
+            self._ds_products_all_columns, self._ds_products_visible_columns,
+            self._toggle_ds_products_column
+        )
+        self._ds_products_menu.show(event, items)
     
     def _toggle_ds_products_column(self, column_name):
         from utils.column_config import get_column_config
@@ -140,19 +137,21 @@ class DsProductsTabMixin:
         product_id = values[columns.index('product_id')] if 'product_id' in columns else ''
         shop_product_id = values[columns.index('shop_product_id')] if 'shop_product_id' in columns else ''
         
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="访问供应商商品", command=lambda: self._open_url(f"https://detail.1688.com/offer/{product_id}.html?sk=consign"))
+        items = [
+            MenuItem("访问供应商商品", command=lambda: self._open_url(f"https://detail.1688.com/offer/{product_id}.html?sk=consign")),
+        ]
         
         if shop_product_id and shop_product_id != '-':
-            menu.add_command(label="访问DS商品", command=lambda: self._open_url(f"https://detail.1688.com/offer/{shop_product_id}.html?sk=consign"))
+            items.append(MenuItem("访问DS商品", command=lambda: self._open_url(f"https://detail.1688.com/offer/{shop_product_id}.html?sk=consign")))
         
-        menu.add_separator()
-        menu.add_command(label="查看商品详情", command=lambda: self._show_product_detail(product_id))
-        menu.add_command(label="编辑DSID", command=lambda: self._edit_ds_product_id(item, product_id, shop_product_id))
-        menu.add_separator()
-        menu.add_command(label="关联供应商商品", command=lambda: self._link_supplier_to_ds_product(product_id))
-        
-        menu.post(event.x_root, event.y_root)
+        items.extend([
+            SEPARATOR,
+            MenuItem("查看商品详情", command=lambda: self._show_product_detail(product_id)),
+            MenuItem("编辑DSID", command=lambda: self._edit_ds_product_id(item, product_id, shop_product_id)),
+            SEPARATOR,
+            MenuItem("关联供应商商品", command=lambda: self._link_supplier_to_ds_product(product_id)),
+        ])
+        self._ds_products_menu.show(event, items)
     
     def _sort_ds_products_column(self, column):
         if self._ds_products_sort_column == column:

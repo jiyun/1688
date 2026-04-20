@@ -28,7 +28,8 @@ class ExtendedDataExtractor:
         return {
             'plugin_nav': self.extract_plugin_nav(),
             'core_container': self.extract_core_container(),
-            'shop_info': self.extract_shop_info()
+            'shop_info': self.extract_shop_info(),
+            'shipping': self.extract_shipping()
         }
     
     def extract_plugin_nav(self) -> Dict[str, Any]:
@@ -79,6 +80,8 @@ class ExtendedDataExtractor:
                     elif key == 'listing_date':
                         value = self._parse_date(value)
                     result[key] = value
+        except Exception:
+            pass
         
         return result
     
@@ -142,10 +145,53 @@ class ExtendedDataExtractor:
         features = []
         
         try:
-            feature_section = re.search(r'功能亮点(.*?)</div>', self.html_content, re.DOTALL)
-            if feature_section:
-                feature_items = re.findall(r'<div[^>]*>([^<]+)</div>', feature_section.group(1))
-                features = [item.strip() for item in feature_items]
+            for tag in self.soup.select('.alphashop-pkg-od-banner-featureTitle'):
+                if '功能亮点' in tag.get_text():
+                    container = tag.find_parent(class_='alphashop-pkg-od-banner-highlightCard')
+                    if container:
+                        for item in container.select('.alphashop-pkg-od-banner-tagText'):
+                            text = item.get_text(strip=True)
+                            if text:
+                                features.append(text)
+                    break
+            
+            if features:
+                return features
+            
+            patterns = [
+                (r'功能亮点.*?<div[^>]*class="[^"]*feature[^"]*"[^>]*>(.*?)</div>', re.DOTALL),
+                (r'功能亮点(.*?)(?:供应商亮点|店铺评分|$)', re.DOTALL),
+                (r'功能亮点(.*?)</div>', re.DOTALL),
+            ]
+            
+            for pattern, flags in patterns:
+                match = re.search(pattern, self.html_content, flags)
+                if match:
+                    section = match.group(1)
+                    items = re.findall(r'<div[^>]*>([^<]+)</div>', section)
+                    if not items:
+                        items = re.findall(r'<span[^>]*>([^<]+)</span>', section)
+                    if not items:
+                        items = re.findall(r'<li[^>]*>([^<]+)</li>', section)
+                    if not items:
+                        items = re.findall(r'<p[^>]*>([^<]+)</p>', section)
+                    features = [item.strip() for item in items if item.strip() and len(item.strip()) > 1]
+                    if features:
+                        break
+            
+            if not features:
+                soup_items = self.soup.find_all(string=re.compile(r'功能亮点'))
+                if soup_items:
+                    for text_node in soup_items:
+                        parent = text_node.parent
+                        for _ in range(5):
+                            if parent:
+                                parent = parent.parent
+                        if parent:
+                            for tag in parent.find_all(['div', 'span', 'li', 'p']):
+                                text = tag.get_text(strip=True)
+                                if text and text != '功能亮点' and len(text) > 1:
+                                    features.append(text)
             
             return features
         except Exception:
@@ -156,14 +202,88 @@ class ExtendedDataExtractor:
         highlights = []
         
         try:
-            highlight_section = re.search(r'供应商亮点(.*?)</div>', self.html_content, re.DOTALL)
-            if highlight_section:
-                highlight_items = re.findall(r'<div[^>]*>([^<]+)</div>', highlight_section.group(1))
-                highlights = [item.strip() for item in highlight_items]
+            for tag in self.soup.select('.alphashop-pkg-od-banner-featureTitle'):
+                if '供应商亮点' in tag.get_text():
+                    container = tag.find_parent(class_='alphashop-pkg-od-banner-highlightCard')
+                    if container:
+                        for item in container.select('.alphashop-pkg-od-banner-tagText'):
+                            text = item.get_text(strip=True)
+                            if text:
+                                highlights.append(text)
+                    break
+            
+            if highlights:
+                return highlights
+            
+            patterns = [
+                (r'供应商亮点.*?<div[^>]*class="[^"]*supplier[^"]*"[^>]*>(.*?)</div>', re.DOTALL),
+                (r'供应商亮点(.*?)(?:店铺评分|$)', re.DOTALL),
+                (r'供应商亮点(.*?)</div>', re.DOTALL),
+            ]
+            
+            for pattern, flags in patterns:
+                match = re.search(pattern, self.html_content, flags)
+                if match:
+                    section = match.group(1)
+                    items = re.findall(r'<div[^>]*>([^<]+)</div>', section)
+                    if not items:
+                        items = re.findall(r'<span[^>]*>([^<]+)</span>', section)
+                    if not items:
+                        items = re.findall(r'<li[^>]*>([^<]+)</li>', section)
+                    if not items:
+                        items = re.findall(r'<p[^>]*>([^<]+)</p>', section)
+                    highlights = [item.strip() for item in items if item.strip() and len(item.strip()) > 1]
+                    if highlights:
+                        break
+            
+            if not highlights:
+                soup_items = self.soup.find_all(string=re.compile(r'供应商亮点'))
+                if soup_items:
+                    for text_node in soup_items:
+                        parent = text_node.parent
+                        for _ in range(5):
+                            if parent:
+                                parent = parent.parent
+                        if parent:
+                            for tag in parent.find_all(['div', 'span', 'li', 'p']):
+                                text = tag.get_text(strip=True)
+                                if text and text != '供应商亮点' and len(text) > 1:
+                                    highlights.append(text)
             
             return highlights
         except Exception:
             return []
+    
+    def extract_shipping(self) -> Dict[str, Any]:
+        """提取运费数据"""
+        result = {
+            'shipping_fee': None,
+            'free_shipping': None,
+            'estimated_delivery': None
+        }
+        
+        try:
+            fee_match = re.search(r'运费[：:￥¥]?\s*([\d.]+)', self.html_content)
+            if fee_match:
+                result['shipping_fee'] = float(fee_match.group(1))
+            
+            free_match = re.search(r'包邮|免运费|免邮', self.html_content)
+            if free_match:
+                result['free_shipping'] = True
+                if result['shipping_fee'] is None:
+                    result['shipping_fee'] = 0.0
+            
+            delivery_match = re.search(r'(\d+)\s*小时发货|(\d+)\s*天内发货|48h?发货|24h?发货', self.html_content)
+            if delivery_match:
+                hours = delivery_match.group(1) or delivery_match.group(2)
+                if hours:
+                    result['estimated_delivery'] = f"{hours}小时发货"
+                else:
+                    result['estimated_delivery'] = delivery_match.group(0)
+            
+            return result
+        except Exception:
+            return result
     
     def extract_shop_info(self) -> Dict[str, Any]:
         """提取店铺数据"""
@@ -227,7 +347,7 @@ class ExtendedDataExtractor:
         if not text:
             return None
         try:
-                return float(text)
+            return float(text)
         except ValueError:
             return None
     

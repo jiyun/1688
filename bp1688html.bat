@@ -1,7 +1,7 @@
 @echo off
 chcp 936 >nul
 set PYTHONDONTWRITEBYTECODE=1
-title ������������HTML�ļ�
+title ���������ǰĿ¼HTML�ļ�
 for %%F in (*.HTML) do (
     echo ���ڴ���: %%F
     call start1688.bat "%%F"

@@ -7,6 +7,8 @@ from tkinter import ttk
 import webbrowser
 
 from gui.utils import create_button
+from gui.context_menu import ContextMenuManager, MenuItem, SEPARATOR
+from config import get_font
 
 
 class ShopProductsTabMixin:
@@ -15,6 +17,7 @@ class ShopProductsTabMixin:
         """初始化店铺商品子选项卡"""
         from utils.column_config import get_column_config
         
+        self._shop_products_menu = ContextMenuManager(self.root)
         self._shop_products_all_columns = {
             'product_id': {'text': '商品ID', 'width': 105, 'anchor': 'center', 'default': True},
             'title': {'text': '商品标题', 'width': 200, 'anchor': 'w', 'default': True},
@@ -51,7 +54,7 @@ class ShopProductsTabMixin:
         filter_frame = ctk.CTkFrame(self.db_shop_products_tab, fg_color="transparent")
         filter_frame.pack(fill="x", padx=5, pady=2)
         
-        ctk.CTkLabel(filter_frame, text="供应商筛选:", font=(self.available_font, self.font_size)).pack(side="left", padx=5)
+        ctk.CTkLabel(filter_frame, text="供应商筛选:", font=get_font(self.available_font, 'base')).pack(side="left", padx=5)
         
         self.supplier_filter_var = ctk.StringVar(value="全部")
         self.supplier_filter_combo = ctk.CTkComboBox(
@@ -310,7 +313,7 @@ class ShopProductsTabMixin:
         ctk.CTkLabel(
             self.supplier_info_frame, 
             text=" | ".join(info_parts),
-            font=(self.available_font, self.font_size_small)
+            font=get_font(self.available_font, 'sm')
         ).pack(side="left", padx=5)
     
 
@@ -428,7 +431,7 @@ class ShopProductsTabMixin:
         product_id = values[0]
         collected = values[7] if len(values) > 7 else "-"
         
-        menu = tk.Menu(self.root, tearoff=0)
+        items = []
         
         main_image = None
         title = product_id
@@ -471,39 +474,42 @@ class ShopProductsTabMixin:
                 
                 photo = ImageTk.PhotoImage(img)
                 
-                preview_menu = tk.Menu(menu, tearoff=0)
-                preview_menu.add_command(
-                    label="点击查看大图",
-                    image=photo,
-                    compound='top',
-                    command=lambda: self._show_image_preview(product_id, thumb_url, self._get_original_image_url(thumb_url), title)
-                )
-                preview_menu.image = photo
-                
-                menu.add_cascade(label="📷 图片预览", menu=preview_menu)
-                menu.add_separator()
+                preview_items = [
+                    MenuItem("点击查看大图",
+                             command=lambda: self._show_image_preview(product_id, thumb_url, self._get_original_image_url(thumb_url), title),
+                             image=photo, compound='top'),
+                ]
+                items.append(MenuItem("📷 图片预览", submenu=preview_items))
+                items.append(SEPARATOR)
+                self._shop_preview_photo = photo
             except Exception as e:
-                menu.add_command(label="📷 图片预览 (加载失败)", state="disabled")
-                menu.add_separator()
+                items.append(MenuItem("📷 图片预览 (加载失败)", state="disabled"))
+                items.append(SEPARATOR)
         
-        menu.add_command(label=f"商品ID: {product_id}", state="disabled")
-        menu.add_separator()
-        menu.add_command(label="打开商品页面", command=lambda: self._open_url(f"https://detail.1688.com/offer/{product_id}.html"))
-        menu.add_command(label="复制商品ID", command=lambda: self._copy_to_clipboard(product_id))
-        menu.add_separator()
+        items.extend([
+            MenuItem(f"商品ID: {product_id}", state="disabled"),
+            SEPARATOR,
+            MenuItem("打开商品页面", command=lambda: self._open_url(f"https://detail.1688.com/offer/{product_id}.html")),
+            MenuItem("复制商品ID", command=lambda: self._copy_to_clipboard(product_id)),
+            SEPARATOR,
+        ])
         
         if collected and collected.startswith("✓"):
-            menu.add_command(label="跳转到商品管理", command=lambda: self._jump_to_product_management(product_id))
-            menu.add_command(label="查看资源详情", command=lambda: self._show_product_resources(product_id))
+            items.extend([
+                MenuItem("跳转到商品管理", command=lambda: self._jump_to_product_management(product_id)),
+                MenuItem("查看资源详情", command=lambda: self._show_product_resources(product_id)),
+            ])
         elif collected == "○":
-            menu.add_command(label="跳转到商品管理", command=lambda: self._jump_to_product_management(product_id))
+            items.append(MenuItem("跳转到商品管理", command=lambda: self._jump_to_product_management(product_id)))
         else:
-            menu.add_command(label="添加到采集队列", command=lambda: self._add_to_collect_queue(product_id))
+            items.append(MenuItem("添加到采集队列", command=lambda: self._add_to_collect_queue(product_id)))
         
-        menu.add_separator()
-        menu.add_command(label="商品分析", command=lambda: self._show_single_product_analysis(product_id, values))
+        items.extend([
+            SEPARATOR,
+            MenuItem("商品分析", command=lambda: self._show_single_product_analysis(product_id, values)),
+        ])
         
-        menu.post(event.x_root, event.y_root)
+        self._shop_products_menu.show(event, items)
     
 
     def _jump_to_product_management(self, product_id):
@@ -543,12 +549,13 @@ class ShopProductsTabMixin:
             dialog = ctk.CTkToplevel(self.root)
             dialog.title(f"资源详情 - {product_id}")
             dialog.geometry("700x400")
+            dialog.minsize(550, 300)
             dialog.transient(self.root)
             
             main_frame = ctk.CTkFrame(dialog)
             main_frame.pack(fill="both", expand=True, padx=10, pady=10)
             
-            info_label = ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}  共 {len(resources)} 条资源", font=(self.available_font, 12, "bold"))
+            info_label = ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}  共 {len(resources)} 条资源", font=get_font(self.available_font, 'lg', 'bold'))
             info_label.pack(pady=5)
             
             columns = ('type', 'name', 'url', 'downloaded', 'size')
@@ -762,13 +769,14 @@ class ShopProductsTabMixin:
         dialog = ctk.CTkToplevel(self.root)
         dialog.title(f"商品分析 - {product_id}")
         dialog.geometry("500x400")
+        dialog.minsize(400, 300)
         dialog.transient(self.root)
         dialog.grab_set()
         
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
-        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", font=(self.available_font, 14, "bold")).pack(anchor="w", pady=5)
+        ctk.CTkLabel(main_frame, text=f"商品ID: {product_id}", font=get_font(self.available_font, 'xl', 'bold')).pack(anchor="w", pady=5)
         
         if len(values) >= 8:
             info_frame = ctk.CTkFrame(main_frame)
@@ -865,12 +873,13 @@ class ShopProductsTabMixin:
         preview_dialog = ctk.CTkToplevel(self.root)
         preview_dialog.title(f"商品图片 - {product_id}")
         preview_dialog.geometry("600x500")
+        preview_dialog.minsize(450, 380)
         preview_dialog.transient(self.root)
         
         main_frame = ctk.CTkFrame(preview_dialog)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        title_label = ctk.CTkLabel(main_frame, text=title[:40] + "..." if len(title) > 40 else title, font=(self.available_font, 12))
+        title_label = ctk.CTkLabel(main_frame, text=title[:40] + "..." if len(title) > 40 else title, font=get_font(self.available_font, 'lg'))
         title_label.pack(pady=5)
         
         image_frame = ctk.CTkFrame(main_frame)
